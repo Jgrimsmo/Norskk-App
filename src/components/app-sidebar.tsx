@@ -14,6 +14,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Smartphone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -65,6 +66,7 @@ const navSections = [
   {
     label: "System",
     items: [
+      { title: "Field View", href: "/field", icon: Smartphone },
       { title: "Settings", href: "/settings", icon: Settings },
     ],
   },
