@@ -1,18 +1,25 @@
 "use client";
 
 import * as React from "react";
-import { Building2, Loader2, Upload, X } from "lucide-react";
+import { Building2, CalendarDays, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { Collections } from "@/lib/firebase/collections";
 import { getById, create, update } from "@/lib/firebase/firestore";
 import { uploadFile } from "@/lib/firebase/storage";
-import type { CompanyProfile } from "@/lib/types/time-tracking";
+import type { CompanyProfile, PayPeriodType } from "@/lib/types/time-tracking";
 
 const BLANK: CompanyProfile = {
   id: "default",
@@ -25,6 +32,8 @@ const BLANK: CompanyProfile = {
   email: "",
   website: "",
   logoUrl: "",
+  payPeriodType: "bi-weekly",
+  payPeriodStartDate: "",
 };
 
 export function CompanyProfileSettings() {
@@ -249,6 +258,53 @@ export function CompanyProfileSettings() {
             className="h-9 text-sm"
           />
         </div>
+      </div>
+
+      <Separator />
+
+      {/* Pay Period */}
+      <div>
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <CalendarDays className="h-4 w-4" />
+          Pay Period
+        </h3>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Configure your company&apos;s pay cycle. This is used to filter time entries by pay period.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Pay Period Type</Label>
+          <Select
+            value={profile.payPeriodType}
+            onValueChange={(v) => updateField("payPeriodType", v as PayPeriodType)}
+          >
+            <SelectTrigger className="h-9 text-sm cursor-pointer">
+              <SelectValue placeholder="Select period type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="bi-weekly">Bi-Weekly</SelectItem>
+              <SelectItem value="semi-monthly">Semi-Monthly (1st & 16th)</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {(profile.payPeriodType === "weekly" || profile.payPeriodType === "bi-weekly") && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Period Start Date</Label>
+            <Input
+              type="date"
+              value={profile.payPeriodStartDate}
+              onChange={(e) => updateField("payPeriodStartDate", e.target.value)}
+              className="h-9 text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Pick any date that falls on the first day of a pay period.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end">

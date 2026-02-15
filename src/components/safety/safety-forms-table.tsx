@@ -9,7 +9,7 @@ import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF } from "@/lib/export/pdf";
+import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
 import { safetyFormCSVColumns, safetyFormPDFColumns, safetyFormPDFRows } from "@/lib/export/columns";
 
 import {
@@ -45,15 +45,7 @@ import { useEmployees, useProjects } from "@/hooks/use-firestore";
 // Helpers
 // ────────────────────────────────────────────
 
-function lookupName(
-  id: string,
-  list: { id: string; name?: string; number?: string }[]
-): string {
-  const item = list.find((i) => i.id === id);
-  if (!item) return "—";
-  if (item.number && item.name) return `${item.number} — ${item.name}`;
-  return item.name ?? "—";
-}
+import { lookupName } from "@/lib/utils/lookup";
 
 const formTypeLabels: Record<SafetyFormType, string> = {
   flha: "FLHA",
@@ -82,7 +74,7 @@ const statusLabels: Record<SafetyFormStatus, string> = {
 
 function newBlankForm(date: string, formType: SafetyFormType): SafetyForm {
   return {
-    id: `sf-new-${Date.now()}`,
+    id: `sf-${crypto.randomUUID().slice(0, 8)}`,
     date,
     formType,
     projectId: "",
@@ -436,12 +428,25 @@ function SafetyExport({ forms, employees, projects }: { forms: SafetyForm[]; emp
     }
   };
 
+  const handlePreview = (config: ExportConfig) =>
+    generatePDFBlobUrl({
+      title: config.title,
+      filename: "preview",
+      company: profile,
+      columns: safetyFormPDFColumns,
+      rows: safetyFormPDFRows(forms, employees, projects),
+      orientation: config.orientation,
+      selectedColumns: config.selectedColumns,
+      groupBy: config.groupBy,
+    });
+
   return (
     <ExportDialog
       columns={SAFETY_EXPORT_COLUMNS}
       groupOptions={SAFETY_GROUP_OPTIONS}
       defaultTitle="Safety Forms (FLHA)"
       onExport={handleExport}
+      onGeneratePDFPreview={handlePreview}
       disabled={forms.length === 0}
       recordCount={forms.length}
     />

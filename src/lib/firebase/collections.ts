@@ -14,3 +14,6 @@ export const Collections = {
   DAILY_REPORTS: "dailyReports",
   COMPANY_PROFILE: "companyProfile",
 } as const;
+
+/** Sentinel equipment ID representing "no equipment". */
+export const EQUIPMENT_NONE_ID = "eq-none";

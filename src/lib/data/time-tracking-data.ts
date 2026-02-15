@@ -11,6 +11,7 @@ import {
   DailyReport,
 } from "@/lib/types/time-tracking";
 import { defaultHazards, defaultPPE } from "@/lib/data/flha-defaults";
+import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 
 // --- Employees ---
 export const employees: Employee[] = [
@@ -95,7 +96,7 @@ export const equipment: Equipment[] = [
   { id: "eq-5", name: "Dump Truck 10-yd", number: "EQ-005", category: "Truck", status: "maintenance" },
   { id: "eq-6", name: "Crane 50-ton", number: "EQ-006", category: "Crane", status: "in-use" },
   { id: "eq-7", name: "Forklift 5K", number: "EQ-007", category: "Forklift", status: "available" },
-  { id: "eq-none", name: "None", number: "—", category: "—", status: "available" },
+  { id: EQUIPMENT_NONE_ID, name: "None", number: "—", category: "—", status: "available" },
 ];
 
 // --- Sample Time Entries (current week) ---
@@ -167,7 +168,7 @@ export const sampleTimeEntries: TimeEntry[] = [
     employeeId: "emp-3",
     projectId: "proj-2",
     costCodeId: "cc-6",
-    equipmentId: "eq-none",
+    equipmentId: EQUIPMENT_NONE_ID,
     attachmentId: "",
     toolId: "tl-3",
     workType: "tm",
@@ -195,7 +196,7 @@ export const sampleTimeEntries: TimeEntry[] = [
     employeeId: "emp-5",
     projectId: "proj-4",
     costCodeId: "cc-3",
-    equipmentId: "eq-none",
+    equipmentId: EQUIPMENT_NONE_ID,
     attachmentId: "",
     toolId: "tl-1",
     workType: "tm",
@@ -209,7 +210,7 @@ export const sampleTimeEntries: TimeEntry[] = [
     employeeId: "emp-6",
     projectId: "proj-5",
     costCodeId: "cc-7",
-    equipmentId: "eq-none",
+    equipmentId: EQUIPMENT_NONE_ID,
     attachmentId: "",
     toolId: "",
     workType: "lump-sum",
@@ -237,7 +238,7 @@ export const sampleTimeEntries: TimeEntry[] = [
     employeeId: "emp-8",
     projectId: "proj-1",
     costCodeId: "cc-8",
-    equipmentId: "eq-none",
+    equipmentId: EQUIPMENT_NONE_ID,
     attachmentId: "",
     toolId: "tl-7",
     workType: "lump-sum",
@@ -720,7 +721,7 @@ export const sampleDailyReports: DailyReport[] = [
         description: "Light rain starting at 2:00 PM delayed concrete finishing operations. Crew deployed tarps and waited for break in rain.",
         durationHours: 1.5,
         responsibleParty: "N/A — Weather",
-        schedulImpact: false,
+        scheduleImpact: false,
       },
     ],
     materialDeliveries: [
@@ -796,7 +797,7 @@ export const sampleDailyReports: DailyReport[] = [
         description: "Short on 2x6 studs for exterior walls. Partial delivery only. Full shipment expected Wednesday.",
         durationHours: 0,
         responsibleParty: "ABC Lumber Supply",
-        schedulImpact: false,
+        scheduleImpact: false,
       },
     ],
     materialDeliveries: [],

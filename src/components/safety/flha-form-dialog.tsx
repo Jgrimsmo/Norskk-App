@@ -25,11 +25,7 @@ import {
 import {
   ShieldCheck,
   HardHat,
-  Users,
   ClipboardCheck,
-  AlertTriangle,
-  Plus,
-  Trash2,
 } from "lucide-react";
 
 import { SignaturePad } from "@/components/safety/signature-pad";
@@ -38,7 +34,6 @@ import {
   type SafetyForm,
   type FLHAData,
   type HazardItem,
-  type HazardRating,
   type PPEItem,
   type CheckValue,
   type CrewMember,
@@ -46,59 +41,11 @@ import {
 import { useEmployees, useProjects } from "@/hooks/use-firestore";
 import { defaultHazards, defaultPPE } from "@/lib/data/flha-defaults";
 import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
-
-// ────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────
-
-const ratingColors: Record<HazardRating, string> = {
-  low: "bg-green-100 text-green-800 border-green-300",
-  medium: "bg-yellow-100 text-yellow-800 border-yellow-300",
-  high: "bg-red-100 text-red-800 border-red-300",
-  na: "bg-gray-100 text-gray-500 border-gray-200",
-};
-
-const checkLabels: Record<CheckValue, string> = {
-  yes: "Yes",
-  no: "No",
-  na: "N/A",
-};
-
-function groupBy<T>(arr: T[], key: (item: T) => string): Record<string, T[]> {
-  return arr.reduce(
-    (acc, item) => {
-      const k = key(item);
-      (acc[k] ||= []).push(item);
-      return acc;
-    },
-    {} as Record<string, T[]>
-  );
-}
-
-// ────────────────────────────────────────────
-// Section header
-// ────────────────────────────────────────────
-
-function SectionHeader({
-  icon: Icon,
-  number,
-  title,
-}: {
-  icon: React.ElementType;
-  number: number;
-  title: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 mb-3">
-      <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary">
-        <Icon className="h-3.5 w-3.5" />
-      </div>
-      <h3 className="text-sm font-semibold text-foreground">
-        Section {number} — {title}
-      </h3>
-    </div>
-  );
-}
+import {
+  SectionHeader,
+  HazardIdentificationSection,
+  CrewAcknowledgmentSection,
+} from "./flha-sections";
 
 // ────────────────────────────────────────────
 // Main dialog component
@@ -251,8 +198,6 @@ export function FLHAFormDialog({
     id: e.id,
     label: e.name,
   }));
-
-  const hazardsByCategory = groupBy(flha.hazards, (h) => h.category);
 
   return (
     <Dialog open={open} onOpenChange={(next) => {
@@ -411,141 +356,11 @@ export function FLHAFormDialog({
             <Separator />
 
             {/* ─── SECTION 2: Hazard Identification ─── */}
-            <div>
-              <SectionHeader
-                icon={AlertTriangle}
-                number={2}
-                title="Hazard Identification"
-              />
-              <p className="text-xs text-muted-foreground mb-4">
-                Check each hazard present at the work site. Rate the risk and
-                describe control measures for identified hazards.
-              </p>
-
-              <div className="space-y-5">
-                {Object.entries(hazardsByCategory).map(
-                  ([category, items]) => (
-                    <div key={category}>
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                        {category}
-                      </h4>
-                      <div className="rounded-lg border overflow-hidden">
-                        {/* Header row */}
-                        <div className="grid grid-cols-[1fr_auto_100px_1fr] gap-2 px-3 py-2 bg-muted/40 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                          <span>Hazard</span>
-                          <span className="w-[60px] text-center">Present</span>
-                          <span className="text-center">Risk</span>
-                          <span>Controls</span>
-                        </div>
-                        {items.map((hazard, idx) => (
-                          <div
-                            key={hazard.id}
-                            className={`grid grid-cols-[1fr_auto_100px_1fr] gap-2 px-3 py-2 items-center ${idx > 0 ? "border-t" : ""}`}
-                          >
-                            <span className="text-xs text-foreground">
-                              {hazard.hazard}
-                            </span>
-                            <div className="w-[60px] flex justify-center">
-                              <Checkbox
-                                checked={hazard.identified}
-                                onCheckedChange={(v) =>
-                                  updateHazard(
-                                    hazard.id,
-                                    "identified",
-                                    Boolean(v)
-                                  )
-                                }
-                                disabled={isClosed}
-                                className="cursor-pointer"
-                              />
-                            </div>
-                            <div className="flex justify-center">
-                              {hazard.identified ? (
-                                <Select
-                                  value={hazard.rating}
-                                  onValueChange={(v) =>
-                                    updateHazard(
-                                      hazard.id,
-                                      "rating",
-                                      v as HazardRating
-                                    )
-                                  }
-                                  disabled={isClosed}
-                                >
-                                  <SelectTrigger className="h-7 w-[90px] text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent position="popper">
-                                    <SelectItem
-                                      value="low"
-                                      className="text-xs"
-                                    >
-                                      <Badge
-                                        variant="outline"
-                                        className={`text-[10px] ${ratingColors.low}`}
-                                      >
-                                        Low
-                                      </Badge>
-                                    </SelectItem>
-                                    <SelectItem
-                                      value="medium"
-                                      className="text-xs"
-                                    >
-                                      <Badge
-                                        variant="outline"
-                                        className={`text-[10px] ${ratingColors.medium}`}
-                                      >
-                                        Medium
-                                      </Badge>
-                                    </SelectItem>
-                                    <SelectItem
-                                      value="high"
-                                      className="text-xs"
-                                    >
-                                      <Badge
-                                        variant="outline"
-                                        className={`text-[10px] ${ratingColors.high}`}
-                                      >
-                                        High
-                                      </Badge>
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground">
-                                  —
-                                </span>
-                              )}
-                            </div>
-                            <div>
-                              {hazard.identified ? (
-                                <Input
-                                  value={hazard.controls}
-                                  onChange={(e) =>
-                                    updateHazard(
-                                      hazard.id,
-                                      "controls",
-                                      e.target.value
-                                    )
-                                  }
-                                  disabled={isClosed}
-                                  placeholder="Control measures..."
-                                  className="h-7 text-xs"
-                                />
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground">
-                                  —
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
+            <HazardIdentificationSection
+              hazards={flha.hazards}
+              isClosed={isClosed}
+              onUpdateHazard={updateHazard}
+            />
 
             <Separator />
 
@@ -610,87 +425,15 @@ export function FLHAFormDialog({
             <Separator />
 
             {/* ─── SECTION 5: Crew Acknowledgment ─── */}
-            <div>
-              <SectionHeader
-                icon={Users}
-                number={5}
-                title="Crew Acknowledgment"
-              />
-              <p className="text-xs text-muted-foreground mb-4">
-                Each crew member must be listed and sign to acknowledge they have
-                reviewed this FLHA and understand the hazards and controls.
-              </p>
-
-              <div className="space-y-4">
-                {flha.crewMembers.map((cm, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-lg border p-4 space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Crew Member {idx + 1}
-                      </span>
-                      {!isClosed && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-red-600 cursor-pointer"
-                          onClick={() => removeCrewMember(idx)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                    <Select
-                      value={cm.employeeId}
-                      onValueChange={(v) =>
-                        updateCrewMember(idx, "employeeId", v)
-                      }
-                      disabled={isClosed}
-                    >
-                      <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Select crew member..." />
-                      </SelectTrigger>
-                      <SelectContent position="popper">
-                        {employeeOptions.map((e) => (
-                          <SelectItem
-                            key={e.id}
-                            value={e.id}
-                            className="text-sm"
-                          >
-                            {e.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <SignaturePad
-                      label="Signature"
-                      value={cm.signatureDataUrl}
-                      onChange={(v) =>
-                        updateCrewMember(idx, "signatureDataUrl", v)
-                      }
-                      disabled={isClosed}
-                      storagePath={`safety/${form.id}/crew-${idx}-sig.png`}
-                    />
-                  </div>
-                ))}
-
-                {!isClosed && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs cursor-pointer"
-                    onClick={addCrewMember}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Crew Member
-                  </Button>
-                )}
-              </div>
-            </div>
+            <CrewAcknowledgmentSection
+              crewMembers={flha.crewMembers}
+              isClosed={isClosed}
+              formId={form.id}
+              employeeOptions={employeeOptions}
+              onAdd={addCrewMember}
+              onUpdate={updateCrewMember}
+              onRemove={removeCrewMember}
+            />
 
             <Separator />
 

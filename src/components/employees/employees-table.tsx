@@ -7,7 +7,7 @@ import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF } from "@/lib/export/pdf";
+import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
 import { employeeCSVColumns, employeePDFColumns, employeePDFRows } from "@/lib/export/columns";
 
 import {
@@ -18,14 +18,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { CellInput } from "@/components/shared/cell-input";
+import { CellSelect } from "@/components/shared/cell-select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -51,7 +45,7 @@ const statusLabels: Record<EmployeeStatus, string> = {
 
 function newBlankEmployee(): Employee {
   return {
-    id: `emp-new-${Date.now()}`,
+    id: `emp-${crypto.randomUUID().slice(0, 8)}`,
     name: "",
     role: "",
     phone: "",
@@ -61,73 +55,12 @@ function newBlankEmployee(): Employee {
 }
 
 // ────────────────────────────────────────────
-// Editable cell components
-// ────────────────────────────────────────────
-
-function CellInput({
-  value,
-  onChange,
-  className = "",
-  placeholder = "",
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  className?: string;
-  placeholder?: string;
-}) {
-  return (
-    <Input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={`h-[32px] text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none focus:ring-0 focus:border-primary focus-visible:ring-0 hover:border-muted-foreground/30 ${className}`}
-    />
-  );
-}
-
-function CellSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { id: string; label: string }[];
-  placeholder: string;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-[32px] w-full text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none focus:ring-0 focus:border-primary hover:border-muted-foreground/30 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-40">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent
-        position="popper"
-        sideOffset={0}
-        className="max-h-[240px] min-w-[var(--radix-select-trigger-width)] rounded-sm border shadow-lg"
-      >
-        {options.map((opt) => (
-          <SelectItem
-            key={opt.id}
-            value={opt.id}
-            className="text-xs py-1.5 px-2 cursor-pointer"
-          >
-            {opt.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-// ────────────────────────────────────────────
 // Main table component
 // ────────────────────────────────────────────
 
 interface EmployeesTableProps {
   employees: Employee[];
-  onEmployeesChange: (employees: Employee[]) => void;
+  onEmployeesChange: (employees: Employee[] | ((prev: Employee[]) => Employee[])) => void;
 }
 
 export function EmployeesTable({
@@ -166,23 +99,25 @@ export function EmployeesTable({
   }, [employeeList, roleFilter, statusFilter]);
 
   // ── Mutations ──
-  const updateEmployee = (
-    id: string,
-    field: keyof Employee,
-    value: string
-  ) => {
-    onEmployeesChange(
-      employeeList.map((e) => (e.id === id ? { ...e, [field]: value } : e))
-    );
-  };
+  const updateEmployee = React.useCallback(
+    (id: string, field: keyof Employee, value: string) => {
+      onEmployeesChange((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, [field]: value } : e))
+      );
+    },
+    [onEmployeesChange]
+  );
 
-  const deleteEmployee = (id: string) => {
-    onEmployeesChange(employeeList.filter((emp) => emp.id !== id));
-  };
+  const deleteEmployee = React.useCallback(
+    (id: string) => {
+      onEmployeesChange((prev) => prev.filter((emp) => emp.id !== id));
+    },
+    [onEmployeesChange]
+  );
 
-  const addEmployee = () => {
-    onEmployeesChange([...employeeList, newBlankEmployee()]);
-  };
+  const addEmployee = React.useCallback(() => {
+    onEmployeesChange((prev) => [...prev, newBlankEmployee()]);
+  }, [onEmployeesChange]);
 
   const unlockRow = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -429,12 +364,25 @@ function EmployeesExport({ employees }: { employees: Employee[] }) {
     }
   };
 
+  const handlePreview = (config: ExportConfig) =>
+    generatePDFBlobUrl({
+      title: config.title,
+      filename: "preview",
+      company: profile,
+      columns: employeePDFColumns,
+      rows: employeePDFRows(employees),
+      orientation: config.orientation,
+      selectedColumns: config.selectedColumns,
+      groupBy: config.groupBy,
+    });
+
   return (
     <ExportDialog
       columns={EMPLOYEE_EXPORT_COLUMNS}
       groupOptions={EMPLOYEE_GROUP_OPTIONS}
       defaultTitle="Employees"
       onExport={handleExport}
+      onGeneratePDFPreview={handlePreview}
       disabled={employees.length === 0}
       recordCount={employees.length}
     />

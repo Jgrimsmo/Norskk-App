@@ -20,6 +20,7 @@ import type {
 } from "@/lib/types/time-tracking";
 import type { Column } from "./csv";
 import type { PDFColumn } from "./pdf";
+import { capitalize } from "@/lib/utils/lookup";
 
 // ── Helpers ──
 function lookup<T extends { id: string; name: string }>(
@@ -46,7 +47,7 @@ export function timeEntryColumns(
       header: "Project",
       accessor: (r) => {
         const p = projects.find((x) => x.id === r.projectId);
-        return p ? `${p.number} — ${p.name}` : r.projectId;
+        return p?.name || r.projectId;
       },
     },
     {
@@ -54,7 +55,7 @@ export function timeEntryColumns(
       header: "Cost Code",
       accessor: (r) => {
         const cc = costCodes.find((x) => x.id === r.costCodeId);
-        return cc ? `${cc.code} — ${cc.description}` : r.costCodeId;
+        return cc?.description || r.costCodeId;
       },
     },
     {
@@ -62,7 +63,7 @@ export function timeEntryColumns(
       header: "Equipment",
       accessor: (r) => {
         const e = equipment.find((x) => x.id === r.equipmentId);
-        return e ? `${e.number} — ${e.name}` : r.equipmentId || "";
+        return e?.name || r.equipmentId || "";
       },
     },
     {
@@ -70,7 +71,7 @@ export function timeEntryColumns(
       header: "Attachment",
       accessor: (r) => {
         const a = attachments.find((x) => x.id === r.attachmentId);
-        return a ? `${a.number} — ${a.name}` : r.attachmentId || "";
+        return a?.name || r.attachmentId || "";
       },
     },
     {
@@ -78,7 +79,7 @@ export function timeEntryColumns(
       header: "Tool",
       accessor: (r) => {
         const t = tools.find((x) => x.id === r.toolId);
-        return t ? `${t.number} — ${t.name}` : r.toolId || "";
+        return t?.name || r.toolId || "";
       },
     },
     {
@@ -93,7 +94,7 @@ export function timeEntryColumns(
       id: "approval",
       header: "Approval",
       accessor: (r) =>
-        r.approval.charAt(0).toUpperCase() + r.approval.slice(1),
+        capitalize(r.approval),
     },
   ];
 
@@ -122,15 +123,15 @@ export function timeEntryPDFRows(
     employee: lookup(r.employeeId, employees),
     project: (() => {
       const p = projects.find((x) => x.id === r.projectId);
-      return p ? `${p.number} — ${p.name}` : r.projectId;
+      return p?.name || r.projectId;
     })(),
     costCode: (() => {
       const cc = costCodes.find((x) => x.id === r.costCodeId);
-      return cc ? `${cc.code} — ${cc.description}` : r.costCodeId;
+      return cc?.description || r.costCodeId;
     })(),
     workType: r.workType === "lump-sum" ? "Lump Sum" : "T&M",
     hours: r.hours,
-    approval: r.approval.charAt(0).toUpperCase() + r.approval.slice(1),
+    approval: capitalize(r.approval),
     notes: r.notes || "",
   }));
 }
@@ -141,7 +142,7 @@ export const employeeCSVColumns: Column<Employee>[] = [
   { id: "role", header: "Role", accessor: (r) => r.role },
   { id: "phone", header: "Phone", accessor: (r) => r.phone || "" },
   { id: "email", header: "Email", accessor: (r) => r.email || "" },
-  { id: "status", header: "Status", accessor: (r) => r.status.charAt(0).toUpperCase() + r.status.slice(1) },
+  { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
 ];
 
 export const employeePDFColumns: PDFColumn[] = [
@@ -158,7 +159,7 @@ export function employeePDFRows(data: Employee[]): Record<string, string | numbe
     role: r.role,
     phone: r.phone || "",
     email: r.email || "",
-    status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
+    status: capitalize(r.status),
   }));
 }
 
@@ -169,7 +170,7 @@ export function projectCSVColumns(costCodes: CostCode[]): Column<Project>[] {
     { id: "name", header: "Name", accessor: (r) => r.name },
     { id: "developer", header: "Developer", accessor: (r) => r.developer || "" },
     { id: "address", header: "Address", accessor: (r) => r.address || "" },
-    { id: "status", header: "Status", accessor: (r) => r.status.charAt(0).toUpperCase() + r.status.slice(1) },
+    { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
     {
       id: "costCodes",
       header: "Cost Codes",
@@ -197,7 +198,7 @@ export function projectPDFRows(data: Project[], costCodes: CostCode[]): Record<s
     name: r.name,
     developer: r.developer || "",
     address: r.address || "",
-    status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
+    status: capitalize(r.status),
     costCodes: r.costCodeIds
       .map((id) => costCodes.find((cc) => cc.id === id)?.code)
       .filter(Boolean)
@@ -210,7 +211,7 @@ export const equipmentCSVColumns: Column<Equipment>[] = [
   { id: "number", header: "Number", accessor: (r) => r.number },
   { id: "name", header: "Name", accessor: (r) => r.name },
   { id: "category", header: "Category", accessor: (r) => r.category },
-  { id: "status", header: "Status", accessor: (r) => r.status.charAt(0).toUpperCase() + r.status.slice(1) },
+  { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
 ];
 
 export const equipmentPDFColumns: PDFColumn[] = [
@@ -225,7 +226,7 @@ export function equipmentPDFRows(data: Equipment[]): Record<string, string | num
     number: r.number,
     name: r.name,
     category: r.category,
-    status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
+    status: capitalize(r.status),
   }));
 }
 
@@ -234,7 +235,7 @@ export const attachmentCSVColumns: Column<Attachment>[] = [
   { id: "number", header: "Number", accessor: (r) => r.number },
   { id: "name", header: "Name", accessor: (r) => r.name },
   { id: "category", header: "Category", accessor: (r) => r.category },
-  { id: "status", header: "Status", accessor: (r) => r.status.charAt(0).toUpperCase() + r.status.slice(1) },
+  { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
 ];
 
 export const attachmentPDFColumns: PDFColumn[] = [
@@ -249,7 +250,7 @@ export function attachmentPDFRows(data: Attachment[]): Record<string, string | n
     number: r.number,
     name: r.name,
     category: r.category,
-    status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
+    status: capitalize(r.status),
   }));
 }
 
@@ -258,7 +259,7 @@ export const toolCSVColumns: Column<Tool>[] = [
   { id: "number", header: "Number", accessor: (r) => r.number },
   { id: "name", header: "Name", accessor: (r) => r.name },
   { id: "category", header: "Category", accessor: (r) => r.category },
-  { id: "status", header: "Status", accessor: (r) => r.status.charAt(0).toUpperCase() + r.status.slice(1) },
+  { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
 ];
 
 export const toolPDFColumns: PDFColumn[] = [
@@ -273,7 +274,7 @@ export function toolPDFRows(data: Tool[]): Record<string, string | number>[] {
     number: r.number,
     name: r.name,
     category: r.category,
-    status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
+    status: capitalize(r.status),
   }));
 }
 
@@ -290,12 +291,12 @@ export function safetyFormCSVColumns(
       header: "Project",
       accessor: (r) => {
         const p = projects.find((x) => x.id === r.projectId);
-        return p ? `${p.number} — ${p.name}` : r.projectId;
+        return p?.name || r.projectId;
       },
     },
     { id: "submittedBy", header: "Submitted By", accessor: (r) => lookup(r.submittedById, employees) },
     { id: "title", header: "Title", accessor: (r) => r.title || "" },
-    { id: "status", header: "Status", accessor: (r) => r.status.charAt(0).toUpperCase() + r.status.slice(1) },
+    { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
   ];
 }
 
@@ -318,11 +319,11 @@ export function safetyFormPDFRows(
     type: r.formType.toUpperCase().replace("-", " "),
     project: (() => {
       const p = projects.find((x) => x.id === r.projectId);
-      return p ? `${p.number} — ${p.name}` : r.projectId;
+      return p?.name || r.projectId;
     })(),
     submittedBy: lookup(r.submittedById, employees),
     title: r.title || "",
-    status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
+    status: capitalize(r.status),
   }));
 }
 
@@ -339,7 +340,7 @@ export function dailyReportCSVColumns(
       header: "Project",
       accessor: (r) => {
         const p = projects.find((x) => x.id === r.projectId);
-        return p ? `${p.number} — ${p.name}` : r.projectId;
+        return p?.name || r.projectId;
       },
     },
     { id: "author", header: "Author", accessor: (r) => lookup(r.authorId, employees) },
@@ -357,7 +358,7 @@ export function dailyReportCSVColumns(
     },
     { id: "work", header: "Work Items", accessor: (r) => r.workPerformed.length },
     { id: "delays", header: "Delays", accessor: (r) => r.delays.length },
-    { id: "status", header: "Status", accessor: (r) => r.status.charAt(0).toUpperCase() + r.status.slice(1) },
+    { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
   ];
 }
 
@@ -383,13 +384,13 @@ export function dailyReportPDFRows(
     reportNumber: r.reportNumber,
     project: (() => {
       const p = projects.find((x) => x.id === r.projectId);
-      return p ? `${p.number} — ${p.name}` : r.projectId;
+      return p?.name || r.projectId;
     })(),
     author: lookup(r.authorId, employees),
     weather: `${r.weather.conditions.join(", ")} ${r.weather.temperature}`,
     crew: r.manpower.reduce((sum, m) => sum + m.headcount, 0),
     work: r.workPerformed.length,
     delays: r.delays.length,
-    status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
+    status: capitalize(r.status),
   }));
 }

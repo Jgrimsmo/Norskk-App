@@ -12,7 +12,7 @@ import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF } from "@/lib/export/pdf";
+import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
 import { dailyReportCSVColumns, dailyReportPDFColumns, dailyReportPDFRows } from "@/lib/export/columns";
 import { generateDailyReportPDF } from "@/lib/export/daily-report-pdf";
 
@@ -50,9 +50,8 @@ import type {
 } from "@/lib/types/time-tracking";
 
 // ── Helpers ──
-let idCounter = 200;
 function nextId(): string {
-  return `dr-${++idCounter}`;
+  return `dr-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 import { dailyReportStatusColors as statusColors } from "@/lib/constants/status-colors";
@@ -441,6 +440,18 @@ function DailyReportsExport({ reports, employees, projects }: { reports: DailyRe
     }
   };
 
+  const handlePreview = (config: ExportConfig) =>
+    generatePDFBlobUrl({
+      title: config.title,
+      filename: "preview",
+      company: profile,
+      columns: dailyReportPDFColumns,
+      rows: dailyReportPDFRows(reports, employees, projects),
+      orientation: config.orientation,
+      selectedColumns: config.selectedColumns,
+      groupBy: config.groupBy,
+    });
+
   return (
     <ExportDialog
       columns={DAILY_REPORT_EXPORT_COLUMNS}
@@ -448,6 +459,7 @@ function DailyReportsExport({ reports, employees, projects }: { reports: DailyRe
       defaultTitle="Daily Reports"
       defaultOrientation="landscape"
       onExport={handleExport}
+      onGeneratePDFPreview={handlePreview}
       disabled={reports.length === 0}
       recordCount={reports.length}
     />

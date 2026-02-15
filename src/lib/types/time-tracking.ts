@@ -155,7 +155,7 @@ export interface DelayEntry {
   description: string;
   durationHours: number;
   responsibleParty: string;
-  schedulImpact: boolean;
+  scheduleImpact: boolean;
 }
 
 export interface MaterialDelivery {
@@ -271,6 +271,8 @@ export interface FLHAData {
 }
 
 // ── Settings ────────────────────────────────
+export type PayPeriodType = "weekly" | "bi-weekly" | "semi-monthly" | "monthly";
+
 export interface CompanyProfile {
   id: string; // always "default"
   name: string;
@@ -282,4 +284,8 @@ export interface CompanyProfile {
   email: string;
   website: string;
   logoUrl: string;
+  /** Pay period cadence — defaults to "bi-weekly" */
+  payPeriodType: PayPeriodType;
+  /** Anchor date for weekly / bi-weekly periods (ISO string, e.g. "2026-01-05") */
+  payPeriodStartDate: string;
 }

@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, Lock } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF } from "@/lib/export/pdf";
+import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
 import { projectCSVColumns, projectPDFColumns, projectPDFRows } from "@/lib/export/columns";
 
 import {
@@ -18,14 +18,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { CellInput } from "@/components/shared/cell-input";
+import { CellSelect } from "@/components/shared/cell-select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -60,7 +54,7 @@ const statusLabels: Record<ProjectStatus, string> = {
 
 function newBlankProject(): Project {
   return {
-    id: `proj-new-${Date.now()}`,
+    id: `proj-${crypto.randomUUID().slice(0, 8)}`,
     number: "",
     name: "",
     developer: "",
@@ -68,67 +62,6 @@ function newBlankProject(): Project {
     status: "bidding",
     costCodeIds: [],
   };
-}
-
-// ────────────────────────────────────────────
-// Editable cell components
-// ────────────────────────────────────────────
-
-function CellInput({
-  value,
-  onChange,
-  className = "",
-  placeholder = "",
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  className?: string;
-  placeholder?: string;
-}) {
-  return (
-    <Input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={`h-[32px] text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none focus:ring-0 focus:border-primary focus-visible:ring-0 hover:border-muted-foreground/30 ${className}`}
-    />
-  );
-}
-
-function CellSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { id: string; label: string }[];
-  placeholder: string;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-[32px] w-full text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none focus:ring-0 focus:border-primary hover:border-muted-foreground/30 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-40">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent
-        position="popper"
-        sideOffset={0}
-        className="max-h-[240px] min-w-[var(--radix-select-trigger-width)] rounded-sm border shadow-lg"
-      >
-        {options.map((opt) => (
-          <SelectItem
-            key={opt.id}
-            value={opt.id}
-            className="text-xs py-1.5 px-2 cursor-pointer"
-          >
-            {opt.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
 }
 
 // Cost code multi-select cell
@@ -204,7 +137,7 @@ function CostCodeMultiSelect({
 
 interface ProjectsTableProps {
   projects: Project[];
-  onProjectsChange: (projects: Project[]) => void;
+  onProjectsChange: (projects: Project[] | ((prev: Project[]) => Project[])) => void;
 }
 
 export function ProjectsTable({
@@ -263,23 +196,25 @@ export function ProjectsTable({
   }, [projectList, statusFilter, developerFilter, costCodeFilter]);
 
   // ── Mutations ──
-  const updateProject = (
-    id: string,
-    field: keyof Project,
-    value: string | string[]
-  ) => {
-    onProjectsChange(
-      projectList.map((p) => (p.id === id ? { ...p, [field]: value } : p))
-    );
-  };
+  const updateProject = React.useCallback(
+    (id: string, field: keyof Project, value: string | string[]) => {
+      onProjectsChange((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+      );
+    },
+    [onProjectsChange]
+  );
 
-  const deleteProject = (id: string) => {
-    onProjectsChange(projectList.filter((p) => p.id !== id));
-  };
+  const deleteProject = React.useCallback(
+    (id: string) => {
+      onProjectsChange((prev) => prev.filter((p) => p.id !== id));
+    },
+    [onProjectsChange]
+  );
 
-  const addProject = () => {
-    onProjectsChange([...projectList, newBlankProject()]);
-  };
+  const addProject = React.useCallback(() => {
+    onProjectsChange((prev) => [...prev, newBlankProject()]);
+  }, [onProjectsChange]);
 
   const unlockRow = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -573,12 +508,25 @@ function ProjectsExport({ projects, costCodes }: { projects: Project[]; costCode
     }
   };
 
+  const handlePreview = (config: ExportConfig) =>
+    generatePDFBlobUrl({
+      title: config.title,
+      filename: "preview",
+      company: profile,
+      columns: projectPDFColumns,
+      rows: projectPDFRows(projects, costCodes),
+      orientation: config.orientation,
+      selectedColumns: config.selectedColumns,
+      groupBy: config.groupBy,
+    });
+
   return (
     <ExportDialog
       columns={PROJECT_EXPORT_COLUMNS}
       groupOptions={PROJECT_GROUP_OPTIONS}
       defaultTitle="Projects"
       onExport={handleExport}
+      onGeneratePDFPreview={handlePreview}
       disabled={projects.length === 0}
       recordCount={projects.length}
     />

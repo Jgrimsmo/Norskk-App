@@ -1,17 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { format, parseISO, isWithinInterval } from "date-fns";
-import { DateRange } from "react-day-picker";
+import { format, parseISO } from "date-fns";
 import { Plus, Lock, Pencil } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
+import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
 import { generatePDF } from "@/lib/export/pdf";
 import { timeEntryColumns, timeEntryPDFRows } from "@/lib/export/columns";
-import { generateTimeTrackingReport } from "@/lib/export/time-tracking-report";
+import { generateTimeTrackingReport, generateTimeTrackingReportBlobUrl } from "@/lib/export/time-tracking-report";
 
 import {
   Table,
@@ -21,14 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { CellInput } from "@/components/shared/cell-input";
+import { CellSelect } from "@/components/shared/cell-select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -38,7 +32,6 @@ import {
 } from "@/components/ui/tooltip";
 
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
-import { DateColumnFilter } from "@/components/time-tracking/date-column-filter";
 
 import {
   type TimeEntry,
@@ -57,12 +50,7 @@ import {
 // ────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────
-function lookupName(id: string, list: { id: string; name?: string; code?: string; description?: string }[]): string {
-  const item = list.find((i) => i.id === id);
-  if (!item) return "—";
-  if ("code" in item && item.code) return `${item.code} — ${item.description}`;
-  return item.name ?? "—";
-}
+import { lookupName } from "@/lib/utils/lookup";
 
 const approvalColors: Record<ApprovalStatus, string> = {
   pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -77,12 +65,12 @@ const workTypeLabels: Record<WorkType, string> = {
 
 function newBlankEntry(date: string): TimeEntry {
   return {
-    id: `te-new-${Date.now()}`,
+    id: `te-${crypto.randomUUID().slice(0, 8)}`,
     date,
     employeeId: "",
     projectId: "",
     costCodeId: "",
-    equipmentId: "eq-none",
+    equipmentId: EQUIPMENT_NONE_ID,
     attachmentId: "",
     toolId: "",
     workType: "lump-sum",
@@ -93,62 +81,11 @@ function newBlankEntry(date: string): TimeEntry {
 }
 
 // ────────────────────────────────────────────
-// Editable cell components
-// ────────────────────────────────────────────
-function CellSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { id: string; label: string }[];
-  placeholder: string;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-[32px] w-full text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none focus:ring-0 focus:border-primary hover:border-muted-foreground/30 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-40">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent position="popper" sideOffset={0} className="max-h-[240px] min-w-[var(--radix-select-trigger-width)] rounded-sm border shadow-lg">
-        {options.map((opt) => (
-          <SelectItem key={opt.id} value={opt.id} className="text-xs py-1.5 px-2 cursor-pointer">
-            {opt.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-function CellInput({
-  value,
-  onChange,
-  type = "text",
-  className = "",
-}: {
-  value: string | number;
-  onChange: (v: string) => void;
-  type?: string;
-  className?: string;
-}) {
-  return (
-    <Input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`h-[32px] text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none focus:ring-0 focus:border-primary focus-visible:ring-0 hover:border-muted-foreground/30 ${className}`}
-    />
-  );
-}
-
-// ────────────────────────────────────────────
 // Main table component
 // ────────────────────────────────────────────
 interface TimeTrackingTableProps {
   entries: TimeEntry[];
-  onEntriesChange: (entries: TimeEntry[]) => void;
+  onEntriesChange: (entries: TimeEntry[] | ((prev: TimeEntry[]) => TimeEntry[])) => void;
 }
 
 export function TimeTrackingTable({
@@ -165,7 +102,6 @@ export function TimeTrackingTable({
   const [unlockedIds, setUnlockedIds] = React.useState<Set<string>>(new Set());
 
   // ── Filter state ──
-  const [dateFilter, setDateFilter] = React.useState<DateRange | undefined>(undefined);
   const [employeeFilter, setEmployeeFilter] = React.useState<Set<string>>(new Set());
   const [projectFilter, setProjectFilter] = React.useState<Set<string>>(new Set());
   const [costCodeFilter, setCostCodeFilter] = React.useState<Set<string>>(new Set());
@@ -179,28 +115,30 @@ export function TimeTrackingTable({
   const employeeOptions = employees.map((e) => ({ id: e.id, label: e.name }));
   const projectOptions = projects.map((p) => ({
     id: p.id,
-    label: `${p.number} — ${p.name}`,
+    label: p.name,
   }));
   const costCodeOptions = costCodes.map((c) => ({
     id: c.id,
-    label: `${c.code} — ${c.description}`,
+    label: c.description,
   }));
-  const equipmentOptions = equipment.map((e) => ({
-    id: e.id,
-    label: e.name === "None" ? "None" : `${e.number} — ${e.name}`,
-  }));
+  const equipmentOptions = [
+    { id: EQUIPMENT_NONE_ID, label: "None" },
+    ...equipment
+      .filter((e) => e.id !== EQUIPMENT_NONE_ID)
+      .map((e) => ({ id: e.id, label: e.name })),
+  ];
   const attachmentOptions = [
     { id: "none", label: "None" },
     ...attachments.map((a) => ({
       id: a.id,
-      label: `${a.number} — ${a.name}`,
+      label: a.name,
     })),
   ];
   const toolOptions = [
     { id: "none", label: "None" },
     ...tools.map((t) => ({
       id: t.id,
-      label: `${t.number} — ${t.name}`,
+      label: t.name,
     })),
   ];
   const workTypeOptions = [
@@ -216,10 +154,6 @@ export function TimeTrackingTable({
   // ── Filtered entries ──
   const filteredEntries = React.useMemo(() => {
     return entries.filter((entry) => {
-      if (dateFilter?.from && dateFilter?.to) {
-        const d = parseISO(entry.date);
-        if (!isWithinInterval(d, { start: dateFilter.from, end: dateFilter.to })) return false;
-      }
       if (employeeFilter.size > 0 && !employeeFilter.has(entry.employeeId)) return false;
       if (projectFilter.size > 0 && !projectFilter.has(entry.projectId)) return false;
       if (costCodeFilter.size > 0 && !costCodeFilter.has(entry.costCodeId)) return false;
@@ -230,24 +164,27 @@ export function TimeTrackingTable({
       if (approvalFilter.size > 0 && !approvalFilter.has(entry.approval)) return false;
       return true;
     });
-  }, [entries, dateFilter, employeeFilter, projectFilter, costCodeFilter, equipmentFilter, attachmentFilter, toolFilter, workTypeFilter, approvalFilter]);
+  }, [entries, employeeFilter, projectFilter, costCodeFilter, equipmentFilter, attachmentFilter, toolFilter, workTypeFilter, approvalFilter]);
 
   // ── Update a field directly (instant save) ──
-  const updateEntry = (id: string, field: keyof TimeEntry, value: string | number) => {
-    onEntriesChange(
-      entries.map((e) =>
-        e.id === id ? { ...e, [field]: value } : e
-      )
-    );
-    // If approval changed away from approved, auto-lock again
-    if (field === "approval" && value !== "approved") {
-      setUnlockedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }
-  };
+  const updateEntry = React.useCallback(
+    (id: string, field: keyof TimeEntry, value: string | number) => {
+      onEntriesChange((prev) =>
+        prev.map((e) =>
+          e.id === id ? { ...e, [field]: value } : e
+        )
+      );
+      // If approval changed away from approved, auto-lock again
+      if (field === "approval" && value !== "approved") {
+        setUnlockedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [onEntriesChange]
+  );
 
   // ── Unlock an approved row for editing ──
   const unlockRow = (id: string, e: React.MouseEvent) => {
@@ -256,16 +193,19 @@ export function TimeTrackingTable({
   };
 
   // ── Delete row ──
-  const deleteRow = (id: string) => {
-    onEntriesChange(entries.filter((entry) => entry.id !== id));
-  };
+  const deleteRow = React.useCallback(
+    (id: string) => {
+      onEntriesChange((prev) => prev.filter((entry) => entry.id !== id));
+    },
+    [onEntriesChange]
+  );
 
   // ── Add new row ──
-  const addRow = () => {
+  const addRow = React.useCallback(() => {
     const today = new Date().toISOString().split("T")[0];
     const entry = newBlankEntry(today);
-    onEntriesChange([...entries, entry]);
-  };
+    onEntriesChange((prev) => [...prev, entry]);
+  }, [onEntriesChange]);
 
   return (
     <div className="space-y-3">
@@ -296,9 +236,7 @@ export function TimeTrackingTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[120px] text-xs font-semibold px-3">
-                  <DateColumnFilter dateRange={dateFilter} onDateRangeChange={setDateFilter} />
-                </TableHead>
+                <TableHead className="w-[120px] text-xs font-semibold px-3">Date</TableHead>
                 <TableHead className="w-[160px] text-xs font-semibold px-3">
                   <ColumnFilter title="Employee" options={employeeOptions} selected={employeeFilter} onChange={setEmployeeFilter} />
                 </TableHead>
@@ -461,11 +399,9 @@ export function TimeTrackingTable({
                       {isApproved ? (
                         <span className="text-xs font-medium text-muted-foreground">{entry.hours}</span>
                       ) : (
-                        <CellInput
-                          type="number"
+                        <HoursInput
                           value={entry.hours}
-                          onChange={(v) => updateEntry(entry.id, "hours", parseFloat(v) || 0)}
-                          className="w-full"
+                          onChange={(v) => updateEntry(entry.id, "hours", v)}
                         />
                       )}
                     </TableCell>
@@ -510,13 +446,13 @@ export function TimeTrackingTable({
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
                       {isApproved ? (
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-0.5">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                                 onClick={(e) => unlockRow(entry.id, e)}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
@@ -528,7 +464,7 @@ export function TimeTrackingTable({
                           </Tooltip>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-center">
                           <DeleteConfirmButton
                             onConfirm={() => deleteRow(entry.id)}
                             itemLabel="this time entry"
@@ -554,6 +490,50 @@ export function TimeTrackingTable({
     </div>
   );
 }
+
+// ── Hours input (allows clearing, commits on blur) ──
+const HoursInput = React.memo(function HoursInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const [text, setText] = React.useState(value === 0 ? "" : String(value));
+
+  // Sync when external value changes (e.g. undo, data reload)
+  React.useEffect(() => {
+    setText(value === 0 ? "" : String(value));
+  }, [value]);
+
+  const commit = () => {
+    const n = parseFloat(text);
+    onChange(isNaN(n) ? 0 : n);
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onChange={(e) => {
+        // Allow digits, one decimal point, and empty string
+        const v = e.target.value;
+        if (v === "" || /^\d*\.?\d*$/.test(v)) {
+          setText(v);
+        }
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          commit();
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      className="h-[32px] w-full text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none outline-none focus:border-primary hover:border-muted-foreground/30"
+    />
+  );
+});
 
 // ── Export sub-component ──
 const TIME_EXPORT_COLUMNS: ExportColumnDef[] = [
@@ -628,6 +608,19 @@ function TimeTrackingExport({
     }
   };
 
+  const handlePreview = (config: ExportConfig) =>
+    generateTimeTrackingReportBlobUrl({
+      entries,
+      employees: employees as never[],
+      projects: projects as never[],
+      costCodes: costCodes as never[],
+      company: profile,
+      selectedColumns: config.selectedColumns,
+      groupBy: config.groupBy,
+      title: config.title,
+      orientation: config.orientation,
+    });
+
   return (
     <ExportDialog
       columns={TIME_EXPORT_COLUMNS}
@@ -635,6 +628,7 @@ function TimeTrackingExport({
       defaultTitle="Time Tracking Report"
       defaultOrientation="landscape"
       onExport={handleExport}
+      onGeneratePDFPreview={handlePreview}
       disabled={entries.length === 0}
       recordCount={entries.length}
     />

@@ -35,7 +35,7 @@ export function DeleteConfirmButton({
           aria-label={`Delete ${itemLabel}`}
           onClick={(e) => e.stopPropagation()}
         >
-          <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+          <Trash2 className="h-3 w-3 text-red-400 hover:text-destructive" />
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent onClick={(e) => e.stopPropagation()}>

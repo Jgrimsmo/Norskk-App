@@ -32,19 +32,12 @@ import {
   useDailyReports,
 } from "@/hooks/use-firestore";
 
-function lookupName(id: string, list: { id: string; name?: string }[]): string {
-  return list.find((i) => i.id === id)?.name ?? "—";
-}
+import { lookupName } from "@/lib/utils/lookup";
+import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 
 export function GlobalSearch() {
   const [open, setOpen] = React.useState(false);
   const router = useRouter();
-
-  const { data: employees } = useEmployees();
-  const { data: projects } = useProjects();
-  const { data: equipment } = useEquipment();
-  const { data: safetyForms } = useSafetyForms();
-  const { data: dailyReports } = useDailyReports();
 
   // Cmd+K / Ctrl+K keyboard shortcut
   React.useEffect(() => {
@@ -74,7 +67,7 @@ export function GlobalSearch() {
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
 
-        {/* Quick navigation */}
+        {/* Quick navigation — always available, no subscriptions needed */}
         <CommandGroup heading="Pages">
           <CommandItem onSelect={() => navigate("/")}>
             <LayoutDashboard className="mr-2 h-4 w-4" />
@@ -114,7 +107,28 @@ export function GlobalSearch() {
           </CommandItem>
         </CommandGroup>
 
-        <CommandSeparator />
+        {/* Data-driven search results — only subscribes when dialog is open */}
+        {open && <SearchResults navigate={navigate} />}
+      </CommandList>
+    </CommandDialog>
+  );
+}
+
+/**
+ * Data-driven search results that subscribe to Firestore collections.
+ * Only mounts when the command dialog is open, so subscriptions
+ * are created on-demand and cleaned up when the dialog closes.
+ */
+function SearchResults({ navigate }: { navigate: (path: string) => void }) {
+  const { data: employees } = useEmployees();
+  const { data: projects } = useProjects();
+  const { data: equipment } = useEquipment();
+  const { data: safetyForms } = useSafetyForms();
+  const { data: dailyReports } = useDailyReports();
+
+  return (
+    <>
+      <CommandSeparator />
 
         {/* Employees */}
         {employees.length > 0 && (
@@ -163,10 +177,10 @@ export function GlobalSearch() {
         <CommandSeparator />
 
         {/* Equipment */}
-        {equipment.filter((e) => e.id !== "eq-none").length > 0 && (
+        {equipment.filter((e) => e.id !== EQUIPMENT_NONE_ID).length > 0 && (
           <CommandGroup heading="Equipment">
             {equipment
-              .filter((e) => e.id !== "eq-none")
+              .filter((e) => e.id !== EQUIPMENT_NONE_ID)
               .map((eq) => (
                 <CommandItem
                   key={eq.id}
@@ -235,7 +249,6 @@ export function GlobalSearch() {
             })}
           </CommandGroup>
         )}
-      </CommandList>
-    </CommandDialog>
-  );
+      </>
+    );
 }

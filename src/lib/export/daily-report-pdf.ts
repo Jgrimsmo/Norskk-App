@@ -8,6 +8,7 @@
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { capitalize } from "@/lib/utils/lookup";
 import type {
   DailyReport,
   Employee,
@@ -55,7 +56,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
 
   const project = projects.find((p) => p.id === report.projectId);
   const author = employees.find((e) => e.id === report.authorId);
-  const projectLabel = project ? `${project.number} — ${project.name}` : report.projectId;
+  const projectLabel = project?.name || report.projectId;
   const reportFilename = filename || `daily-report-${report.reportNumber}-${report.date}`;
 
   // ── Header ──
@@ -77,7 +78,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
   const infoRows = [
     ["Project:", projectLabel],
     ["Author:", author?.name || report.authorId],
-    ["Status:", report.status.charAt(0).toUpperCase() + report.status.slice(1)],
+    ["Status:", capitalize(report.status)],
     ["Date:", report.date],
   ];
 
@@ -160,7 +161,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
       body: report.equipmentLog.map((e) => {
         const eq = equipment.find((x) => x.id === e.equipmentId);
         return [
-          eq ? `${eq.number} — ${eq.name}` : e.equipmentId,
+          eq?.name || e.equipmentId,
           String(e.hoursUsed),
           String(e.idleHours),
           e.operatorName || "—",
@@ -217,7 +218,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
         d.description,
         String(d.durationHours),
         d.responsibleParty || "—",
-        d.schedulImpact ? "Yes" : "No",
+        d.scheduleImpact ? "Yes" : "No",
       ]),
       headStyles: { fillColor: C.primary, textColor: C.white, fontStyle: "bold", fontSize: 7, cellPadding: 2 },
       bodyStyles: { fontSize: 7, cellPadding: 2, textColor: C.dark },

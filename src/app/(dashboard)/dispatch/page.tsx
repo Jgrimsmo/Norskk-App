@@ -2,8 +2,8 @@ import DispatchBoard from "@/components/dispatch/dispatch-board";
 
 export default function DispatchPage() {
   return (
-    <div className="space-y-4 h-[calc(100vh-8rem)]">
-      <div>
+    <div className="flex flex-col h-[calc(100vh-8rem)]">
+      <div className="shrink-0 pb-4">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Dispatch
         </h1>
@@ -12,7 +12,9 @@ export default function DispatchPage() {
         </p>
       </div>
 
-      <DispatchBoard />
+      <div className="flex-1 min-h-0">
+        <DispatchBoard />
+      </div>
     </div>
   );
 }

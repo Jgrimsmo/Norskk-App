@@ -47,13 +47,13 @@ export interface PDFReportOptions {
 }
 
 /**
- * Generate and download a professional PDF report.
+ * Build a jsPDF document from the given options (without saving).
+ * Returns the doc so callers can save or convert to blob.
  */
-export async function generatePDF(options: PDFReportOptions) {
+export async function buildPDFDoc(options: PDFReportOptions): Promise<jsPDF> {
   const {
     title,
     subtitle,
-    filename,
     company,
     orientation = "portrait",
     columns: allColumns,
@@ -253,7 +253,24 @@ export async function generatePDF(options: PDFReportOptions) {
   // ── Footer on last page ──
   drawFooter(doc, company, footerNote, pageWidth, pageHeight);
 
-  doc.save(`${filename}.pdf`);
+  return doc;
+}
+
+/**
+ * Generate and download a professional PDF report.
+ */
+export async function generatePDF(options: PDFReportOptions) {
+  const doc = await buildPDFDoc(options);
+  doc.save(`${options.filename}.pdf`);
+}
+
+/**
+ * Generate a PDF and return a blob URL for preview.
+ */
+export async function generatePDFBlobUrl(options: PDFReportOptions): Promise<string> {
+  const doc = await buildPDFDoc(options);
+  const blob = doc.output("blob");
+  return URL.createObjectURL(blob);
 }
 
 // ── Header with optional logo ──

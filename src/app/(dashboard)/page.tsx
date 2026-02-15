@@ -33,15 +33,8 @@ import {
 import type { ProjectStatus } from "@/lib/types/time-tracking";
 
 // ── Helpers ──
-function lookupName(
-  id: string,
-  list: { id: string; name?: string; code?: string; description?: string }[]
-): string {
-  const item = list.find((i) => i.id === id);
-  if (!item) return "—";
-  if ("code" in item && item.code) return `${item.code} — ${item.description}`;
-  return item.name ?? "—";
-}
+import { lookupName } from "@/lib/utils/lookup";
+import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 
 import { projectStatusColors, safetyStatusColors } from "@/lib/constants/status-colors";
 
@@ -118,8 +111,8 @@ export default function DashboardPage() {
   const pendingApprovals = filteredTimeEntries.filter((e) => e.approval === "pending").length;
   const activeProjects = projects.filter((p) => p.status === "active").length;
   const activeEmployees = employees.filter((e) => e.status === "active").length;
-  const equipmentInUse = equipment.filter((e) => e.status === "in-use" && e.id !== "eq-none").length;
-  const equipmentAvailable = equipment.filter((e) => e.status === "available" && e.id !== "eq-none").length;
+  const equipmentInUse = equipment.filter((e) => e.status === "in-use" && e.id !== EQUIPMENT_NONE_ID).length;
+  const equipmentAvailable = equipment.filter((e) => e.status === "available" && e.id !== EQUIPMENT_NONE_ID).length;
   const openSafetyForms = filteredSafetyForms.filter((f) => f.status === "draft" || f.status === "submitted").length;
   const incidentCount = filteredSafetyForms.filter(
     (f) => f.formType === "incident-report" || f.formType === "near-miss"

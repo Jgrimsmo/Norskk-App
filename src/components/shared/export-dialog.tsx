@@ -9,6 +9,9 @@ import {
   ChevronDown,
   ChevronUp,
   GripVertical,
+  ArrowLeft,
+  Loader2,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,8 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 // ── Types ──
 
@@ -74,6 +77,8 @@ interface ExportDialogProps {
   defaultOrientation?: "portrait" | "landscape";
   /** Callback when user clicks export */
   onExport: (config: ExportConfig) => void;
+  /** Callback to generate a PDF blob URL for preview (if provided, PDF button shows preview first) */
+  onGeneratePDFPreview?: (config: ExportConfig) => Promise<string>;
   /** Disable the trigger button */
   disabled?: boolean;
   /** Number of records being exported */
@@ -86,6 +91,7 @@ export function ExportDialog({
   defaultTitle,
   defaultOrientation = "portrait",
   onExport,
+  onGeneratePDFPreview,
   disabled,
   recordCount,
 }: ExportDialogProps) {
@@ -105,6 +111,18 @@ export function ExportDialog({
   const [title, setTitle] = React.useState(defaultTitle);
   const [showAdvanced, setShowAdvanced] = React.useState(false);
 
+  // ── PDF Preview State ──
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = React.useState(false);
+  const previewConfigRef = React.useRef<ExportConfig | null>(null);
+
+  // Cleanup blob URL on unmount or when preview closes
+  React.useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   // Reset on open
   React.useEffect(() => {
     if (open) {
@@ -115,6 +133,10 @@ export function ExportDialog({
       setGroupBy("none");
       setOrientation(defaultOrientation);
       setTitle(defaultTitle);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      setPreviewLoading(false);
+      previewConfigRef.current = null;
     }
   }, [open, columns, defaultTitle, defaultOrientation]);
 
@@ -155,14 +177,47 @@ export function ExportDialog({
 
   const handleExport = (format: "excel" | "csv" | "pdf") => {
     const orderedSelected = columnOrder.filter((id) => selectedColumns.has(id));
-    onExport({
+    const config: ExportConfig = {
       selectedColumns: orderedSelected,
       groupBy,
       orientation,
       title,
       format,
-    });
+    };
+
+    if (format === "pdf" && onGeneratePDFPreview) {
+      // Show preview instead of downloading directly
+      setPreviewLoading(true);
+      previewConfigRef.current = config;
+      onGeneratePDFPreview(config)
+        .then((url) => {
+          setPreviewUrl(url);
+        })
+        .catch((err) => {
+          console.error("PDF preview failed:", err);
+          // Fallback to direct download
+          onExport(config);
+          setOpen(false);
+        })
+        .finally(() => setPreviewLoading(false));
+      return;
+    }
+
+    onExport(config);
     setOpen(false);
+  };
+
+  const handleDownloadFromPreview = () => {
+    if (previewConfigRef.current) {
+      onExport(previewConfigRef.current);
+    }
+    setOpen(false);
+  };
+
+  const handleBackToSettings = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    previewConfigRef.current = null;
   };
 
   const orderedColumns = columnOrder
@@ -183,8 +238,55 @@ export function ExportDialog({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[520px] max-h-[90vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className={cn(
+        "flex flex-col overflow-hidden",
+        previewUrl
+          ? "sm:max-w-[900px] h-[90vh]"
+          : "sm:max-w-[700px] max-h-[85vh]"
+      )}>
+        {/* ── PDF Preview View ── */}
+        {previewUrl ? (
+          <>
+            <DialogHeader className="shrink-0">
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                PDF Preview
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="flex-1 min-h-0 rounded-md border overflow-hidden">
+              <iframe
+                src={previewUrl}
+                className="w-full h-full"
+                title="PDF Preview"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 cursor-pointer"
+                onClick={handleBackToSettings}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+              <div className="flex-1" />
+              <Button
+                className="gap-2 cursor-pointer bg-red-700 hover:bg-red-800 text-white"
+                size="sm"
+                onClick={handleDownloadFromPreview}
+              >
+                <Download className="h-4 w-4" />
+                Download PDF
+              </Button>
+            </div>
+          </>
+        ) : (
+        /* ── Settings View ── */
+        <>
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5" />
             Export Settings
@@ -196,7 +298,7 @@ export function ExportDialog({
           )}
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-1">
           {/* ── Report Title ── */}
           <div className="space-y-1.5">
             <Label htmlFor="export-title" className="text-xs font-medium">
@@ -232,7 +334,7 @@ export function ExportDialog({
           )}
 
           {/* ── Columns ── */}
-          <div className="space-y-1.5 flex-1 overflow-hidden flex flex-col">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium">
                 Columns ({selectedColumns.size} of {columns.length})
@@ -257,50 +359,48 @@ export function ExportDialog({
               </div>
             </div>
 
-            <ScrollArea className="flex-1 max-h-[200px] rounded-md border p-2">
-              <div className="space-y-1">
-                {orderedColumns.map((col, idx) => (
-                  <div
-                    key={col.id}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 group"
+            <div className="rounded-md border p-2 space-y-1">
+              {orderedColumns.map((col, idx) => (
+                <div
+                  key={col.id}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 group"
+                >
+                  <Checkbox
+                    id={`col-${col.id}`}
+                    checked={selectedColumns.has(col.id)}
+                    onCheckedChange={() => toggleColumn(col.id)}
+                    className="cursor-pointer"
+                  />
+                  <Label
+                    htmlFor={`col-${col.id}`}
+                    className="flex-1 text-sm cursor-pointer select-none"
                   >
-                    <Checkbox
-                      id={`col-${col.id}`}
-                      checked={selectedColumns.has(col.id)}
-                      onCheckedChange={() => toggleColumn(col.id)}
-                      className="cursor-pointer"
-                    />
-                    <Label
-                      htmlFor={`col-${col.id}`}
-                      className="flex-1 text-sm cursor-pointer select-none"
+                    {col.header}
+                  </Label>
+                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0"
+                      onClick={() => moveColumn(col.id, "up")}
+                      disabled={idx === 0}
                     >
-                      {col.header}
-                    </Label>
-                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0"
-                        onClick={() => moveColumn(col.id, "up")}
-                        disabled={idx === 0}
-                      >
-                        <ChevronUp className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0"
-                        onClick={() => moveColumn(col.id, "down")}
-                        disabled={idx === orderedColumns.length - 1}
-                      >
-                        <ChevronDown className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40" />
+                      <ChevronUp className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0"
+                      onClick={() => moveColumn(col.id, "down")}
+                      disabled={idx === orderedColumns.length - 1}
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
+                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40" />
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* ── Advanced Settings (collapsible) ── */}
@@ -337,37 +437,44 @@ export function ExportDialog({
               </div>
             </div>
           )}
-
-          <Separator />
-
-          {/* ── Export Buttons ── */}
-          <div className="flex items-center gap-2">
-            <Button
-              className="flex-1 gap-2 cursor-pointer bg-green-700 hover:bg-green-800 text-white"
-              size="sm"
-              onClick={() => handleExport("excel")}
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel
-            </Button>
-            <Button
-              className="flex-1 gap-2 cursor-pointer bg-blue-700 hover:bg-blue-800 text-white"
-              size="sm"
-              onClick={() => handleExport("csv")}
-            >
-              <FileText className="h-4 w-4" />
-              CSV
-            </Button>
-            <Button
-              className="flex-1 gap-2 cursor-pointer bg-red-700 hover:bg-red-800 text-white"
-              size="sm"
-              onClick={() => handleExport("pdf")}
-            >
-              <FileText className="h-4 w-4" />
-              PDF
-            </Button>
-          </div>
         </div>
+
+        <Separator className="shrink-0" />
+
+        {/* ── Export Buttons (always visible at bottom) ── */}
+        <div className="flex items-center gap-2 shrink-0 pt-2">
+          <Button
+            className="flex-1 gap-2 cursor-pointer bg-green-700 hover:bg-green-800 text-white"
+            size="sm"
+            onClick={() => handleExport("excel")}
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Excel
+          </Button>
+          <Button
+            className="flex-1 gap-2 cursor-pointer bg-blue-700 hover:bg-blue-800 text-white"
+            size="sm"
+            onClick={() => handleExport("csv")}
+          >
+            <FileText className="h-4 w-4" />
+            CSV
+          </Button>
+          <Button
+            className="flex-1 gap-2 cursor-pointer bg-red-700 hover:bg-red-800 text-white"
+            size="sm"
+            onClick={() => handleExport("pdf")}
+            disabled={previewLoading}
+          >
+            {previewLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+            {onGeneratePDFPreview ? "Preview PDF" : "PDF"}
+          </Button>
+        </div>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   );

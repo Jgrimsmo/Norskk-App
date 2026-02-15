@@ -4,10 +4,11 @@ import * as React from "react";
 import { Plus, Pencil } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
+import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF } from "@/lib/export/pdf";
+import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
 import { equipmentCSVColumns, equipmentPDFColumns, equipmentPDFRows } from "@/lib/export/columns";
 
 import {
@@ -18,14 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { CellInput } from "@/components/shared/cell-input";
+import { CellSelect } from "@/components/shared/cell-select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -56,7 +51,7 @@ const statusLabels: Record<EquipmentStatus, string> = {
 
 function newBlankEquipment(): Equipment {
   return {
-    id: `eq-new-${Date.now()}`,
+    id: `eq-${crypto.randomUUID().slice(0, 8)}`,
     number: "",
     name: "",
     category: "",
@@ -65,73 +60,12 @@ function newBlankEquipment(): Equipment {
 }
 
 // ────────────────────────────────────────────
-// Editable cell components
-// ────────────────────────────────────────────
-
-function CellInput({
-  value,
-  onChange,
-  className = "",
-  placeholder = "",
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  className?: string;
-  placeholder?: string;
-}) {
-  return (
-    <Input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={`h-[32px] text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none focus:ring-0 focus:border-primary focus-visible:ring-0 hover:border-muted-foreground/30 ${className}`}
-    />
-  );
-}
-
-function CellSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { id: string; label: string }[];
-  placeholder: string;
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-[32px] w-full text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none focus:ring-0 focus:border-primary hover:border-muted-foreground/30 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-40">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent
-        position="popper"
-        sideOffset={0}
-        className="max-h-[240px] min-w-[var(--radix-select-trigger-width)] rounded-sm border shadow-lg"
-      >
-        {options.map((opt) => (
-          <SelectItem
-            key={opt.id}
-            value={opt.id}
-            className="text-xs py-1.5 px-2 cursor-pointer"
-          >
-            {opt.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-// ────────────────────────────────────────────
 // Main table component
 // ────────────────────────────────────────────
 
 interface EquipmentTableProps {
   equipment: Equipment[];
-  onEquipmentChange: (equipment: Equipment[]) => void;
+  onEquipmentChange: (equipment: Equipment[] | ((prev: Equipment[]) => Equipment[])) => void;
 }
 
 export function EquipmentTable({
@@ -169,7 +103,7 @@ export function EquipmentTable({
   // ── Filtered equipment ──
   const filteredEquipment = React.useMemo(() => {
     return equipmentList.filter((eq) => {
-      if (eq.id === "eq-none") return false; // hide the "None" placeholder
+      if (eq.id === EQUIPMENT_NONE_ID) return false; // hide the "None" placeholder
       if (categoryFilter.size > 0 && !categoryFilter.has(eq.category))
         return false;
       if (statusFilter.size > 0 && !statusFilter.has(eq.status)) return false;
@@ -178,23 +112,25 @@ export function EquipmentTable({
   }, [equipmentList, categoryFilter, statusFilter]);
 
   // ── Mutations ──
-  const updateEquipment = (
-    id: string,
-    field: keyof Equipment,
-    value: string
-  ) => {
-    onEquipmentChange(
-      equipmentList.map((e) => (e.id === id ? { ...e, [field]: value } : e))
-    );
-  };
+  const updateEquipment = React.useCallback(
+    (id: string, field: keyof Equipment, value: string) => {
+      onEquipmentChange((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, [field]: value } : e))
+      );
+    },
+    [onEquipmentChange]
+  );
 
-  const deleteEquipment = (id: string) => {
-    onEquipmentChange(equipmentList.filter((eq) => eq.id !== id));
-  };
+  const deleteEquipment = React.useCallback(
+    (id: string) => {
+      onEquipmentChange((prev) => prev.filter((eq) => eq.id !== id));
+    },
+    [onEquipmentChange]
+  );
 
-  const addEquipment = () => {
-    onEquipmentChange([...equipmentList, newBlankEquipment()]);
-  };
+  const addEquipment = React.useCallback(() => {
+    onEquipmentChange((prev) => [...prev, newBlankEquipment()]);
+  }, [onEquipmentChange]);
 
   const unlockRow = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -385,10 +321,10 @@ export function EquipmentTable({
       <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
         <span>
           {filteredEquipment.length} of{" "}
-          {equipmentList.filter((e) => e.id !== "eq-none").length} equipment
+          {equipmentList.filter((e) => e.id !== EQUIPMENT_NONE_ID).length} equipment
         </span>
         <span className="font-medium text-foreground">
-          {equipmentList.filter((e) => e.status === "available" && e.id !== "eq-none").length} available
+          {equipmentList.filter((e) => e.status === "available" && e.id !== EQUIPMENT_NONE_ID).length} available
         </span>
       </div>
     </div>
@@ -433,12 +369,25 @@ function EquipmentExport({ equipment }: { equipment: Equipment[] }) {
     }
   };
 
+  const handlePreview = (config: ExportConfig) =>
+    generatePDFBlobUrl({
+      title: config.title,
+      filename: "preview",
+      company: profile,
+      columns: equipmentPDFColumns,
+      rows: equipmentPDFRows(equipment),
+      orientation: config.orientation,
+      selectedColumns: config.selectedColumns,
+      groupBy: config.groupBy,
+    });
+
   return (
     <ExportDialog
       columns={EQUIPMENT_EXPORT_COLUMNS}
       groupOptions={EQUIPMENT_GROUP_OPTIONS}
       defaultTitle="Equipment"
       onExport={handleExport}
+      onGeneratePDFPreview={handlePreview}
       disabled={equipment.length === 0}
       recordCount={equipment.length}
     />

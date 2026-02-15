@@ -111,7 +111,7 @@ export function UserManagementSettings() {
     }
     try {
       await add({
-        id: `emp-${Date.now()}`,
+        id: `emp-${crypto.randomUUID().slice(0, 8)}`,
         name: newUser.name,
         email: newUser.email,
         phone: newUser.phone,

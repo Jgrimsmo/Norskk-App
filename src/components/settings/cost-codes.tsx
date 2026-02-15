@@ -88,7 +88,7 @@ export function CostCodesSettings() {
     }
     try {
       await add({
-        id: `cc-${Date.now()}`,
+        id: `cc-${crypto.randomUUID().slice(0, 8)}`,
         code: newCode.code.trim(),
         description: newCode.description.trim(),
       });

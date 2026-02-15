@@ -14,7 +14,7 @@ import {
   type Tool,
 } from "@/lib/types/time-tracking";
 import { useFirestoreState } from "@/hooks/use-firestore-state";
-import { Collections } from "@/lib/firebase/collections";
+import { Collections, EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
 
@@ -23,7 +23,7 @@ export default function EquipmentPage() {
   const [attachments, setAttachments, loadingAtt, savingAtt] = useFirestoreState<Attachment>(Collections.ATTACHMENTS);
   const [tools, setTools, loadingTl, savingTl] = useFirestoreState<Tool>(Collections.TOOLS);
 
-  const equipment = allEquipment.filter((e) => e.id !== "eq-none");
+  const equipment = allEquipment.filter((e) => e.id !== EQUIPMENT_NONE_ID);
   const loading = loadingEq || loadingAtt || loadingTl;
   const saving = savingEq || savingAtt || savingTl;
 

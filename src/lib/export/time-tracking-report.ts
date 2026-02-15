@@ -7,6 +7,7 @@
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { capitalize } from "@/lib/utils/lookup";
 import type {
   TimeEntry,
   Employee,
@@ -43,7 +44,7 @@ interface TimeReportOptions {
   orientation?: "portrait" | "landscape";
 }
 
-export async function generateTimeTrackingReport(opts: TimeReportOptions) {
+export async function buildTimeTrackingReportDoc(opts: TimeReportOptions): Promise<jsPDF> {
   const {
     entries,
     employees,
@@ -51,7 +52,6 @@ export async function generateTimeTrackingReport(opts: TimeReportOptions) {
     costCodes,
     company,
     dateRange,
-    filename = "time-tracking-report",
     selectedColumns,
     groupBy = "project",
     title: reportTitle = "TIME TRACKING REPORT",
@@ -147,11 +147,11 @@ export async function generateTimeTrackingReport(opts: TimeReportOptions) {
     return {
       date: e.date,
       employee: emp?.name || e.employeeId,
-      project: proj ? `${proj.number} — ${proj.name}` : e.projectId,
-      costCode: cc ? `${cc.code} — ${cc.description}` : e.costCodeId,
+      project: proj?.name || e.projectId,
+      costCode: cc?.description || e.costCodeId,
       workType: e.workType === "lump-sum" ? "Lump Sum" : "T&M",
       hours: e.hours.toFixed(1),
-      approval: e.approval.charAt(0).toUpperCase() + e.approval.slice(1),
+      approval: capitalize(e.approval),
       equipment: e.equipmentId || "",
       attachment: e.attachmentId || "",
       tool: e.toolId || "",
@@ -182,7 +182,7 @@ export async function generateTimeTrackingReport(opts: TimeReportOptions) {
       groupKeyFn = (e) => e.costCodeId;
       groupLabelFn = (key) => {
         const cc = costCodes.find((x) => x.id === key);
-        return cc ? `${cc.code} — ${cc.description}` : key;
+        return cc?.description || key;
       };
       break;
     case "none":
@@ -194,7 +194,7 @@ export async function generateTimeTrackingReport(opts: TimeReportOptions) {
       groupKeyFn = (e) => e.projectId;
       groupLabelFn = (key) => {
         const p = projects.find((x) => x.id === key);
-        return p ? `${p.number} — ${p.name}` : key;
+        return p?.name || key;
       };
       break;
   }
@@ -319,7 +319,25 @@ export async function generateTimeTrackingReport(opts: TimeReportOptions) {
   // ── Footer ──
   drawPageFooter(doc, company, pageWidth, pageHeight);
 
+  return doc;
+}
+
+/**
+ * Generate and download a time tracking PDF report.
+ */
+export async function generateTimeTrackingReport(opts: TimeReportOptions) {
+  const doc = await buildTimeTrackingReportDoc(opts);
+  const filename = opts.filename || "time-tracking-report";
   doc.save(`${filename}.pdf`);
+}
+
+/**
+ * Generate a time tracking PDF and return a blob URL for preview.
+ */
+export async function generateTimeTrackingReportBlobUrl(opts: TimeReportOptions): Promise<string> {
+  const doc = await buildTimeTrackingReportDoc(opts);
+  const blob = doc.output("blob");
+  return URL.createObjectURL(blob);
 }
 
 // ── Company header ──
