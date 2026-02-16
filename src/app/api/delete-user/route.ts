@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const adminAuth = getAdminAuth();
+    const adminAuth = await getAdminAuth();
 
     // Verify the caller is authenticated by checking the Authorization header
     const authHeader = req.headers.get("Authorization");

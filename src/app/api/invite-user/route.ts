@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const token = authHeader.split("Bearer ")[1];
-    const adminAuth = getAdminAuth();
+    const adminAuth = await getAdminAuth();
     try {
       await adminAuth.verifyIdToken(token);
     } catch {
