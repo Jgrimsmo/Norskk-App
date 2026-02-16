@@ -108,8 +108,8 @@ export function AppSidebar() {
     .filter((section) => section.items.length > 0);
 
   return (
-    <Sidebar collapsible="icon" variant="sidebar">
-      <SidebarHeader className="flex flex-col items-center px-3 py-4 group-data-[collapsible=icon]:py-3">
+    <Sidebar collapsible="icon" variant="sidebar" className="shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)]">
+      <SidebarHeader className="flex flex-col items-center px-3 py-5 group-data-[collapsible=icon]:py-3">
         <Link href="/" className="flex items-center justify-center overflow-hidden">
           {logoUrl ? (
             <img
@@ -125,16 +125,16 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
 
-      <Separator className="bg-sidebar-border" />
+      <Separator className="bg-sidebar-border/60" />
 
       <SidebarContent>
-        {filteredSections.map((section) => (
-          <SidebarGroup key={section.label}>
-            <SidebarGroupLabel className="text-sidebar-foreground/50 uppercase text-xs tracking-wider">
+        {filteredSections.map((section, index) => (
+          <SidebarGroup key={section.label} className={index > 0 ? "pt-4" : ""}>
+            <SidebarGroupLabel className="text-sidebar-foreground text-[0.65rem] uppercase tracking-widest font-semibold mb-0.5 px-2 border-b border-sidebar-border pb-1">
               {section.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="gap-0.5">
                 {section.items.map((item) => {
                   const isActive =
                     item.href === "/"
@@ -147,11 +147,11 @@ export function AppSidebar() {
                         asChild
                         isActive={isActive}
                         tooltip={item.title}
-                        className="h-10"
+                        className={`h-9 rounded-md transition-colors data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:font-semibold data-[active=true]:border-l-2 data-[active=true]:border-sidebar-primary data-[active=true]:pl-[calc(0.5rem-2px)]`}
                       >
                         <Link href={item.href}>
-                          <item.icon className="h-5 w-5" />
-                          <span className="text-sm font-medium">{item.title}</span>
+                          <item.icon className="h-4 w-4" />
+                          <span className="text-sm">{item.title}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
