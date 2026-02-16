@@ -109,16 +109,16 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
-      <SidebarHeader className="flex flex-col items-center px-3 py-6 group-data-[collapsible=icon]:py-3">
+      <SidebarHeader className="flex flex-col items-center px-3 py-4 group-data-[collapsible=icon]:py-3">
         <Link href="/" className="flex items-center justify-center overflow-hidden">
           {logoUrl ? (
             <img
               src={logoUrl}
               alt={companyName}
-              className="w-full max-h-28 shrink-0 rounded-lg object-contain group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-h-8 invert dark:invert-0"
+              className="w-full max-h-16 shrink-0 rounded-lg object-contain group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-h-8 invert dark:invert-0"
             />
           ) : (
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-4xl group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:text-sm">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-2xl group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:text-sm">
               {companyInitial}
             </div>
           )}
