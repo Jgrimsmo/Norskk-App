@@ -1,20 +1,33 @@
 import { initializeApp, getApps, cert, type App } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
+import { getAuth, type Auth } from "firebase-admin/auth";
+
+let _app: App | null = null;
+let _auth: Auth | null = null;
 
 function getAdminApp(): App {
-  if (getApps().length > 0) return getApps()[0];
-
-  // Use service account credentials if provided, otherwise use project ID
-  // (works when deployed on Google Cloud / Vercel with GOOGLE_APPLICATION_CREDENTIALS)
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-    return initializeApp({ credential: cert(serviceAccount) });
+  if (_app) return _app;
+  if (getApps().length > 0) {
+    _app = getApps()[0];
+    return _app;
   }
 
-  return initializeApp({ projectId });
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+
+  if (serviceAccountKey) {
+    const serviceAccount = JSON.parse(serviceAccountKey);
+    _app = initializeApp({ credential: cert(serviceAccount) });
+  } else {
+    _app = initializeApp({ projectId });
+  }
+
+  return _app;
 }
 
-export const adminApp = getAdminApp();
-export const adminAuth = getAuth(adminApp);
+/** Lazily initialized — only runs when an API route calls it at runtime */
+export function getAdminAuth(): Auth {
+  if (!_auth) {
+    _auth = getAuth(getAdminApp());
+  }
+  return _auth;
+}

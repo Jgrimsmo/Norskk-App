@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase/admin";
+import { getAdminAuth } from "@/lib/firebase/admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +11,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const adminAuth = getAdminAuth();
 
     // Verify the caller is authenticated by checking the Authorization header
     const authHeader = req.headers.get("Authorization");

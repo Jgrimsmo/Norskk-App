@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase/admin";
+import { getAdminAuth } from "@/lib/firebase/admin";
 
 /**
  * POST /api/invite-user
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const token = authHeader.split("Bearer ")[1];
+    const adminAuth = getAdminAuth();
     try {
       await adminAuth.verifyIdToken(token);
     } catch {
