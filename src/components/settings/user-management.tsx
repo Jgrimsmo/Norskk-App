@@ -149,7 +149,19 @@ export function UserManagementSettings() {
     );
   }
 
+  // Determine which employees are "new" (created via signup, still have default role, and within 7 days)
+  const isNewUser = (emp: Employee) => {
+    if (!emp.createdAt) return false;
+    const created = new Date(emp.createdAt).getTime();
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return emp.role === "Labourer" && created > sevenDaysAgo;
+  };
+
   const sorted = [...employees].sort((a, b) => {
+    // Show new users first
+    const aNew = isNewUser(a) ? 0 : 1;
+    const bNew = isNewUser(b) ? 0 : 1;
+    if (aNew !== bNew) return aNew - bNew;
     if (a.status !== b.status) return a.status === "active" ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
@@ -317,7 +329,17 @@ export function UserManagementSettings() {
                         className="h-7 text-xs"
                       />
                     ) : (
-                      <span className="font-medium">{emp.name}</span>
+                      <span className="font-medium">
+                        {emp.name}
+                        {isNewUser(emp) && (
+                          <Badge
+                            variant="outline"
+                            className="ml-2 text-[10px] bg-yellow-100 text-yellow-800 border-yellow-200"
+                          >
+                            New
+                          </Badge>
+                        )}
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="text-xs">

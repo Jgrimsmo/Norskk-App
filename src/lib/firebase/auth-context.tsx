@@ -11,6 +11,9 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
+import { create } from "@/lib/firebase/firestore";
+import { Collections } from "@/lib/firebase/collections";
+import type { Employee } from "@/lib/types/time-tracking";
 
 // ── Types ──
 interface AuthContextValue {
@@ -54,6 +57,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, displayName: string) => {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName });
+
+    // Auto-create an employee record so the user appears in User Management
+    const empId = `emp-${credential.user.uid.slice(0, 8)}`;
+    await create<Employee>(Collections.EMPLOYEES, {
+      id: empId,
+      name: displayName,
+      email,
+      phone: "",
+      role: "Labourer",
+      status: "active",
+      uid: credential.user.uid,
+      createdAt: new Date().toISOString(),
+    });
   };
 
   const signOut = async () => {

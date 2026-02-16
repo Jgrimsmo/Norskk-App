@@ -28,6 +28,8 @@ export interface Employee {
   phone: string;
   email: string;
   status: EmployeeStatus;
+  uid?: string;        // Firebase Auth UID — links auth account to employee
+  createdAt?: string;  // ISO timestamp of account creation
 }
 
 export interface Project {
