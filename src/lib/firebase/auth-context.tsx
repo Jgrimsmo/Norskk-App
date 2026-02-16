@@ -11,9 +11,8 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
-import { create, getAll } from "@/lib/firebase/firestore";
+import { create, getById } from "@/lib/firebase/firestore";
 import { Collections } from "@/lib/firebase/collections";
-import { where } from "firebase/firestore";
 import type { Employee } from "@/lib/types/time-tracking";
 
 // ── Types ──
@@ -50,15 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Ensure every authenticated user has an employee record
       if (firebaseUser) {
         try {
-          const existing = await getAll<Employee>(
+          // Use UID as the document ID for a simple, index-free lookup
+          const existing = await getById<Employee>(
             Collections.EMPLOYEES,
-            where("uid", "==", firebaseUser.uid)
+            firebaseUser.uid
           );
-          if (existing.length === 0) {
-            // No employee record for this user — create one
-            const empId = `emp-${firebaseUser.uid.slice(0, 8)}`;
+          if (!existing) {
             await create<Employee>(Collections.EMPLOYEES, {
-              id: empId,
+              id: firebaseUser.uid,
               name: firebaseUser.displayName || firebaseUser.email || "Unknown",
               email: firebaseUser.email || "",
               phone: "",
@@ -85,10 +83,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName });
 
-    // Auto-create an employee record so the user appears in User Management
-    const empId = `emp-${credential.user.uid.slice(0, 8)}`;
+    // Auto-create an employee record using UID as doc ID
     await create<Employee>(Collections.EMPLOYEES, {
-      id: empId,
+      id: credential.user.uid,
       name: displayName,
       email,
       phone: "",
