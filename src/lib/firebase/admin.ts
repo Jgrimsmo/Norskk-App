@@ -14,12 +14,20 @@ export async function getAdminAuth(): Promise<Auth> {
   if (getApps().length > 0) {
     _app = getApps()[0];
   } else {
-    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (serviceAccountKey) {
-      const serviceAccount = JSON.parse(serviceAccountKey);
-      _app = initializeApp({ credential: cert(serviceAccount) });
+    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+
+    if (clientEmail && privateKey) {
+      _app = initializeApp({
+        credential: cert({
+          projectId,
+          clientEmail,
+          // Vercel stores \n as literal characters — convert them back
+          privateKey: privateKey.replace(/\\n/g, "\n"),
+        }),
+      });
     } else {
-      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
       _app = initializeApp({ projectId });
     }
   }
