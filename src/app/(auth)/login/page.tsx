@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/firebase/auth-context";
+import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const { signIn, resetPassword, user } = useAuth();
+  const { profile } = useCompanyProfile();
   const router = useRouter();
 
   const [email, setEmail] = React.useState("");
@@ -60,12 +62,20 @@ export default function LoginPage() {
     <div className="w-full max-w-sm space-y-6">
       {/* Logo / Brand */}
       <div className="flex flex-col items-center gap-2">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-xl">
-          N
-        </div>
+        {profile?.logoUrl ? (
+          <img
+            src={profile.logoUrl}
+            alt={profile.name || "Company logo"}
+            className="h-16 w-auto object-contain invert dark:invert-0"
+          />
+        ) : (
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-xl">
+            {(profile?.name ?? "N").charAt(0).toUpperCase()}
+          </div>
+        )}
         <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
         <p className="text-sm text-muted-foreground">
-          Sign in to your Norskk account
+          Sign in to your {profile?.name || "Norskk"} account
         </p>
       </div>
 

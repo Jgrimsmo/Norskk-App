@@ -20,8 +20,7 @@ export function lookupName(
 ): string {
   const item = list.find((i) => i.id === id);
   if (!item) return "—";
-  if (item.code) return `${item.code} — ${item.description}`;
-  if (item.number && item.name) return `${item.number} — ${item.name}`;
+  if (item.code) return item.description ?? "—";
   return item.name ?? "—";
 }
 

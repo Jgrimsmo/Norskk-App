@@ -160,7 +160,7 @@ export function AvailableResourcesPanel({
             <div className="space-y-0.5">
               {avail.equipment.map((eq) => (
                 <div key={eq.id} className="text-xs text-foreground px-1.5 py-0.5">
-                  {eq.name} <span className="text-[10px] text-muted-foreground">· {eq.number}</span>
+                  {eq.name}
                 </div>
               ))}
             </div>
@@ -176,7 +176,7 @@ export function AvailableResourcesPanel({
             <div className="space-y-0.5">
               {avail.attachments.map((att) => (
                 <div key={att.id} className="text-xs text-foreground px-1.5 py-0.5">
-                  {att.name} <span className="text-[10px] text-muted-foreground">· {att.number}</span>
+                  {att.name}
                 </div>
               ))}
             </div>
@@ -192,7 +192,7 @@ export function AvailableResourcesPanel({
             <div className="space-y-0.5">
               {avail.tools.map((tl) => (
                 <div key={tl.id} className="text-xs text-foreground px-1.5 py-0.5">
-                  {tl.name} <span className="text-[10px] text-muted-foreground">· {tl.number}</span>
+                  {tl.name}
                 </div>
               ))}
             </div>

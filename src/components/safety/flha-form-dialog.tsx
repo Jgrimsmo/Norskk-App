@@ -191,7 +191,7 @@ export function FLHAFormDialog({
 
   const projectOptions = projects.map((p) => ({
     id: p.id,
-    label: `${p.number} — ${p.name}`,
+    label: p.name,
   }));
 
   const employeeOptions = employees.map((e) => ({

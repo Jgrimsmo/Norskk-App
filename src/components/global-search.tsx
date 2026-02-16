@@ -164,7 +164,7 @@ function SearchResults({ navigate }: { navigate: (path: string) => void }) {
               >
                 <FolderKanban className="mr-2 h-4 w-4 text-muted-foreground" />
                 <div className="flex flex-col">
-                  <span className="text-sm">{proj.number} — {proj.name}</span>
+                  <span className="text-sm">{proj.name}</span>
                   <span className="text-xs text-muted-foreground">
                     {proj.developer} · {proj.status}
                   </span>
@@ -189,7 +189,7 @@ function SearchResults({ navigate }: { navigate: (path: string) => void }) {
                 >
                   <Wrench className="mr-2 h-4 w-4 text-muted-foreground" />
                   <div className="flex flex-col">
-                    <span className="text-sm">{eq.number} — {eq.name}</span>
+                    <span className="text-sm">{eq.name}</span>
                     <span className="text-xs text-muted-foreground">
                       {eq.category} · {eq.status}
                     </span>

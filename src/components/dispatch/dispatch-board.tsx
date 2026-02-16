@@ -427,7 +427,7 @@ export default function DispatchBoard() {
                 <SelectContent position="popper">
                   {activeProjects.map((p) => (
                     <SelectItem key={p.id} value={p.id} className="text-xs">
-                      {p.number} — {p.name}
+                      {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -531,9 +531,6 @@ export default function DispatchBoard() {
                       className="h-3.5 w-3.5"
                     />
                     <span className="truncate">{eq.name}</span>
-                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                      {eq.number}
-                    </span>
                   </label>
                 ))}
                 {filteredEquipment.length === 0 && (
@@ -585,9 +582,6 @@ export default function DispatchBoard() {
                       className="h-3.5 w-3.5"
                     />
                     <span className="truncate">{att.name}</span>
-                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                      {att.number}
-                    </span>
                   </label>
                 ))}
                 {filteredAttachments.length === 0 && (
@@ -635,9 +629,6 @@ export default function DispatchBoard() {
                       className="h-3.5 w-3.5"
                     />
                     <span className="truncate">{tl.name}</span>
-                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                      {tl.number}
-                    </span>
                   </label>
                 ))}
                 {filteredTools.length === 0 && (

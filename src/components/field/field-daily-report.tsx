@@ -23,6 +23,7 @@ import {
   Plus,
   Pencil,
   FileText,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -52,9 +53,14 @@ import type {
 import {
   useEmployees,
   useProjects,
+  useTimeEntries,
+  useCostCodes,
+  useEquipment,
+  useAttachments,
+  useTools,
 } from "@/hooks/use-firestore";
 import { useFirestoreState } from "@/hooks/use-firestore-state";
-import { Collections } from "@/lib/firebase/collections";
+import { Collections, EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
 import { dailyReportStatusColors as statusColors } from "@/lib/constants/status-colors";
 
@@ -127,6 +133,11 @@ export function FieldDailyReport() {
 
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
+  const { data: timeEntries } = useTimeEntries();
+  const { data: costCodes } = useCostCodes();
+  const { data: equipment } = useEquipment();
+  const { data: attachments } = useAttachments();
+  const { data: tools } = useTools();
   const [reports, setReports, , saving] = useFirestoreState<DailyReport>(
     Collections.DAILY_REPORTS
   );
@@ -271,7 +282,7 @@ export function FieldDailyReport() {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-semibold">
-                      {proj ? `${proj.number} — ${proj.name}` : "No project"}
+                      {proj ? proj.name : "No project"}
                     </span>
                     <Badge
                       variant="outline"
@@ -306,6 +317,18 @@ export function FieldDailyReport() {
     (activeReport?.morningPhotoUrls?.length ?? 0) +
     (activeReport?.workPhotoUrls?.length ?? 0) +
     (activeReport?.endOfDayPhotoUrls?.length ?? 0);
+
+  // ── Matched time entries for this project + date ──
+  const matchedTimeEntries = React.useMemo(
+    () =>
+      activeReport?.projectId && activeReport?.date
+        ? timeEntries.filter(
+            (te) => te.projectId === activeReport.projectId && te.date === activeReport.date
+          )
+        : [],
+    [timeEntries, activeReport?.projectId, activeReport?.date]
+  );
+  const totalTimeHours = matchedTimeEntries.reduce((sum, te) => sum + (te.hours || 0), 0);
 
   if (!activeReport) return null;
 
@@ -352,7 +375,7 @@ export function FieldDailyReport() {
             <SelectContent>
               {projects.map((p) => (
                 <SelectItem key={p.id} value={p.id} className="text-sm">
-                  {p.number} — {p.name}
+                  {p.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -566,6 +589,78 @@ export function FieldDailyReport() {
                 </p>
               )}
             </div>
+          </div>
+        )}
+      </section>
+
+      <Separator />
+
+      {/* ─── Time Entries ─── */}
+      <section>
+        <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+          <Clock className="h-4 w-4 text-emerald-500" />
+          Time Entries ({matchedTimeEntries.length})
+          {matchedTimeEntries.length > 0 && (
+            <span className="text-xs font-normal text-muted-foreground ml-auto">
+              Total: {totalTimeHours}h
+            </span>
+          )}
+        </h3>
+
+        {matchedTimeEntries.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4 rounded-lg border bg-muted/20">
+            No time entries for this project and date.
+          </p>
+        ) : (
+          <div className="rounded-lg border overflow-hidden overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-muted/50 text-left">
+                  <th className="px-3 py-2 font-semibold border-r border-b">Date</th>
+                  <th className="px-3 py-2 font-semibold border-r border-b">Employee</th>
+                  <th className="px-3 py-2 font-semibold border-r border-b">Cost Code</th>
+                  <th className="px-3 py-2 font-semibold border-r border-b">Equipment</th>
+                  <th className="px-3 py-2 font-semibold border-r border-b">Attachment</th>
+                  <th className="px-3 py-2 font-semibold border-r border-b">Tool</th>
+                  <th className="px-3 py-2 font-semibold border-r border-b">Work Type</th>
+                  <th className="px-3 py-2 font-semibold border-r border-b text-right">Hours</th>
+                  <th className="px-3 py-2 font-semibold border-b">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {matchedTimeEntries.map((te) => {
+                  const emp = employees.find((e) => e.id === te.employeeId);
+                  const cc = costCodes.find((c) => c.id === te.costCodeId);
+                  const eq = te.equipmentId && te.equipmentId !== EQUIPMENT_NONE_ID
+                    ? equipment.find((e) => e.id === te.equipmentId)
+                    : null;
+                  const att = te.attachmentId
+                    ? attachments.find((a) => a.id === te.attachmentId)
+                    : null;
+                  const tl = te.toolId
+                    ? tools.find((t) => t.id === te.toolId)
+                    : null;
+                  return (
+                    <tr key={te.id} className="border-b last:border-b-0 hover:bg-muted/20">
+                      <td className="px-3 py-2 border-r whitespace-nowrap">{format(parseISO(te.date), "MM/dd/yyyy")}</td>
+                      <td className="px-3 py-2 border-r">{emp?.name ?? "—"}</td>
+                      <td className="px-3 py-2 border-r">{cc?.description ?? "—"}</td>
+                      <td className="px-3 py-2 border-r">{eq?.name ?? "—"}</td>
+                      <td className="px-3 py-2 border-r">{att?.name ?? "—"}</td>
+                      <td className="px-3 py-2 border-r">{tl?.name ?? "—"}</td>
+                      <td className="px-3 py-2 border-r whitespace-nowrap">{te.workType === "tm" ? "T&M" : "Lump Sum"}</td>
+                      <td className="px-3 py-2 border-r text-right font-medium">{te.hours}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{te.notes || "—"}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="bg-muted/30 font-semibold">
+                  <td colSpan={7} className="px-3 py-2 text-right border-r">Total</td>
+                  <td className="px-3 py-2 text-right border-r">{totalTimeHours}h</td>
+                  <td className="px-3 py-2"></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
       </section>

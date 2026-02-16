@@ -327,7 +327,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     employees.find((e) => e.id === id)?.name ?? "—";
 
   const employeeOptions = employees.map((e) => ({ id: e.id, label: e.name }));
-  const costCodeOptions = costCodes.map((c) => ({ id: c.id, label: `${c.code} — ${c.description}` }));
+  const costCodeOptions = costCodes.map((c) => ({ id: c.id, label: c.description }));
 
   // ── Total hours (unfiltered for summary card) ──
   const allProjectTimeEntries = React.useMemo(

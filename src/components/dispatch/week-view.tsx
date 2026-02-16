@@ -56,9 +56,13 @@ export function WeekView({
           >
             {/* Day header */}
             <div
-              className={`p-2 border-b text-center shrink-0 ${
+              className={`p-2 border-b text-center shrink-0 cursor-pointer hover:bg-muted/50 transition-colors ${
                 today ? "bg-primary/10" : ""
               }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onExpandDay(day);
+              }}
             >
               <div className="text-xs text-muted-foreground uppercase">
                 {format(day, "EEE")}

@@ -89,7 +89,7 @@ function CostCodeMultiSelect({
 
   const selectedLabels = costCodes
     .filter((cc) => selected.has(cc.id))
-    .map((cc) => cc.code);
+    .map((cc) => cc.description);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -122,7 +122,7 @@ function CostCodeMultiSelect({
                 onCheckedChange={() => toggle(cc.id)}
               />
               <span>
-                {cc.code} — {cc.description}
+                {cc.description}
               </span>
             </label>
           ))}
@@ -176,7 +176,7 @@ export function ProjectsTable({
 
   const costCodeOptions = costCodes.map((cc) => ({
     id: cc.id,
-    label: `${cc.code} — ${cc.description}`,
+    label: cc.description,
   }));
 
   // ── Filtered projects ──
@@ -404,7 +404,7 @@ export function ProjectsTable({
                           {project.costCodeIds
                             .map(
                               (id) =>
-                                costCodes.find((cc) => cc.id === id)?.code
+                                costCodes.find((cc) => cc.id === id)?.description
                             )
                             .filter(Boolean)
                             .join(", ") || "—"}

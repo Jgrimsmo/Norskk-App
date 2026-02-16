@@ -127,7 +127,7 @@ export default function DailyReportsTable() {
   // Lookups
   const getProjectName = (id: string) => {
     const p = projects.find((p) => p.id === id);
-    return p ? `${p.number} — ${p.name}` : "—";
+    return p ? p.name : "—";
   };
   const getEmployeeName = (id: string) =>
     employees.find((e) => e.id === id)?.name ?? "—";
