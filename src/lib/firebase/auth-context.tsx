@@ -11,8 +11,9 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
-import { create } from "@/lib/firebase/firestore";
+import { create, getAll } from "@/lib/firebase/firestore";
 import { Collections } from "@/lib/firebase/collections";
+import { where } from "firebase/firestore";
 import type { Employee } from "@/lib/types/time-tracking";
 
 // ── Types ──
@@ -42,9 +43,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Listen for auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
+
+      // Ensure every authenticated user has an employee record
+      if (firebaseUser) {
+        try {
+          const existing = await getAll<Employee>(
+            Collections.EMPLOYEES,
+            where("uid", "==", firebaseUser.uid)
+          );
+          if (existing.length === 0) {
+            // No employee record for this user — create one
+            const empId = `emp-${firebaseUser.uid.slice(0, 8)}`;
+            await create<Employee>(Collections.EMPLOYEES, {
+              id: empId,
+              name: firebaseUser.displayName || firebaseUser.email || "Unknown",
+              email: firebaseUser.email || "",
+              phone: "",
+              role: "Labourer",
+              status: "active",
+              uid: firebaseUser.uid,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        } catch (err) {
+          console.error("Failed to sync employee record:", err);
+        }
+      }
     });
     return unsubscribe;
   }, []);
