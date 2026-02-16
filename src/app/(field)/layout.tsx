@@ -22,7 +22,7 @@ function FieldHeader() {
             <img
               src={profile.logoUrl}
               alt={companyName}
-              className="h-8 w-auto rounded"
+              className="h-8 w-auto rounded invert dark:invert-0"
             />
           ) : (
             <div className="h-8 w-8 rounded bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">

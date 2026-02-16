@@ -1,7 +1,11 @@
+"use client";
+
 import DispatchBoard from "@/components/dispatch/dispatch-board";
+import { RequirePermission } from "@/components/require-permission";
 
 export default function DispatchPage() {
   return (
+    <RequirePermission permission="dispatch.view">
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       <div className="shrink-0 pb-4">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -16,5 +20,6 @@ export default function DispatchPage() {
         <DispatchBoard />
       </div>
     </div>
+    </RequirePermission>
   );
 }

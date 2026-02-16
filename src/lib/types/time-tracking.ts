@@ -183,27 +183,40 @@ export interface DailyReport {
   id: string;
   reportNumber: number;
   date: string; // ISO YYYY-MM-DD
+  time: string; // e.g. "11:37 AM"
   projectId: string;
   authorId: string; // employee id
   status: DailyReportStatus;
-  // Sections
+  // Core sections
   weather: WeatherEntry;
-  manpower: ManpowerEntry[];
-  equipmentLog: EquipmentLogEntry[];
-  workPerformed: WorkPerformedEntry[];
-  delays: DelayEntry[];
-  materialDeliveries: MaterialDelivery[];
-  visitors: VisitorEntry[];
-  safetyNotes: string;
-  generalNotes: string;
-  nextDayPlan: string;
-  photoUrls: string[]; // general report photos
-  // Signatures
-  authorSignature: string; // base64 data URL
-  approverSignature: string;
-  approverId: string;
+  workDescription: string;
+  // Photos – three categories
+  morningPhotoUrls: string[];
+  workPhotoUrls: string[];
+  endOfDayPhotoUrls: string[];
+  // On-site staff (employee IDs)
+  onSiteStaff: string[];
+  // Timestamps
   createdAt: string;
   updatedAt: string;
+  // ── Legacy / optional fields (kept for backward compat) ──
+  manpower?: ManpowerEntry[];
+  equipmentLog?: EquipmentLogEntry[];
+  workPerformed?: WorkPerformedEntry[];
+  delays?: DelayEntry[];
+  materialDeliveries?: MaterialDelivery[];
+  visitors?: VisitorEntry[];
+  safetyNotes?: string;
+  generalNotes?: string;
+  nextDayPlan?: string;
+  photoUrls?: string[];
+  thirdPartyRentals?: string;
+  tmWork?: boolean;
+  tmWorkDescription?: string;
+  tmDailyRentals?: string;
+  authorSignature?: string;
+  approverSignature?: string;
+  approverId?: string;
 }
 
 // ── Safety ──────────────────────────────────
@@ -288,4 +301,13 @@ export interface CompanyProfile {
   payPeriodType: PayPeriodType;
   /** Anchor date for weekly / bi-weekly periods (ISO string, e.g. "2026-01-05") */
   payPeriodStartDate: string;
+}
+
+// ── Role Permissions ──
+
+export interface RolePermissions {
+  id: string; // matches the role name, e.g. "Admin", "Foreman"
+  role: string;
+  permissions: string[]; // e.g. ["time-tracking.view", "dispatch.edit"]
+  description: string;
 }

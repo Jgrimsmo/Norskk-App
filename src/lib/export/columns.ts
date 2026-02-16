@@ -327,14 +327,14 @@ export function safetyFormPDFRows(
   }));
 }
 
-// ── Daily Reports ──
+// -- Daily Reports --
 export function dailyReportCSVColumns(
   employees: Employee[],
   projects: Project[]
 ): Column<DailyReport>[] {
   return [
     { id: "date", header: "Date", accessor: (r) => r.date },
-    { id: "reportNumber", header: "Report #", accessor: (r) => r.reportNumber },
+    { id: "time", header: "Time", accessor: (r) => r.time || "" },
     {
       id: "project",
       header: "Project",
@@ -351,26 +351,30 @@ export function dailyReportCSVColumns(
         `${r.weather.conditions.join(", ")} ${r.weather.temperature}`,
     },
     {
-      id: "crew",
-      header: "Crew",
-      accessor: (r) =>
-        r.manpower.reduce((sum, m) => sum + m.headcount, 0),
+      id: "staff",
+      header: "Staff",
+      accessor: (r) => (r.onSiteStaff ?? []).length,
     },
-    { id: "work", header: "Work Items", accessor: (r) => r.workPerformed.length },
-    { id: "delays", header: "Delays", accessor: (r) => r.delays.length },
+    {
+      id: "photos",
+      header: "Photos",
+      accessor: (r) =>
+        (r.morningPhotoUrls?.length ?? 0) +
+        (r.workPhotoUrls?.length ?? 0) +
+        (r.endOfDayPhotoUrls?.length ?? 0),
+    },
     { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
   ];
 }
 
 export const dailyReportPDFColumns: PDFColumn[] = [
   { header: "Date", dataKey: "date", width: 22 },
-  { header: "#", dataKey: "reportNumber", width: 12 },
+  { header: "Time", dataKey: "time", width: 16 },
   { header: "Project", dataKey: "project", width: 45 },
   { header: "Author", dataKey: "author", width: 30 },
   { header: "Weather", dataKey: "weather", width: 30 },
-  { header: "Crew", dataKey: "crew", width: 14, halign: "right" },
-  { header: "Work", dataKey: "work", width: 14, halign: "right" },
-  { header: "Delays", dataKey: "delays", width: 14, halign: "right" },
+  { header: "Staff", dataKey: "staff", width: 14, halign: "right" },
+  { header: "Photos", dataKey: "photos", width: 14, halign: "right" },
   { header: "Status", dataKey: "status", width: 20 },
 ];
 
@@ -381,16 +385,18 @@ export function dailyReportPDFRows(
 ): Record<string, string | number>[] {
   return data.map((r) => ({
     date: r.date,
-    reportNumber: r.reportNumber,
+    time: r.time || "",
     project: (() => {
       const p = projects.find((x) => x.id === r.projectId);
       return p?.name || r.projectId;
     })(),
     author: lookup(r.authorId, employees),
     weather: `${r.weather.conditions.join(", ")} ${r.weather.temperature}`,
-    crew: r.manpower.reduce((sum, m) => sum + m.headcount, 0),
-    work: r.workPerformed.length,
-    delays: r.delays.length,
+    staff: (r.onSiteStaff ?? []).length,
+    photos:
+      (r.morningPhotoUrls?.length ?? 0) +
+      (r.workPhotoUrls?.length ?? 0) +
+      (r.endOfDayPhotoUrls?.length ?? 0),
     status: capitalize(r.status),
   }));
 }

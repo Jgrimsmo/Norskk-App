@@ -17,6 +17,7 @@ import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { Collections } from "@/lib/firebase/collections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
+import { RequirePermission } from "@/components/require-permission";
 
 export default function SafetyPage() {
   const [forms, setForms, loading, saving] = useFirestoreState<SafetyForm>(Collections.SAFETY_FORMS);
@@ -29,6 +30,7 @@ export default function SafetyPage() {
   ).length;
 
   return (
+    <RequirePermission permission="safety.view">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -101,5 +103,6 @@ export default function SafetyPage() {
       )}
       <SavingIndicator saving={saving} />
     </div>
+    </RequirePermission>
   );
 }

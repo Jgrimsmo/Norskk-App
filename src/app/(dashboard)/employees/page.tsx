@@ -11,6 +11,7 @@ import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { Collections } from "@/lib/firebase/collections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
+import { RequirePermission } from "@/components/require-permission";
 
 export default function EmployeesPage() {
   const [employees, setEmployees, loading, saving] =
@@ -21,6 +22,7 @@ export default function EmployeesPage() {
   const totalCount = employees.length;
 
   return (
+    <RequirePermission permission="employees.view">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -87,5 +89,6 @@ export default function EmployeesPage() {
       )}
       <SavingIndicator saving={saving} />
     </div>
+    </RequirePermission>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { FieldDashboard } from "@/components/field/field-dashboard";
+import { FieldHome } from "@/components/field/field-home";
 
 export default function FieldPage() {
-  return <FieldDashboard />;
+  return <FieldHome />;
 }

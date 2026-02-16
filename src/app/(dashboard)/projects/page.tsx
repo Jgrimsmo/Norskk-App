@@ -17,6 +17,7 @@ import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { Collections } from "@/lib/firebase/collections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
+import { RequirePermission } from "@/components/require-permission";
 
 export default function ProjectsPage() {
   const [projects, setProjects, loading, saving] = useFirestoreState<Project>(Collections.PROJECTS);
@@ -26,6 +27,7 @@ export default function ProjectsPage() {
   const completedCount = projects.filter((p) => p.status === "completed").length;
 
   return (
+    <RequirePermission permission="projects.view">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -91,5 +93,6 @@ export default function ProjectsPage() {
       )}
       <SavingIndicator saving={saving} />
     </div>
+    </RequirePermission>
   );
 }

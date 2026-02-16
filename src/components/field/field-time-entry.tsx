@@ -1,12 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { format, subDays } from "date-fns";
+import { format, parseISO, subDays } from "date-fns";
 import {
   Clock,
   Plus,
   ArrowLeft,
-  Calendar,
   Save,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -46,6 +45,8 @@ export function FieldTimeEntry() {
   const router = useRouter();
   const editId = searchParams.get("edit");
   const isEditing = Boolean(editId);
+  const dateFromParam = searchParams.get("date");
+  const hasFixedDate = Boolean(dateFromParam) && !isEditing;
 
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
@@ -190,11 +191,20 @@ export function FieldTimeEntry() {
     }
   };
 
-  // ── Quick date buttons ──
+  // ── Quick date buttons (only used when no fixed date) ──
   const quickDates = [
     { label: "Today", value: format(new Date(), "yyyy-MM-dd") },
     { label: "Yesterday", value: format(subDays(new Date(), 1), "yyyy-MM-dd") },
   ];
+
+  // Formatted display date for header
+  const displayDate = React.useMemo(() => {
+    try {
+      return format(parseISO(date), "EEEE, MMMM d, yyyy");
+    } catch {
+      return date;
+    }
+  }, [date]);
 
   return (
     <div className="space-y-6">
@@ -211,7 +221,7 @@ export function FieldTimeEntry() {
             {isEditing ? "Edit Entry" : "Add Entry"}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {isEditing ? "Update your time entry" : "Submit your hours for the day"}
+            {hasFixedDate ? displayDate : isEditing ? "Update your time entry" : "Submit your hours for the day"}
           </p>
         </div>
       </div>
@@ -237,34 +247,34 @@ export function FieldTimeEntry() {
 
         <Separator />
 
-        {/* Date */}
-        <div className="space-y-1.5">
-          <Label className="text-sm font-medium">Date</Label>
-          <div className="flex gap-2">
-            {quickDates.map((qd) => (
-              <Button
-                key={qd.value}
-                variant={date === qd.value ? "default" : "outline"}
-                size="sm"
-                className="flex-1 text-sm cursor-pointer"
-                onClick={() => setDate(qd.value)}
-              >
-                {qd.label}
-              </Button>
-            ))}
-          </div>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="h-11 text-sm pl-10 cursor-pointer"
-            />
-          </div>
-        </div>
-
-        <Separator />
+        {/* Date — only show picker if no fixed date from dashboard */}
+        {!hasFixedDate && (
+          <>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Date</Label>
+              <div className="flex gap-2">
+                {quickDates.map((qd) => (
+                  <Button
+                    key={qd.value}
+                    variant={date === qd.value ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 text-sm cursor-pointer"
+                    onClick={() => setDate(qd.value)}
+                  >
+                    {qd.label}
+                  </Button>
+                ))}
+              </div>
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="h-11 text-sm cursor-pointer"
+              />
+            </div>
+            <Separator />
+          </>
+        )}
 
         {/* Project */}
         <div className="space-y-1.5">
@@ -283,56 +293,28 @@ export function FieldTimeEntry() {
           </Select>
         </div>
 
-        {/* Cost Code — only show when project selected */}
-        {projectId && (
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Cost Code</Label>
-            <Select value={costCodeId} onValueChange={setCostCodeId}>
-              <SelectTrigger className="h-11 text-sm cursor-pointer">
-                <SelectValue placeholder="Select cost code…" />
-              </SelectTrigger>
-              <SelectContent>
-                {projectCostCodes.map((cc) => (
-                  <SelectItem key={cc.id} value={cc.id} className="text-sm">
-                    {cc.description}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        {/* Cost Code */}
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium">Cost Code</Label>
+          <Select
+            value={costCodeId}
+            onValueChange={setCostCodeId}
+            disabled={!projectId}
+          >
+            <SelectTrigger className="h-11 text-sm cursor-pointer">
+              <SelectValue placeholder={projectId ? "Select code…" : "Pick project first"} />
+            </SelectTrigger>
+            <SelectContent>
+              {projectCostCodes.map((cc) => (
+                <SelectItem key={cc.id} value={cc.id} className="text-sm">
+                  {cc.description}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <Separator />
-
-        {/* Hours & Work Type */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Hours</Label>
-            <Input
-              type="number"
-              inputMode="decimal"
-              step="0.5"
-              min="0"
-              max="24"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              placeholder="0.0"
-              className="h-11 text-sm text-center text-lg font-semibold"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Work Type</Label>
-            <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
-              <SelectTrigger className="h-11 text-sm cursor-pointer">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="tm">T&M</SelectItem>
-                <SelectItem value="lump-sum">Lump Sum</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
 
         {/* Equipment (optional) */}
         <div className="space-y-1.5">
@@ -392,6 +374,38 @@ export function FieldTimeEntry() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <Separator />
+
+        {/* Hours & Work Type */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Hours</Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              step="0.5"
+              min="0"
+              max="24"
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+              placeholder="0.0"
+              className="h-11 text-sm text-center text-lg font-semibold"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Work Type</Label>
+            <Select value={workType} onValueChange={(v) => setWorkType(v as WorkType)}>
+              <SelectTrigger className="h-11 text-sm cursor-pointer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tm">T&M</SelectItem>
+                <SelectItem value="lump-sum">Lump Sum</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Notes */}

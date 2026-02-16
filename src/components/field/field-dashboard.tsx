@@ -10,20 +10,13 @@ import {
   Clock,
   Pencil,
   Lock,
+  ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 import {
   useEmployees,
@@ -44,13 +37,14 @@ import {
 // ────────────────────────────────────────────────────────
 
 export function FieldDashboard() {
+  const searchParams = useSearchParams();
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
   const { data: costCodes } = useCostCodes();
   const { data: allEntries } = useTimeEntries();
   const { profile, loading: profileLoading } = useCompanyProfile();
 
-  const [employeeId, setEmployeeId] = React.useState("");
+  const employeeId = searchParams.get("employee") || "";
 
   // ── Pay period state ──
   const periodType = profile?.payPeriodType ?? "bi-weekly";
@@ -65,10 +59,6 @@ export function FieldDashboard() {
   }, [profileLoading, period, periodType, anchorDate]);
 
   // ── Derived data ──
-  const activeEmployees = React.useMemo(
-    () => employees.filter((e) => e.status === "active"),
-    [employees]
-  );
 
   // Entries for selected employee within the pay period
   const periodEntries = React.useMemo(() => {
@@ -134,31 +124,21 @@ export function FieldDashboard() {
   return (
     <div className="space-y-5">
       {/* ── Header ── */}
-      <div>
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <CalendarDays className="h-5 w-5" />
-          My Hours
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          View your entries by pay period
-        </p>
-      </div>
-
-      {/* ── Employee Selector ── */}
-      <div className="space-y-1.5">
-        <Label className="text-sm font-medium">Who are you?</Label>
-        <Select value={employeeId} onValueChange={setEmployeeId}>
-          <SelectTrigger className="h-11 text-sm cursor-pointer">
-            <SelectValue placeholder="Select your name…" />
-          </SelectTrigger>
-          <SelectContent>
-            {activeEmployees.map((emp) => (
-              <SelectItem key={emp.id} value={emp.id} className="text-sm">
-                {emp.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex items-center gap-3">
+        <Link href="/field">
+          <Button variant="ghost" size="icon" className="h-9 w-9 cursor-pointer">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </Link>
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <CalendarDays className="h-5 w-5" />
+            My Hours
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            View your entries by pay period
+          </p>
+        </div>
       </div>
 
       {/* ── Pay Period Navigator ── */}
@@ -203,9 +183,8 @@ export function FieldDashboard() {
       </div>
 
       {/* ── Daily Breakdown ── */}
-      {employeeId ? (
-        <div className="space-y-2">
-          {periodDates.map((dateObj) => {
+      <div className="space-y-2">
+        {periodDates.map((dateObj) => {
             const dateStr = format(dateObj, "yyyy-MM-dd");
             const dayEntries = entriesByDate.get(dateStr) || [];
             const dayTotal = dayEntries.reduce((s, e) => s + e.hours, 0);
@@ -318,12 +297,7 @@ export function FieldDashboard() {
               </div>
             );
           })}
-        </div>
-      ) : (
-        <div className="text-center py-8 text-sm text-muted-foreground">
-          Select your name above to view entries
-        </div>
-      )}
+      </div>
     </div>
   );
 }

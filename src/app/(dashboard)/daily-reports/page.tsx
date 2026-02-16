@@ -1,7 +1,11 @@
+"use client";
+
 import DailyReportsTable from "@/components/daily-reports/daily-reports-table";
+import { RequirePermission } from "@/components/require-permission";
 
 export default function DailyReportsPage() {
   return (
+    <RequirePermission permission="daily-reports.view">
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -14,5 +18,6 @@ export default function DailyReportsPage() {
 
       <DailyReportsTable />
     </div>
+    </RequirePermission>
   );
 }

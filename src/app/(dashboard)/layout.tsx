@@ -5,6 +5,7 @@ import { TopBar } from "@/components/top-bar";
 import { AuthGuard } from "@/components/auth-guard";
 import { CompanyProfileProvider } from "@/hooks/use-company-profile";
 import { GlobalSearch } from "@/components/global-search";
+import { RolePreviewProvider } from "@/lib/role-preview-context";
 
 export default function DashboardLayout({
   children,
@@ -14,18 +15,20 @@ export default function DashboardLayout({
   return (
     <AuthGuard>
       <CompanyProfileProvider>
-        <TooltipProvider>
-          <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-              <TopBar />
-              <main className="flex-1 overflow-auto p-4 lg:p-6">
-                {children}
-              </main>
-            </SidebarInset>
-            <GlobalSearch />
-          </SidebarProvider>
-        </TooltipProvider>
+        <RolePreviewProvider>
+          <TooltipProvider>
+            <SidebarProvider>
+              <AppSidebar />
+              <SidebarInset>
+                <TopBar />
+                <main className="flex-1 overflow-auto p-4 lg:p-6">
+                  {children}
+                </main>
+              </SidebarInset>
+              <GlobalSearch />
+            </SidebarProvider>
+          </TooltipProvider>
+        </RolePreviewProvider>
       </CompanyProfileProvider>
     </AuthGuard>
   );

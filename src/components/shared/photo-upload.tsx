@@ -1,9 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Camera, X, Loader2, ImageIcon } from "lucide-react";
+import { Camera, X, Loader2, ImageIcon, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { uploadFiles } from "@/lib/firebase/storage";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 interface PhotoUploadProps {
@@ -29,6 +34,25 @@ export function PhotoUpload({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = React.useState(false);
   const [dragActive, setDragActive] = React.useState(false);
+  const [viewerIndex, setViewerIndex] = React.useState<number | null>(null);
+
+  // Keyboard navigation for lightbox
+  React.useEffect(() => {
+    if (viewerIndex === null) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight")
+        setViewerIndex((i) =>
+          i !== null ? (i === photos.length - 1 ? 0 : i + 1) : null
+        );
+      else if (e.key === "ArrowLeft")
+        setViewerIndex((i) =>
+          i !== null ? (i === 0 ? photos.length - 1 : i - 1) : null
+        );
+      else if (e.key === "Escape") setViewerIndex(null);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [viewerIndex, photos.length]);
 
   const handleFiles = React.useCallback(
     async (files: FileList | File[]) => {
@@ -90,12 +114,23 @@ export function PhotoUpload({
               <img
                 src={url}
                 alt={`Photo ${idx + 1}`}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-cover cursor-pointer"
+                onClick={() => setViewerIndex(idx)}
               />
+              <button
+                type="button"
+                onClick={() => setViewerIndex(idx)}
+                className="absolute bottom-1 left-1 h-5 w-5 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <ZoomIn className="h-3 w-3" />
+              </button>
               {!disabled && (
                 <button
                   type="button"
-                  onClick={() => removePhoto(idx)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removePhoto(idx);
+                  }}
                   className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 >
                   <X className="h-3 w-3" />
@@ -152,6 +187,72 @@ export function PhotoUpload({
           />
         </div>
       )}
+
+      {/* ── Lightbox Viewer ── */}
+      <Dialog
+        open={viewerIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setViewerIndex(null);
+        }}
+      >
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 gap-0 overflow-hidden bg-black/95 border-none [&>button]:text-white [&>button]:hover:text-white/80">
+          <DialogTitle className="sr-only">
+            Photo {viewerIndex !== null ? viewerIndex + 1 : ""} of {photos.length}
+          </DialogTitle>
+
+          {viewerIndex !== null && (
+            <div
+              className="relative flex items-center justify-center w-full h-[90vh]"
+              onClick={() => setViewerIndex(null)}
+            >
+              {/* Image */}
+              <img
+                src={photos[viewerIndex]}
+                alt={`Photo ${viewerIndex + 1}`}
+                className="max-w-full max-h-full object-contain select-none"
+                onClick={(e) => e.stopPropagation()}
+              />
+
+              {/* Counter */}
+              <span className="absolute top-3 left-1/2 -translate-x-1/2 text-white/70 text-xs font-medium bg-black/40 rounded-full px-3 py-1">
+                {viewerIndex + 1} / {photos.length}
+              </span>
+
+              {/* Prev */}
+              {photos.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewerIndex(
+                      viewerIndex === 0 ? photos.length - 1 : viewerIndex - 1
+                    );
+                  }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors cursor-pointer"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+              )}
+
+              {/* Next */}
+              {photos.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewerIndex(
+                      viewerIndex === photos.length - 1 ? 0 : viewerIndex + 1
+                    );
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors cursor-pointer"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

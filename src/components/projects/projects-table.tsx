@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil } from "lucide-react";
+import Link from "next/link";
+import { Plus, Pencil, ExternalLink } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
@@ -276,7 +277,7 @@ export function ProjectsTable({
                     onChange={setCostCodeFilter}
                   />
                 </TableHead>
-                <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
+                <TableHead className="w-[80px] text-xs font-semibold px-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -324,9 +325,12 @@ export function ProjectsTable({
                     {/* Name */}
                     <TableCell className="p-0 px-1">
                       {isCompleted ? (
-                        <span className="text-xs px-2 text-muted-foreground">
+                        <Link
+                          href={`/projects/${project.id}`}
+                          className="text-xs px-2 text-muted-foreground hover:text-primary hover:underline transition-colors"
+                        >
                           {project.name}
-                        </span>
+                        </Link>
                       ) : (
                         <CellInput
                           value={project.name}
@@ -417,8 +421,24 @@ export function ProjectsTable({
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
-                      {isCompleted ? (
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 justify-center">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Link href={`/projects/${project.id}`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </Button>
+                            </Link>
+                          </TooltipTrigger>
+                          <TooltipContent side="left">
+                            <p className="text-xs">Open project details</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        {isCompleted ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -436,15 +456,13 @@ export function ProjectsTable({
                               </p>
                             </TooltipContent>
                           </Tooltip>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        ) : (
                           <DeleteConfirmButton
                             onConfirm={() => deleteProject(project.id)}
                             itemLabel="this project"
                           />
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

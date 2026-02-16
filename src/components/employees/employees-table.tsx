@@ -9,6 +9,7 @@ import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
 import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
 import { employeeCSVColumns, employeePDFColumns, employeePDFRows } from "@/lib/export/columns";
+import { DEFAULT_ROLE_TEMPLATES } from "@/lib/constants/permissions";
 
 import {
   Table,
@@ -77,12 +78,20 @@ export function EmployeesTable({
     new Set()
   );
 
-  // Filter option arrays
+  // Role options from templates (used for both the cell select and the column filter)
+  const roleSelectOptions = React.useMemo(
+    () => DEFAULT_ROLE_TEMPLATES.map((t) => ({ id: t.role, label: t.role })),
+    []
+  );
+
+  // Filter option arrays – include template roles plus any extra roles already in use
   const roleOptions = React.useMemo(() => {
-    const roles = Array.from(
-      new Set(employeeList.map((e) => e.role).filter(Boolean))
-    ).sort();
-    return roles.map((r) => ({ id: r, label: r }));
+    const templateRoles = new Set(DEFAULT_ROLE_TEMPLATES.map((t) => t.role));
+    const extra = employeeList
+      .map((e) => e.role)
+      .filter((r) => r && !templateRoles.has(r));
+    const all = [...templateRoles, ...extra].sort();
+    return all.map((r) => ({ id: r, label: r }));
   }, [employeeList]);
 
   const statusOptions = (["active", "inactive"] as EmployeeStatus[]).map(
@@ -218,10 +227,11 @@ export function EmployeesTable({
                           {emp.role}
                         </span>
                       ) : (
-                        <CellInput
+                        <CellSelect
                           value={emp.role}
                           onChange={(v) => updateEmployee(emp.id, "role", v)}
-                          placeholder="e.g. Carpenter"
+                          options={roleSelectOptions}
+                          placeholder="Select role"
                         />
                       )}
                     </TableCell>
@@ -278,7 +288,7 @@ export function EmployeesTable({
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
                       {isInactive ? (
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-0.5">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -296,7 +306,7 @@ export function EmployeesTable({
                           </Tooltip>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-center">
                           <DeleteConfirmButton
                             onConfirm={() => deleteEmployee(emp.id)}
                             itemLabel="this employee"

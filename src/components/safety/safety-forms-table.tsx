@@ -325,7 +325,7 @@ export function SafetyFormsTable({
 
                   {/* Actions */}
                   <TableCell className="px-2">
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-0.5">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button

@@ -13,6 +13,7 @@ import type {
   SafetyForm,
   DispatchAssignment,
   DailyReport,
+  RolePermissions,
 } from "@/lib/types/time-tracking";
 
 // ── Core entities ───────────────────────────
@@ -57,4 +58,8 @@ export function useDispatches() {
 
 export function useDailyReports() {
   return useCollection<DailyReport>(Collections.DAILY_REPORTS);
+}
+
+export function useRolePermissions() {
+  return useCollection<RolePermissions>(Collections.ROLE_PERMISSIONS);
 }

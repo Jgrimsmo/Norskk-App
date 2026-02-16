@@ -13,6 +13,7 @@ import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { Collections } from "@/lib/firebase/collections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
+import { RequirePermission } from "@/components/require-permission";
 
 type ViewMode = "entries" | "payroll";
 
@@ -38,6 +39,7 @@ export default function TimeTrackingPage() {
   const approvedCount = periodEntries.filter((e) => e.approval === "approved").length;
 
   return (
+    <RequirePermission permission="time-tracking.view">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -126,5 +128,6 @@ export default function TimeTrackingPage() {
       )}
       <SavingIndicator saving={saving} />
     </div>
+    </RequirePermission>
   );
 }

@@ -123,7 +123,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
   y = (doc as any).lastAutoTable.finalY + 4;
 
   // ── 2. Manpower ──
-  if (report.manpower.length > 0) {
+  if ((report.manpower ?? []).length > 0) {
     y = checkPageBreak(doc, y, 30, pageHeight, margin);
     y = sectionHeader(doc, "2. MANPOWER", margin, contentWidth, y);
 
@@ -131,7 +131,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
       startY: y,
       margin: { left: margin, right: margin },
       head: [["Company", "Trade", "Headcount", "Hours", "Overtime", "Foreman", "Description"]],
-      body: report.manpower.map((m) => [
+      body: (report.manpower ?? []).map((m) => [
         m.company,
         m.trade,
         String(m.headcount),
@@ -150,7 +150,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
   }
 
   // ── 3. Equipment Log ──
-  if (report.equipmentLog.length > 0) {
+  if ((report.equipmentLog ?? []).length > 0) {
     y = checkPageBreak(doc, y, 30, pageHeight, margin);
     y = sectionHeader(doc, "3. EQUIPMENT", margin, contentWidth, y);
 
@@ -158,7 +158,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
       startY: y,
       margin: { left: margin, right: margin },
       head: [["Equipment", "Hours Used", "Idle Hours", "Operator", "Notes"]],
-      body: report.equipmentLog.map((e) => {
+      body: (report.equipmentLog ?? []).map((e) => {
         const eq = equipment.find((x) => x.id === e.equipmentId);
         return [
           eq?.name || e.equipmentId,
@@ -178,7 +178,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
   }
 
   // ── 4. Work Performed ──
-  if (report.workPerformed.length > 0) {
+  if ((report.workPerformed ?? []).length > 0) {
     y = checkPageBreak(doc, y, 30, pageHeight, margin);
     y = sectionHeader(doc, "4. WORK PERFORMED", margin, contentWidth, y);
 
@@ -186,7 +186,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
       startY: y,
       margin: { left: margin, right: margin },
       head: [["Description", "Location", "Trade", "Status", "% Complete", "Notes"]],
-      body: report.workPerformed.map((w) => [
+      body: (report.workPerformed ?? []).map((w) => [
         w.description,
         w.location || "—",
         w.trade || "—",
@@ -205,7 +205,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
   }
 
   // ── 5. Delays ──
-  if (report.delays.length > 0) {
+  if ((report.delays ?? []).length > 0) {
     y = checkPageBreak(doc, y, 30, pageHeight, margin);
     y = sectionHeader(doc, "5. DELAYS", margin, contentWidth, y);
 
@@ -213,7 +213,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
       startY: y,
       margin: { left: margin, right: margin },
       head: [["Type", "Description", "Duration (hrs)", "Responsible Party", "Schedule Impact"]],
-      body: report.delays.map((d) => [
+      body: (report.delays ?? []).map((d) => [
         d.delayType,
         d.description,
         String(d.durationHours),
@@ -230,7 +230,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
   }
 
   // ── 6. Material Deliveries ──
-  if (report.materialDeliveries.length > 0) {
+  if ((report.materialDeliveries ?? []).length > 0) {
     y = checkPageBreak(doc, y, 30, pageHeight, margin);
     y = sectionHeader(doc, "6. MATERIAL DELIVERIES", margin, contentWidth, y);
 
@@ -238,7 +238,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
       startY: y,
       margin: { left: margin, right: margin },
       head: [["Description", "Supplier", "Qty", "PO #", "Ticket #", "Received By", "Condition"]],
-      body: report.materialDeliveries.map((m) => [
+      body: (report.materialDeliveries ?? []).map((m) => [
         m.description,
         m.supplier || "—",
         m.quantity || "—",
@@ -257,7 +257,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
   }
 
   // ── 7. Visitors ──
-  if (report.visitors.length > 0) {
+  if ((report.visitors ?? []).length > 0) {
     y = checkPageBreak(doc, y, 30, pageHeight, margin);
     y = sectionHeader(doc, "7. VISITORS", margin, contentWidth, y);
 
@@ -265,7 +265,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
       startY: y,
       margin: { left: margin, right: margin },
       head: [["Name", "Company", "Purpose", "Time In", "Time Out"]],
-      body: report.visitors.map((v) => [
+      body: (report.visitors ?? []).map((v) => [
         v.name,
         v.company || "—",
         v.purpose || "—",
@@ -283,9 +283,9 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
 
   // ── 8. Notes ──
   const notes = [
-    { label: "Safety Notes", value: report.safetyNotes },
-    { label: "General Notes", value: report.generalNotes },
-    { label: "Next Day Plan", value: report.nextDayPlan },
+    { label: "Safety Notes", value: report.safetyNotes ?? "" },
+    { label: "General Notes", value: report.generalNotes ?? "" },
+    { label: "Next Day Plan", value: report.nextDayPlan ?? "" },
   ].filter((n) => n.value);
 
   if (notes.length > 0) {

@@ -1,13 +1,17 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Search } from "lucide-react";
+import { Bell, Search, Eye, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/firebase/auth-context";
+import { useRolePreview } from "@/lib/role-preview-context";
+import { usePermissions } from "@/hooks/use-permissions";
+import { DEFAULT_ROLE_TEMPLATES } from "@/lib/constants/permissions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -43,6 +47,12 @@ export function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const { previewRole, isPreviewing, startPreview, stopPreview } =
+    useRolePreview();
+  const { realRole } = usePermissions();
+
+  // Only show "View as" for actual admins (or users with no role yet — owner)
+  const isAdmin = !realRole || realRole.toLowerCase() === "admin";
 
   // Derive initials & display values from Firebase user
   const displayName = user?.displayName || "User";
@@ -65,7 +75,26 @@ export function TopBar() {
   const pageTitle = getPageTitle();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
+    <>
+      {/* Preview mode banner */}
+      {isPreviewing && (
+        <div className="sticky top-0 z-40 flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-amber-950">
+          <Eye className="h-4 w-4" />
+          <span className="text-xs font-semibold">
+            Previewing as: {previewRole}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-[10px] gap-1 bg-white/80 hover:bg-white border-amber-600 text-amber-900 cursor-pointer"
+            onClick={stopPreview}
+          >
+            <X className="h-3 w-3" />
+            Exit preview
+          </Button>
+        </div>
+      )}
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
       {/* Left section: sidebar trigger + breadcrumb */}
       <div className="flex items-center gap-3">
         <SidebarTrigger className="-ml-1 h-8 w-8 text-muted-foreground hover:text-foreground" />
@@ -100,7 +129,7 @@ export function TopBar() {
             type="search"
             placeholder="Search... ⌘K"
             aria-label="Search"
-            className="w-64 pl-9 h-9 bg-muted/50 border-transparent focus:border-input focus:bg-background cursor-pointer"
+            className="w-64 pl-9 h-9 bg-white dark:bg-muted/50 border border-input cursor-pointer"
             readOnly
             onClick={() => {
               document.dispatchEvent(
@@ -128,6 +157,57 @@ export function TopBar() {
 
         {/* Theme Toggle */}
         <ThemeToggle />
+
+        {/* View As Role (admin only) */}
+        {isAdmin && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant={isPreviewing ? "default" : "outline"}
+                size="sm"
+                className="hidden sm:flex h-8 text-xs gap-1.5 cursor-pointer"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                {isPreviewing ? `Viewing: ${previewRole}` : "View as…"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel className="text-xs">
+                Preview as role
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {DEFAULT_ROLE_TEMPLATES.map((t) => (
+                <DropdownMenuItem
+                  key={t.role}
+                  className="text-xs cursor-pointer gap-2"
+                  onClick={() => startPreview(t.role)}
+                >
+                  {t.role}
+                  {previewRole === t.role && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-auto text-[9px] px-1"
+                    >
+                      Active
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+              ))}
+              {isPreviewing && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-xs cursor-pointer text-amber-600 gap-2"
+                    onClick={stopPreview}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Exit preview
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         {/* Notifications */}
         <Button
@@ -169,5 +249,6 @@ export function TopBar() {
         </DropdownMenu>
       </div>
     </header>
+    </>
   );
 }

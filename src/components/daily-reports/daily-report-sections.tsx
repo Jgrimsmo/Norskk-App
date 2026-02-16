@@ -20,6 +20,13 @@ import {
   Clock,
   Package,
   UserCheck,
+  Camera,
+  Sunrise,
+  Hammer,
+  Moon,
+  DollarSign,
+  FileText,
+  Truck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -1008,6 +1015,225 @@ export function VisitorsSection({
             No visitors today.
           </p>
         )}
+      </div>
+    </section>
+  );
+}
+
+// ────────────────────────────────────────────────────────
+// Section: Information (Work Description + Third Party Rentals)
+// ────────────────────────────────────────────────────────
+interface InformationSectionProps {
+  workDescription: string;
+  thirdPartyRentals: string;
+  isLocked: boolean;
+  onUpdateWorkDescription: (v: string) => void;
+  onUpdateThirdPartyRentals: (v: string) => void;
+}
+
+export function InformationSection({
+  workDescription,
+  thirdPartyRentals,
+  isLocked,
+  onUpdateWorkDescription,
+  onUpdateThirdPartyRentals,
+}: InformationSectionProps) {
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+        <FileText className="h-4 w-4 text-blue-600" />
+        Information
+      </h3>
+      <div className="space-y-3">
+        <div>
+          <Label className="text-xs text-muted-foreground">Work Description</Label>
+          <Textarea
+            value={workDescription}
+            onChange={(e) => onUpdateWorkDescription(e.target.value)}
+            placeholder="Describe the main work performed today…"
+            className="text-xs mt-1 min-h-[60px]"
+            disabled={isLocked}
+          />
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground">Third Party Rental Description (In/Out)</Label>
+          <Textarea
+            value={thirdPartyRentals}
+            onChange={(e) => onUpdateThirdPartyRentals(e.target.value)}
+            placeholder="e.g. 50T crane — IN at 7 AM, OUT at 4 PM…"
+            className="text-xs mt-1 min-h-[48px]"
+            disabled={isLocked}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ────────────────────────────────────────────────────────
+// Section: Site Photos (Morning / Work Hours / End of Day)
+// ────────────────────────────────────────────────────────
+interface SitePhotosSectionProps {
+  morningPhotoUrls: string[];
+  workPhotoUrls: string[];
+  endOfDayPhotoUrls: string[];
+  reportId: string;
+  isLocked: boolean;
+  onUpdateMorning: (urls: string[]) => void;
+  onUpdateWork: (urls: string[]) => void;
+  onUpdateEndOfDay: (urls: string[]) => void;
+}
+
+export function SitePhotosSection({
+  morningPhotoUrls,
+  workPhotoUrls,
+  endOfDayPhotoUrls,
+  reportId,
+  isLocked,
+  onUpdateMorning,
+  onUpdateWork,
+  onUpdateEndOfDay,
+}: SitePhotosSectionProps) {
+  const totalPhotos =
+    morningPhotoUrls.length + workPhotoUrls.length + endOfDayPhotoUrls.length;
+
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+        <Camera className="h-4 w-4 text-sky-500" />
+        Site Photos ({totalPhotos})
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Morning */}
+        <div className="rounded-lg border p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+            <Sunrise className="h-3.5 w-3.5 text-amber-500" />
+            Morning ({morningPhotoUrls.length})
+          </div>
+          <PhotoUpload
+            photos={morningPhotoUrls}
+            onChange={onUpdateMorning}
+            storagePath={`daily-reports/${reportId}/morning`}
+            disabled={isLocked}
+            maxPhotos={10}
+          />
+        </div>
+
+        {/* Work Hours */}
+        <div className="rounded-lg border p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+            <Hammer className="h-3.5 w-3.5 text-orange-500" />
+            Work Hours ({workPhotoUrls.length})
+          </div>
+          <PhotoUpload
+            photos={workPhotoUrls}
+            onChange={onUpdateWork}
+            storagePath={`daily-reports/${reportId}/work`}
+            disabled={isLocked}
+            maxPhotos={10}
+          />
+        </div>
+
+        {/* End of Day */}
+        <div className="rounded-lg border p-3 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+            <Moon className="h-3.5 w-3.5 text-indigo-500" />
+            End of Day ({endOfDayPhotoUrls.length})
+          </div>
+          <PhotoUpload
+            photos={endOfDayPhotoUrls}
+            onChange={onUpdateEndOfDay}
+            storagePath={`daily-reports/${reportId}/eod`}
+            disabled={isLocked}
+            maxPhotos={10}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ────────────────────────────────────────────────────────
+// Section: T&M Information (Time & Materials)
+// ────────────────────────────────────────────────────────
+interface TMInformationSectionProps {
+  tmWork: boolean;
+  tmWorkDescription: string;
+  tmDailyRentals: string;
+  isLocked: boolean;
+  onUpdateTmWork: (v: boolean) => void;
+  onUpdateTmWorkDescription: (v: string) => void;
+  onUpdateTmDailyRentals: (v: string) => void;
+}
+
+export function TMInformationSection({
+  tmWork,
+  tmWorkDescription,
+  tmDailyRentals,
+  isLocked,
+  onUpdateTmWork,
+  onUpdateTmWorkDescription,
+  onUpdateTmDailyRentals,
+}: TMInformationSectionProps) {
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+        <DollarSign className="h-4 w-4 text-emerald-600" />
+        T&M Information
+      </h3>
+      <div className="space-y-3">
+        <div className="flex items-center gap-6">
+          <p className="text-xs text-muted-foreground">Was there any T&M work today?</p>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <Checkbox
+                checked={tmWork}
+                onCheckedChange={() => { if (!isLocked) onUpdateTmWork(true); }}
+                disabled={isLocked}
+                className="h-3.5 w-3.5"
+              />
+              Yes
+            </label>
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <Checkbox
+                checked={!tmWork}
+                onCheckedChange={() => { if (!isLocked) onUpdateTmWork(false); }}
+                disabled={isLocked}
+                className="h-3.5 w-3.5"
+              />
+              No
+            </label>
+          </div>
+        </div>
+
+        {tmWork && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">T&M Work Explained</Label>
+              <Textarea
+                value={tmWorkDescription}
+                onChange={(e) => onUpdateTmWorkDescription(e.target.value)}
+                placeholder="Describe the T&M work…"
+                className="text-xs mt-1 min-h-[60px]"
+                disabled={isLocked}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">T&M Daily Rentals</Label>
+              <Textarea
+                value={tmDailyRentals}
+                onChange={(e) => onUpdateTmDailyRentals(e.target.value)}
+                placeholder="List any T&M rentals used today…"
+                className="text-xs mt-1 min-h-[60px]"
+                disabled={isLocked}
+              />
+            </div>
+          </div>
+        )}
+
+        <p className="text-[10px] text-muted-foreground italic border-t pt-2">
+          Please review all daily tasks with Project Foreman or Manager to verify if any tasks were T&M or Lump Sum.
+        </p>
       </div>
     </section>
   );

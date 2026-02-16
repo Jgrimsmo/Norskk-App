@@ -281,7 +281,7 @@ export function EquipmentTable({
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
                       {isRetired ? (
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-0.5">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -301,7 +301,7 @@ export function EquipmentTable({
                           </Tooltip>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-center">
                           <DeleteConfirmButton
                             onConfirm={() => deleteEquipment(eq.id)}
                             itemLabel="this equipment"

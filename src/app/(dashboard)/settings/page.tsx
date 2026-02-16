@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { CompanyProfileSettings } from "@/components/settings/company-profile";
 import { UserManagementSettings } from "@/components/settings/user-management";
 import { CostCodesSettings } from "@/components/settings/cost-codes";
+import { RolePermissionsSettings } from "@/components/settings/role-permissions";
+import { RequirePermission } from "@/components/require-permission";
 
 // ── Section registry ──
 const sections = [
@@ -50,10 +52,10 @@ const sections = [
   },
   {
     id: "security",
-    title: "Security",
+    title: "Roles & Permissions",
     icon: Shield,
-    component: null,
-    ready: false,
+    component: RolePermissionsSettings,
+    ready: true,
   },
   {
     id: "appearance",
@@ -78,6 +80,7 @@ export default function SettingsPage() {
   const ActiveComponent = active?.component;
 
   return (
+    <RequirePermission permission="settings.view">
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -143,5 +146,6 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+    </RequirePermission>
   );
 }

@@ -13,6 +13,7 @@ export const Collections = {
   DISPATCHES: "dispatches",
   DAILY_REPORTS: "dailyReports",
   COMPANY_PROFILE: "companyProfile",
+  ROLE_PERMISSIONS: "rolePermissions",
 } as const;
 
 /** Sentinel equipment ID representing "no equipment". */

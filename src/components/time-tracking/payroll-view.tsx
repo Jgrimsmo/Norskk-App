@@ -244,15 +244,15 @@ export function PayrollView({ entries, period }: PayrollViewProps) {
           No hours
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-green-600 font-semibold">8</span>
+          <span className="text-green-900 dark:text-green-400 font-semibold">8</span>
           Approved
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-yellow-600 font-semibold">8</span>
+          <span className="text-blue-700 dark:text-blue-400 font-semibold">8</span>
           Pending
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-red-500 font-semibold line-through">8</span>
+          <span className="text-red-800 dark:text-red-400 font-semibold line-through">8</span>
           Rejected
         </div>
         <span>
@@ -272,11 +272,11 @@ function HoursCell({ cell, bold }: { cell: HoursByStatus; bold?: boolean }) {
   const mixed = !allApproved && !allPending && !allRejected;
 
   const colorClass = allApproved
-    ? "text-green-600"
+    ? "text-green-900 dark:text-green-400"
     : allPending
-      ? "text-yellow-600"
+      ? "text-blue-700 dark:text-blue-400"
       : allRejected
-        ? "text-red-500 line-through"
+        ? "text-red-800 line-through dark:text-red-400"
         : "text-foreground";
 
   const content = (

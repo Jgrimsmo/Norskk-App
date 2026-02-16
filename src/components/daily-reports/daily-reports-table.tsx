@@ -6,6 +6,8 @@ import {
   FileText,
   Plus,
   Search,
+  Camera,
+  Users,
 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
@@ -14,7 +16,6 @@ import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
 import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
 import { dailyReportCSVColumns, dailyReportPDFColumns, dailyReportPDFRows } from "@/lib/export/columns";
-import { generateDailyReportPDF } from "@/lib/export/daily-report-pdf";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,7 @@ function createBlankReport(): DailyReport {
     id: nextId(),
     reportNumber: Math.floor(Math.random() * 9000) + 1000,
     date: format(now, "yyyy-MM-dd"),
+    time: format(now, "HH:mm"),
     projectId: "",
     authorId: "",
     status: "draft",
@@ -87,19 +89,11 @@ function createBlankReport(): DailyReport {
       delayHours: 0,
       notes: "",
     },
-    manpower: [],
-    equipmentLog: [],
-    workPerformed: [],
-    delays: [],
-    materialDeliveries: [],
-    visitors: [],
-    safetyNotes: "",
-    generalNotes: "",
-    nextDayPlan: "",
-    photoUrls: [],
-    authorSignature: "",
-    approverSignature: "",
-    approverId: "",
+    workDescription: "",
+    morningPhotoUrls: [],
+    workPhotoUrls: [],
+    endOfDayPhotoUrls: [],
+    onSiteStaff: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -164,7 +158,7 @@ export default function DailyReportsTable() {
           !pName.includes(q) &&
           !aName.includes(q) &&
           !rNum.includes(q) &&
-          !r.generalNotes.toLowerCase().includes(q)
+          !(r.workDescription ?? "").toLowerCase().includes(q)
         )
           return false;
       }
@@ -258,7 +252,7 @@ export default function DailyReportsTable() {
                   onDateRangeChange={setDateRange}
                 />
               </TableHead>
-              <TableHead className="w-[80px]">Report #</TableHead>
+              <TableHead className="w-[70px]">Time</TableHead>
               <TableHead>
                 <ColumnFilter
                   title="Project"
@@ -276,9 +270,8 @@ export default function DailyReportsTable() {
                 />
               </TableHead>
               <TableHead className="w-[120px]">Weather</TableHead>
-              <TableHead className="w-[70px]">Crew</TableHead>
-              <TableHead className="w-[70px]">Work Items</TableHead>
-              <TableHead className="w-[70px]">Delays</TableHead>
+              <TableHead className="w-[70px]">Staff</TableHead>
+              <TableHead className="w-[60px]">Photos</TableHead>
               <TableHead className="w-[90px]">
                 <ColumnFilter
                   title="Status"
@@ -293,7 +286,7 @@ export default function DailyReportsTable() {
           <TableBody>
             {filteredReports.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-12">
+                <TableCell colSpan={9} className="text-center py-12">
                   <FileText className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
                   <p className="text-sm text-muted-foreground">
                     No reports found
@@ -302,10 +295,10 @@ export default function DailyReportsTable() {
               </TableRow>
             ) : (
               filteredReports.map((report) => {
-                const totalHeadcount = report.manpower.reduce(
-                  (s, m) => s + m.headcount,
-                  0
-                );
+                const totalPhotos =
+                  (report.morningPhotoUrls?.length ?? 0) +
+                  (report.workPhotoUrls?.length ?? 0) +
+                  (report.endOfDayPhotoUrls?.length ?? 0);
                 const weatherStr =
                   report.weather.conditions.length > 0
                     ? report.weather.conditions
@@ -322,8 +315,8 @@ export default function DailyReportsTable() {
                     <TableCell className="text-xs font-medium">
                       {format(parseISO(report.date), "MM/dd/yyyy")}
                     </TableCell>
-                    <TableCell className="text-xs font-mono">
-                      #{report.reportNumber}
+                    <TableCell className="text-xs text-muted-foreground">
+                      {report.time || "—"}
                     </TableCell>
                     <TableCell className="text-xs truncate max-w-[200px]">
                       {getProjectName(report.projectId)}
@@ -340,15 +333,20 @@ export default function DailyReportsTable() {
                       </span>
                     </TableCell>
                     <TableCell className="text-xs">
-                      {totalHeadcount > 0 ? totalHeadcount : "—"}
+                      {(report.onSiteStaff ?? []).length > 0 ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="h-3 w-3 text-muted-foreground" />
+                          {(report.onSiteStaff ?? []).length}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell className="text-xs">
-                      {report.workPerformed.length || "—"}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {report.delays.length > 0 ? (
-                        <span className="text-red-600 font-medium">
-                          {report.delays.length}
+                      {totalPhotos > 0 ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Camera className="h-3 w-3 text-muted-foreground" />
+                          {totalPhotos}
                         </span>
                       ) : (
                         "—"
@@ -399,13 +397,12 @@ export default function DailyReportsTable() {
 // ── Export sub-component ──
 const DAILY_REPORT_EXPORT_COLUMNS: ExportColumnDef[] = [
   { id: "date", header: "Date" },
-  { id: "reportNumber", header: "Report #" },
+  { id: "time", header: "Time" },
   { id: "project", header: "Project" },
   { id: "author", header: "Author" },
   { id: "weather", header: "Weather" },
-  { id: "crew", header: "Crew" },
-  { id: "work", header: "Work Items" },
-  { id: "delays", header: "Delays" },
+  { id: "staff", header: "Staff" },
+  { id: "photos", header: "Photos" },
   { id: "status", header: "Status" },
 ];
 
