@@ -5,22 +5,22 @@ import {
   User,
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
-  updateProfile,
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
-import { create, getById } from "@/lib/firebase/firestore";
+import { create, getById, update } from "@/lib/firebase/firestore";
 import { Collections } from "@/lib/firebase/collections";
 import type { Employee } from "@/lib/types/time-tracking";
+
+// Admin email — this account always gets Admin role
+const ADMIN_EMAIL = "norskk.earthworks@gmail.com";
 
 // ── Types ──
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
 }
@@ -49,21 +49,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Ensure every authenticated user has an employee record
       if (firebaseUser) {
         try {
-          // Use UID as the document ID for a simple, index-free lookup
           const existing = await getById<Employee>(
             Collections.EMPLOYEES,
             firebaseUser.uid
           );
           if (!existing) {
+            // Create employee record for users created via admin invite
+            const isAdmin = firebaseUser.email === ADMIN_EMAIL;
             await create<Employee>(Collections.EMPLOYEES, {
               id: firebaseUser.uid,
               name: firebaseUser.displayName || firebaseUser.email || "Unknown",
               email: firebaseUser.email || "",
               phone: "",
-              role: "Labourer",
+              role: isAdmin ? "Admin" : "Labourer",
               status: "active",
               uid: firebaseUser.uid,
               createdAt: new Date().toISOString(),
+            });
+          } else if (
+            firebaseUser.email === ADMIN_EMAIL &&
+            existing.role !== "Admin"
+          ) {
+            // Always ensure the admin email has Admin role
+            await update<Employee>(Collections.EMPLOYEES, firebaseUser.uid, {
+              role: "Admin",
             });
           }
         } catch (err) {
@@ -79,23 +88,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   };
 
-  const signUp = async (email: string, password: string, displayName: string) => {
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(credential.user, { displayName });
-
-    // Auto-create an employee record using UID as doc ID
-    await create<Employee>(Collections.EMPLOYEES, {
-      id: credential.user.uid,
-      name: displayName,
-      email,
-      phone: "",
-      role: "Labourer",
-      status: "active",
-      uid: credential.user.uid,
-      createdAt: new Date().toISOString(),
-    });
-  };
-
   const signOut = async () => {
     await firebaseSignOut(auth);
   };
@@ -105,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, resetPassword }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

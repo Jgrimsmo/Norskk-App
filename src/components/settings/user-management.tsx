@@ -68,6 +68,7 @@ export function UserManagementSettings() {
 
   // Add user dialog
   const [adding, setAdding] = React.useState(false);
+  const [addPending, setAddPending] = React.useState(false);
   const [newUser, setNewUser] = React.useState({
     name: "",
     email: "",
@@ -109,16 +110,48 @@ export function UserManagementSettings() {
       toast.error("Name is required");
       return;
     }
+    if (!newUser.email.trim()) {
+      toast.error("Email is required to send an invite");
+      return;
+    }
+
+    setAddPending(true);
     try {
+      // 1. Create Firebase Auth account & get password reset link via server API
+      const token = await user!.getIdToken();
+      const res = await fetch("/api/invite-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: newUser.email,
+          displayName: newUser.name,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to create account");
+        return;
+      }
+
+      // 2. Create employee record in Firestore using the new user's UID
       await add({
-        id: `emp-${crypto.randomUUID().slice(0, 8)}`,
+        id: data.uid,
         name: newUser.name,
         email: newUser.email,
         phone: newUser.phone,
         role: newUser.role,
         status: newUser.status,
+        uid: data.uid,
+        createdAt: new Date().toISOString(),
       });
-      toast.success("User added");
+
+      toast.success("User invited!", {
+        description: `A password setup email has been sent to ${newUser.email}`,
+      });
       setAdding(false);
       setNewUser({
         name: "",
@@ -128,13 +161,39 @@ export function UserManagementSettings() {
         status: "active",
       });
     } catch {
-      toast.error("Failed to add user");
+      toast.error("Failed to invite user");
+    } finally {
+      setAddPending(false);
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
+      // Find the employee to get their UID
+      const emp = employees.find((e) => e.id === id);
+
+      // Delete from Firestore
       await remove(id);
+
+      // Also delete from Firebase Auth if they have a linked UID
+      const uid = emp?.uid || id; // id is the UID for newer accounts
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          await fetch("/api/delete-user", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ uid }),
+          });
+        } catch {
+          // Auth deletion is best-effort — employee is already removed from Firestore
+          console.warn("Could not delete auth account for", uid);
+        }
+      }
+
       toast.success("User removed");
     } catch {
       toast.error("Failed to remove user");
@@ -185,7 +244,7 @@ export function UserManagementSettings() {
           onClick={() => setAdding(true)}
         >
           <UserPlus className="h-3.5 w-3.5" />
-          Add User
+          Invite User
         </Button>
       </div>
 
@@ -223,8 +282,11 @@ export function UserManagementSettings() {
         <div className="rounded-lg border p-4 space-y-3 bg-card">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <UserPlus className="h-4 w-4" />
-            Add New User
+            Invite New User
           </h3>
+          <p className="text-xs text-muted-foreground">
+            An email will be sent to the user with a link to set their password.
+          </p>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1">
               <Label className="text-xs">Name *</Label>
@@ -238,7 +300,7 @@ export function UserManagementSettings() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Email</Label>
+              <Label className="text-xs">Email *</Label>
               <Input
                 type="email"
                 value={newUser.email}
@@ -247,6 +309,7 @@ export function UserManagementSettings() {
                 }
                 placeholder="john@company.ca"
                 className="h-8 text-xs"
+                required
               />
             </div>
             <div className="space-y-1">
@@ -292,10 +355,12 @@ export function UserManagementSettings() {
             </Button>
             <Button
               size="sm"
-              className="text-xs cursor-pointer"
+              className="text-xs cursor-pointer gap-1.5"
               onClick={handleAdd}
+              disabled={addPending}
             >
-              Add User
+              {addPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {addPending ? "Sending..." : "Send Invite"}
             </Button>
           </div>
         </div>
