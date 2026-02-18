@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 
@@ -20,9 +21,11 @@ export default function SignUpPage() {
     <div className="w-full max-w-sm space-y-6 text-center">
       <div className="flex flex-col items-center gap-2">
         {profile?.logoUrl ? (
-          <img
+          <Image
             src={profile.logoUrl}
             alt={profile.name || "Company logo"}
+            width={160}
+            height={64}
             className="h-16 w-auto object-contain invert dark:invert-0"
           />
         ) : (

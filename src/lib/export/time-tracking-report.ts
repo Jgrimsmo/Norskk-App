@@ -26,6 +26,10 @@ const COLORS = {
   subtotal: [235, 238, 248] as [number, number, number],
 };
 
+type JsPdfWithPageInfo = jsPDF & {
+  getCurrentPageInfo: () => { pageNumber: number };
+};
+
 interface TimeReportOptions {
   entries: TimeEntry[];
   employees: Employee[];
@@ -398,8 +402,9 @@ function drawPageFooter(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.text(`${company?.name || "Norskk"} — Confidential`, margin, fy);
+  const pageNumber = (doc as JsPdfWithPageInfo).getCurrentPageInfo().pageNumber;
   doc.text(
-    `Generated ${new Date().toLocaleDateString("en-CA")}  •  Page ${(doc as any).getCurrentPageInfo().pageNumber}`,
+    `Generated ${new Date().toLocaleDateString("en-CA")}  •  Page ${pageNumber}`,
     pageWidth - margin,
     fy,
     { align: "right" }

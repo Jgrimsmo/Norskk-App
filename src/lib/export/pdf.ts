@@ -21,6 +21,10 @@ const COLORS = {
   tableAltRow: [245, 247, 252] as [number, number, number],
 };
 
+type JsPdfWithPageInfo = jsPDF & {
+  getCurrentPageInfo: () => { pageNumber: number };
+};
+
 export interface PDFColumn {
   header: string;
   dataKey: string;
@@ -357,7 +361,7 @@ function drawFooter(
   doc.text(left, margin, footerY);
 
   const date = new Date().toLocaleDateString("en-CA");
-  const pageNum = `Generated ${date}  •  Page ${(doc as any).getCurrentPageInfo().pageNumber}`;
+  const pageNum = `Generated ${date}  •  Page ${(doc as JsPdfWithPageInfo).getCurrentPageInfo().pageNumber}`;
   doc.text(pageNum, pageWidth - margin, footerY, { align: "right" });
 }
 

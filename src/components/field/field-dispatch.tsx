@@ -9,7 +9,6 @@ import {
   addWeeks,
   subWeeks,
   isToday,
-  parseISO,
 } from "date-fns";
 import {
   ChevronLeft,
@@ -116,7 +115,7 @@ export function FieldDispatch() {
             My Schedule
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            See where you're dispatched this week
+            See where you&apos;re dispatched this week
           </p>
         </div>
       </div>

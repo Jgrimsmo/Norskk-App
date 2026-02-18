@@ -34,7 +34,6 @@ import {
   type SafetyForm,
   type FLHAData,
   type HazardItem,
-  type PPEItem,
   type CheckValue,
   type CrewMember,
 } from "@/lib/types/time-tracking";

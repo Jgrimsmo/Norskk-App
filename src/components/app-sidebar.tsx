@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -112,9 +113,11 @@ export function AppSidebar() {
       <SidebarHeader className="flex flex-col items-center px-3 py-5 group-data-[collapsible=icon]:py-3">
         <Link href="/" className="flex items-center justify-center overflow-hidden">
           {logoUrl ? (
-            <img
+              <Image
               src={logoUrl}
               alt={companyName}
+                width={256}
+                height={64}
               className="w-full max-h-16 shrink-0 rounded-lg object-contain group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-h-8 invert dark:invert-0"
             />
           ) : (

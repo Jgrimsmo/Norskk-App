@@ -71,7 +71,7 @@ export default function DispatchBoard() {
   const { data: equipment } = useEquipment();
   const { data: attachments } = useAttachments();
   const { data: tools } = useTools();
-  const [dispatches, setDispatches, dispatchesLoading, dispatchesSaving] = useFirestoreState<DispatchAssignment>(Collections.DISPATCHES);
+  const [dispatches, setDispatches, , dispatchesSaving] = useFirestoreState<DispatchAssignment>(Collections.DISPATCHES);
 
   // Filtered arrays (were module-level constants)
   const activeEmployees = React.useMemo(() => employees.filter((e) => e.status === "active"), [employees]);
@@ -98,9 +98,6 @@ export default function DispatchBoard() {
   const [selectedToolIds, setSelectedToolIds] = React.useState<Set<string>>(
     new Set()
   );
-
-  // Expanded day (for day view drill-down)
-  const [expandedDay, setExpandedDay] = React.useState<Date | null>(null);
 
   // Search filters for resource lists
   const [empSearch, setEmpSearch] = React.useState("");
@@ -301,6 +298,7 @@ export default function DispatchBoard() {
       selectedToolIds,
       dispatches,
       isResourceOnDay,
+      setDispatches,
     ]
   );
 
@@ -337,7 +335,7 @@ export default function DispatchBoard() {
         );
       });
     },
-    []
+    [setDispatches]
   );
 
   // ── Clear selection ──
@@ -726,7 +724,6 @@ export default function DispatchBoard() {
               currentDate={currentDate}
               getDispatches={getDispatchesForDay}
               onAssign={assignToDay}
-              onRemoveResource={removeResource}
               hasSelection={hasSelection}
               onExpandDay={(d) => {
                 setCurrentDate(d);

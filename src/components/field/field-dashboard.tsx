@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 import {
-  useEmployees,
   useProjects,
   useCostCodes,
   useTimeEntries,
@@ -38,7 +37,6 @@ import {
 
 export function FieldDashboard() {
   const searchParams = useSearchParams();
-  const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
   const { data: costCodes } = useCostCodes();
   const { data: allEntries } = useTimeEntries();

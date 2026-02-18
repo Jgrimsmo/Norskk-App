@@ -23,7 +23,6 @@ import { SignaturePad } from "@/components/safety/signature-pad";
 import type {
   HazardItem,
   HazardRating,
-  PPEItem,
   CheckValue,
   CrewMember,
 } from "@/lib/types/time-tracking";

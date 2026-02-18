@@ -2,15 +2,14 @@
 
 import * as React from "react";
 import { format, parseISO } from "date-fns";
-import { Plus, Lock, Pencil } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF } from "@/lib/export/pdf";
-import { timeEntryColumns, timeEntryPDFRows } from "@/lib/export/columns";
+import { timeEntryColumns } from "@/lib/export/columns";
 import { generateTimeTrackingReport, generateTimeTrackingReportBlobUrl } from "@/lib/export/time-tracking-report";
 
 import {

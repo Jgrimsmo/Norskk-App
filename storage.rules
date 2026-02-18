@@ -1,0 +1,42 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function employeeRole() {
+      return lower(
+        firestore.get(
+          /databases/(default)/documents/employees/$(request.auth.uid)
+        ).data.role
+      );
+    }
+
+    function isOpsManager() {
+      return isSignedIn() && employeeRole() in ["admin", "pm", "foreman"];
+    }
+
+    function isReportAuthor(reportId) {
+      return isSignedIn()
+        && firestore.get(
+          /databases/(default)/documents/dailyReports/$(reportId)
+        ).data.authorId == request.auth.uid;
+    }
+
+    function isImageUnder10Mb() {
+      return request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /daily-reports/{reportId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isImageUnder10Mb() && (isOpsManager() || isReportAuthor(reportId));
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

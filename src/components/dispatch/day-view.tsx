@@ -1,6 +1,6 @@
 "use client";
 
-import { format, isToday } from "date-fns";
+import { format } from "date-fns";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { DispatchAssignment } from "@/lib/types/time-tracking";

@@ -40,7 +40,7 @@ export function useFirestoreState<T extends { id: string }>(path: string) {
 
   // Merge Firestore data with local optimistic state
   const data = useMemo(() => {
-    let merged = firestoreData
+    const merged = firestoreData
       .filter((item) => !localRemoves.has(item.id))
       .map((item) => localOverrides.get(item.id) ?? item);
 

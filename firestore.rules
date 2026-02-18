@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function employeeDoc() {
+      return get(/databases/$(database)/documents/employees/$(request.auth.uid));
+    }
+
+    function hasEmployee() {
+      return isSignedIn() && exists(/databases/$(database)/documents/employees/$(request.auth.uid));
+    }
+
+    function role() {
+      return hasEmployee() ? lower(employeeDoc().data.role) : "";
+    }
+
+    function isAdmin() {
+      return role() == "admin";
+    }
+
+    function isOpsManager() {
+      return role() in ["admin", "pm", "foreman"];
+    }
+
+    function isSafetyManager() {
+      return role() in ["admin", "pm", "foreman", "safety officer"];
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function canManageOwnTimeEntry() {
+      return isSignedIn()
+        && request.resource.data.employeeId == request.auth.uid
+        && (!resource.exists() || resource.data.employeeId == request.auth.uid);
+    }
+
+    function canManageOwnDailyReport() {
+      return isSignedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && (!resource.exists() || resource.data.authorId == request.auth.uid);
+    }
+
+    match /employees/{employeeId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || isSelf(employeeId);
+      allow update: if isAdmin() || isSelf(employeeId);
+      allow delete: if isAdmin();
+    }
+
+    match /rolePermissions/{roleId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /companyProfile/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || role() == "pm";
+    }
+
+    match /projects/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOpsManager();
+    }
+
+    match /costCodes/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOpsManager();
+    }
+
+    match /equipment/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOpsManager();
+    }
+
+    match /attachments/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOpsManager();
+    }
+
+    match /tools/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOpsManager();
+    }
+
+    match /dispatches/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOpsManager();
+    }
+
+    match /timeEntries/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isOpsManager() || canManageOwnTimeEntry();
+      allow update: if isOpsManager() || canManageOwnTimeEntry();
+      allow delete: if isOpsManager() || (isSignedIn() && resource.data.employeeId == request.auth.uid);
+    }
+
+    match /dailyReports/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isOpsManager() || canManageOwnDailyReport();
+      allow update: if isOpsManager() || canManageOwnDailyReport();
+      allow delete: if isOpsManager() || (isSignedIn() && resource.data.authorId == request.auth.uid);
+    }
+
+    match /safetyForms/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSafetyManager() || (isSignedIn() && request.resource.data.submittedById == request.auth.uid);
+      allow update: if isSafetyManager() || (isSignedIn() && resource.data.submittedById == request.auth.uid);
+      allow delete: if isSafetyManager();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

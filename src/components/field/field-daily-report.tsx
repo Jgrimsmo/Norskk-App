@@ -21,9 +21,10 @@ import {
   X,
   Search,
   Plus,
-  Pencil,
   FileText,
   Clock,
+  RefreshCw,
+  Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -63,6 +64,7 @@ import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { Collections, EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
 import { dailyReportStatusColors as statusColors } from "@/lib/constants/status-colors";
+import { fetchWeatherForAddress } from "@/lib/utils/weather";
 
 // ── Weather helpers ──
 const weatherIcons: Record<WeatherCondition, React.ElementType> = {
@@ -118,6 +120,7 @@ function createBlankReport(authorId: string): DailyReport {
     workPhotoUrls: [],
     endOfDayPhotoUrls: [],
     onSiteStaff: [],
+    onSiteEquipment: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -146,7 +149,34 @@ export function FieldDailyReport() {
   const [activeReport, setActiveReport] = React.useState<DailyReport | null>(null);
   const [staffSearch, setStaffSearch] = React.useState("");
 
-  const employee = employees.find((e) => e.id === employeeId);
+  // Weather auto-fill
+  const [weatherLoading, setWeatherLoading] = React.useState(false);
+  const [weatherAutoFilled, setWeatherAutoFilled] = React.useState(false);
+
+  // Equipment search
+  const [equipSearch, setEquipSearch] = React.useState("");
+
+  const autoFetchWeather = React.useCallback(
+    async (projectId: string, date: string) => {
+      const proj = projects.find((p) => p.id === projectId);
+      if (!proj?.address || !date) return;
+      setWeatherLoading(true);
+      setWeatherAutoFilled(false);
+      try {
+        const wx = await fetchWeatherForAddress(proj.address, date);
+        if (wx) {
+          setActiveReport((prev) =>
+            prev ? { ...prev, weather: { ...prev.weather, ...wx } } : prev
+          );
+          setWeatherAutoFilled(true);
+        }
+      } finally {
+        setWeatherLoading(false);
+      }
+    },
+    [projects]
+  );
+
   const myReports = React.useMemo(
     () =>
       reports
@@ -165,6 +195,22 @@ export function FieldDailyReport() {
     const q = staffSearch.toLowerCase();
     return activeEmployees.filter((e) => e.name.toLowerCase().includes(q));
   }, [activeEmployees, staffSearch]);
+
+  const activeEquipment = React.useMemo(
+    () => equipment.filter((e) => e.status !== "retired" && e.id !== EQUIPMENT_NONE_ID),
+    [equipment]
+  );
+
+  const filteredEquipment = React.useMemo(() => {
+    if (!equipSearch) return activeEquipment;
+    const q = equipSearch.toLowerCase();
+    return activeEquipment.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.number.toLowerCase().includes(q) ||
+        e.category.toLowerCase().includes(q)
+    );
+  }, [activeEquipment, equipSearch]);
 
   // Start a new report
   const handleNew = () => {
@@ -231,6 +277,35 @@ export function FieldDailyReport() {
       return { ...prev, onSiteStaff: staff };
     });
   };
+
+  const toggleEquipment = (eqId: string) => {
+    if (!activeReport || activeReport.status === "approved") return;
+    setActiveReport((prev) => {
+      if (!prev) return prev;
+      const current = prev.onSiteEquipment ?? [];
+      const next = current.includes(eqId)
+        ? current.filter((id) => id !== eqId)
+        : [...current, eqId];
+      return { ...prev, onSiteEquipment: next };
+    });
+  };
+
+  // ── Matched time entries for active project + date ──
+  const matchedTimeEntries = React.useMemo(
+    () =>
+      activeReport?.projectId && activeReport?.date
+        ? timeEntries.filter(
+            (te) =>
+              te.projectId === activeReport.projectId &&
+              te.date === activeReport.date
+          )
+        : [],
+    [timeEntries, activeReport]
+  );
+  const totalTimeHours = matchedTimeEntries.reduce(
+    (sum, te) => sum + (te.hours || 0),
+    0
+  );
 
   // ─── LIST VIEW ───
   if (mode === "list") {
@@ -318,18 +393,6 @@ export function FieldDailyReport() {
     (activeReport?.workPhotoUrls?.length ?? 0) +
     (activeReport?.endOfDayPhotoUrls?.length ?? 0);
 
-  // ── Matched time entries for this project + date ──
-  const matchedTimeEntries = React.useMemo(
-    () =>
-      activeReport?.projectId && activeReport?.date
-        ? timeEntries.filter(
-            (te) => te.projectId === activeReport.projectId && te.date === activeReport.date
-          )
-        : [],
-    [timeEntries, activeReport?.projectId, activeReport?.date]
-  );
-  const totalTimeHours = matchedTimeEntries.reduce((sum, te) => sum + (te.hours || 0), 0);
-
   if (!activeReport) return null;
 
   return (
@@ -366,7 +429,12 @@ export function FieldDailyReport() {
           <Label className="text-xs text-muted-foreground">Project</Label>
           <Select
             value={activeReport.projectId}
-            onValueChange={(v) => update("projectId", v)}
+            onValueChange={(v) => {
+              update("projectId", v);
+              if (activeReport.weather.conditions.length === 0 && activeReport.date) {
+                autoFetchWeather(v, activeReport.date);
+              }
+            }}
             disabled={isLocked}
           >
             <SelectTrigger className="h-11 text-sm mt-1 cursor-pointer">
@@ -412,6 +480,25 @@ export function FieldDailyReport() {
         <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
           <Cloud className="h-4 w-4 text-blue-500" />
           Weather
+          {weatherLoading && (
+            <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+          )}
+          {weatherAutoFilled && !weatherLoading && (
+            <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              Auto-filled
+            </span>
+          )}
+          {!isLocked && activeReport.projectId && activeReport.date && !weatherLoading && (
+            <button
+              type="button"
+              onClick={() => autoFetchWeather(activeReport.projectId, activeReport.date)}
+              className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
+              title="Refresh weather from project address"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Refresh
+            </button>
+          )}
         </h3>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {(Object.keys(weatherLabels) as WeatherCondition[]).map((cond) => {
@@ -586,6 +673,91 @@ export function FieldDailyReport() {
               {filteredEmployees.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No employees found
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <Separator />
+
+      {/* ─── On-site Equipment ─── */}
+      <section>
+        <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+          <Wrench className="h-4 w-4 text-yellow-500" />
+          On-site Equipment ({(activeReport.onSiteEquipment ?? []).length})
+        </h3>
+
+        {(activeReport.onSiteEquipment ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {(activeReport.onSiteEquipment ?? []).map((eqId) => {
+              const eq = equipment.find((e) => e.id === eqId);
+              return (
+                <span
+                  key={eqId}
+                  className="inline-flex items-center gap-1 rounded-full bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2.5 py-1 text-xs font-medium"
+                >
+                  {eq?.name ?? eqId}
+                  {eq?.number && (
+                    <span className="opacity-60">#{eq.number}</span>
+                  )}
+                  {!isLocked && (
+                    <button
+                      type="button"
+                      onClick={() => toggleEquipment(eqId)}
+                      className="hover:text-destructive cursor-pointer"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {!isLocked && (
+          <div className="rounded-lg border">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={equipSearch}
+                onChange={(e) => setEquipSearch(e.target.value)}
+                placeholder="Search equipment…"
+                className="h-10 text-sm pl-8 border-0 border-b rounded-b-none focus-visible:ring-0"
+              />
+            </div>
+            <div className="max-h-[200px] overflow-y-auto p-1.5 space-y-0.5">
+              {filteredEquipment.map((eq) => {
+                const checked = (activeReport.onSiteEquipment ?? []).includes(eq.id);
+                return (
+                  <label
+                    key={eq.id}
+                    className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-muted/50 cursor-pointer text-sm"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleEquipment(eq.id)}
+                      className="h-4 w-4"
+                    />
+                    <span className={checked ? "font-medium" : ""}>
+                      {eq.name}
+                    </span>
+                    {eq.number && (
+                      <span className="text-muted-foreground text-xs">#{eq.number}</span>
+                    )}
+                    {eq.category && (
+                      <span className="text-muted-foreground ml-auto text-xs">
+                        {eq.category}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+              {filteredEquipment.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No equipment found
                 </p>
               )}
             </div>

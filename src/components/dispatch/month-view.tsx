@@ -3,7 +3,6 @@
 import { format, isToday, isSameMonth } from "date-fns";
 import { Users } from "lucide-react";
 import type { DispatchAssignment } from "@/lib/types/time-tracking";
-import type { OnRemoveResource } from "./dispatch-helpers";
 import { getProjectColor } from "./dispatch-helpers";
 import { useProjects } from "@/hooks/use-firestore";
 
@@ -12,7 +11,6 @@ interface MonthViewProps {
   currentDate: Date;
   getDispatches: (day: Date) => DispatchAssignment[];
   onAssign: (day: Date) => void;
-  onRemoveResource: OnRemoveResource;
   hasSelection: boolean;
   onExpandDay: (day: Date) => void;
 }
@@ -22,7 +20,6 @@ export function MonthView({
   currentDate,
   getDispatches,
   onAssign,
-  onRemoveResource,
   hasSelection,
   onExpandDay,
 }: MonthViewProps) {

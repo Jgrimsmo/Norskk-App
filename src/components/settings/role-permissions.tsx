@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Shield, RotateCcw, Loader2, Check, ChevronDown } from "lucide-react";
+import { Shield, RotateCcw, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ import {
   DEFAULT_ROLE_TEMPLATES,
   getDefaultTemplate,
 } from "@/lib/constants/permissions";
-import type { RolePermissions } from "@/lib/types/time-tracking";
 
 // ── Role colors (reused from user-management) ──
 const roleColors: Record<string, string> = {

@@ -198,6 +198,8 @@ export interface DailyReport {
   endOfDayPhotoUrls: string[];
   // On-site staff (employee IDs)
   onSiteStaff: string[];
+  // On-site equipment (equipment IDs)
+  onSiteEquipment?: string[];
   // Timestamps
   createdAt: string;
   updatedAt: string;

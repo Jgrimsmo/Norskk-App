@@ -44,7 +44,6 @@ import { SavingIndicator } from "@/components/shared/saving-indicator";
 
 import type {
   DailyReport,
-  DailyReportStatus,
   WeatherCondition,
   Employee,
   Project,
@@ -94,6 +93,7 @@ function createBlankReport(): DailyReport {
     workPhotoUrls: [],
     endOfDayPhotoUrls: [],
     onSiteStaff: [],
+    onSiteEquipment: [],
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -102,7 +102,7 @@ function createBlankReport(): DailyReport {
 export default function DailyReportsTable() {
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
-  const [reports, setReports, reportsLoading, reportsSaving] = useFirestoreState<DailyReport>(Collections.DAILY_REPORTS);
+  const [reports, setReports, , reportsSaving] = useFirestoreState<DailyReport>(Collections.DAILY_REPORTS);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -125,12 +125,14 @@ export default function DailyReportsTable() {
   const [searchQuery, setSearchQuery] = React.useState("");
 
   // Lookups
-  const getProjectName = (id: string) => {
+  const getProjectName = React.useCallback((id: string) => {
     const p = projects.find((p) => p.id === id);
     return p ? p.name : "—";
-  };
-  const getEmployeeName = (id: string) =>
-    employees.find((e) => e.id === id)?.name ?? "—";
+  }, [projects]);
+  const getEmployeeName = React.useCallback(
+    (id: string) => employees.find((e) => e.id === id)?.name ?? "—",
+    [employees]
+  );
 
   // Filtering
   const filteredReports = React.useMemo(() => {
@@ -164,7 +166,16 @@ export default function DailyReportsTable() {
       }
       return true;
     });
-  }, [reports, dateRange, projectFilter, authorFilter, statusFilter, searchQuery]);
+  }, [
+    reports,
+    dateRange,
+    projectFilter,
+    authorFilter,
+    statusFilter,
+    searchQuery,
+    getProjectName,
+    getEmployeeName,
+  ]);
 
   // Open report dialog
   const openReport = (report: DailyReport) => {

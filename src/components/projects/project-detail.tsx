@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { DateRange } from "react-day-picker";
+import Image from "next/image";
 import {
   ArrowLeft,
   Clock,
@@ -162,9 +163,10 @@ function PhotoGallery({ photos }: { photos: PhotoWithDate[] }) {
               onClick={() => setLightboxIdx(idx)}
               className="group relative aspect-square rounded-lg overflow-hidden border bg-muted/30 hover:ring-2 hover:ring-primary/50 transition-all cursor-pointer"
             >
-              <img
+              <Image
                 src={photo.url}
                 alt={`Photo ${idx + 1}`}
+                fill
                 className="h-full w-full object-cover"
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -188,9 +190,11 @@ function PhotoGallery({ photos }: { photos: PhotoWithDate[] }) {
           <DialogTitle className="sr-only">Photo viewer</DialogTitle>
           {lightboxIdx !== null && (
             <>
-              <img
+              <Image
                 src={filtered[lightboxIdx].url}
                 alt={`Photo ${lightboxIdx + 1}`}
+                width={1600}
+                height={1200}
                 className="max-h-[90vh] max-w-[90vw] object-contain"
               />
               <span className="absolute top-4 left-4 text-white/80 text-sm font-medium bg-black/50 px-3 py-1 rounded-full">

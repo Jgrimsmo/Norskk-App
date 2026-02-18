@@ -1,192 +1,116 @@
-# Norskk — Cloud Construction Management
+# Norskk App
 
-A full-featured construction management platform built with **Next.js 16 + TypeScript + Tailwind CSS v4 + shadcn/ui**.
+Construction operations app built with Next.js, TypeScript, Tailwind, and Firebase.
 
-Brand color: Blue `#2563EB` · Dark sidebar + light content layout · Geist font
+## Stack
 
-## Getting Started
+- Next.js 16 (App Router)
+- React 19 + TypeScript
+- Tailwind CSS v4 + shadcn/ui
+- Firebase Auth + Firestore + Storage
+- Firebase Admin SDK for server-side privileged actions
+
+## Quick Start
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+App runs at `http://localhost:3000`.
 
----
+## Environment Variables
 
-## Tech Stack
+Copy `.env.local.example` to `.env.local` and fill values.
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16.1.6 (App Router, `src/` directory) |
-| Language | TypeScript 5 |
-| Styling | Tailwind CSS v4 + shadcn/ui (new-york style) |
-| Icons | lucide-react |
-| Dates | date-fns + react-day-picker |
-| Signatures | react-signature-canvas |
-| Toasts | sonner (via shadcn) |
-| UI Primitives | Radix UI (via shadcn) |
+### Client Firebase config
 
----
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
 
-## Pages — Current Status
+### Server Admin config (required for invite API)
 
-All pages are fully styled and interactive on the client side.
+- `FIREBASE_ADMIN_PROJECT_ID`
+- `FIREBASE_ADMIN_CLIENT_EMAIL`
+- `FIREBASE_ADMIN_PRIVATE_KEY` (escaped newlines like `\\n`)
 
-| Page | Route | Status | Description |
-|------|-------|--------|-------------|
-| **Dashboard** | `/` | ✅ Complete | KPI cards (hours, projects, safety, equipment), charts, recent activity lists |
-| **Time Tracking** | `/time-tracking` | ✅ Complete | Inline-editable table, 12 columns including Work Type, column filters, summary cards |
-| **Dispatch** | `/dispatch` | ✅ Complete | Calendar board (day/week/month views), resource panel with search, availability display, duplicate prevention |
-| **Projects** | `/projects` | ✅ Complete | CRUD table with status filters, summary cards (active/bidding/completed) |
-| **Employees** | `/employees` | ✅ Complete | Inline-edit table, add/delete, summary cards |
-| **Equipment** | `/equipment` | ✅ Complete | 3 sub-tables (equipment, attachments, tools), summary cards |
-| **Daily Reports** | `/daily-reports` | ✅ Complete | List table with filters + full form dialog (weather, manpower, work performed, delays, materials, visitors, signatures) |
-| **Safety** | `/safety` | ✅ Complete | Summary table + FLHA deep template (6 sections with signature pads via react-signature-canvas) |
-| **Settings** | `/settings` | ⬜ Placeholder | Static cards only — no forms or functionality yet |
+### Optional
 
-### Sidebar Navigation (grouped)
+- `NEXT_PUBLIC_ENABLE_SEED_PAGE=true` to enable `/seed` in non-production environments.
 
-- **Overview:** Dashboard
-- **Operations:** Time Tracking, Dispatch, Projects
-- **Resources:** Employees, Equipment
-- **Reporting:** Daily Reports, Safety
-- **System:** Settings
+## Security & Access
 
----
+### Server-side invite flow
 
-## Project Structure
+- Endpoint: `POST /api/admin/invite-user`
+- Uses Firebase Admin SDK (`src/lib/firebase/admin.ts`)
+- Verifies caller ID token
+- Enforces Admin role from Firestore employee record
+- Creates Auth user + employee document server-side
 
-```
-src/
-├── app/
-│   ├── (dashboard)/          # Route group — all pages with sidebar layout
-│   │   ├── layout.tsx        # SidebarProvider + TooltipProvider + TopBar
-│   │   ├── page.tsx          # Dashboard
-│   │   ├── time-tracking/
-│   │   ├── dispatch/
-│   │   ├── projects/
-│   │   ├── employees/
-│   │   ├── equipment/
-│   │   ├── daily-reports/
-│   │   ├── safety/
-│   │   └── settings/
-│   ├── layout.tsx            # Root layout (Geist font, metadata)
-│   └── globals.css           # Theme tokens (light + dark via oklch)
-├── components/
-│   ├── app-sidebar.tsx       # Dark sidebar with nav sections
-│   ├── top-bar.tsx           # Breadcrumbs, search, notifications, user menu
-│   ├── ui/                   # shadcn/ui components
-│   ├── time-tracking/        # Column filter, date filter, time tracking table
-│   ├── daily-reports/        # Daily report form dialog + table
-│   ├── dispatch/             # Dispatch board component
-│   ├── employees/            # Employees table
-│   ├── equipment/            # Equipment table
-│   ├── projects/             # Projects table
-│   └── safety/               # Safety table + FLHA form dialog
-├── hooks/                    # (empty — will hold Firebase hooks)
-└── lib/
-    ├── types/
-    │   └── time-tracking.ts  # All TypeScript interfaces (272 lines)
-    ├── data/
-    │   ├── time-tracking-data.ts  # Hardcoded mock data (~814 lines)
-    │   └── flha-defaults.ts       # Default FLHA hazard categories + PPE items
-    └── utils.ts              # cn() utility
+### Client-side authorization
+
+- `usePermissions` is fail-closed (unknown role => no permissions)
+- Hardcoded email-based admin escalation removed
+
+### Firebase rules
+
+Rules files in repo:
+
+- `firestore.rules`
+- `storage.rules`
+- `firebase.json`
+
+Deploy rules:
+
+```bash
+firebase deploy --only firestore:rules,storage
 ```
 
----
+## Quality & Release Gates
 
-## Key Files Reference
+### Local checks
 
-| File | Purpose |
-|------|---------|
-| `src/lib/types/time-tracking.ts` | All TypeScript interfaces — maps 1:1 to future Firestore collections |
-| `src/lib/data/time-tracking-data.ts` | Mock data arrays: employees, projects, costCodes, equipment, attachments, tools, timeEntries, safetyForms, dispatchAssignments, sampleDailyReports |
-| `src/components/top-bar.tsx` | Hardcoded "Admin User" / "JG" avatar + non-functional Log out — needs auth wiring |
-| `src/components/time-tracking/column-filter.tsx` | Reusable filter — props: `{ title, options: {id, label}[], selected: Set<string>, onChange }` |
-| `src/components/time-tracking/date-column-filter.tsx` | Reusable date filter — props: `{ dateRange: DateRange \| undefined, onDateRangeChange }` |
-
----
-
-## Current Limitations
-
-- **No backend** — zero API routes, no database, no server actions
-- **No authentication** — no auth library, no login page, no route protection
-- **No data persistence** — all data is `useState(mockData)`, lost on refresh
-- **No file uploads** — photo URLs referenced but no upload mechanism
-- **No tests** — zero test files
-- **No deployment config** — no `.env`, no CI/CD, no Vercel/Docker config
-- **Non-functional UI elements:** TopBar search (all other buttons now show toast feedback)
-
----
-
-## Phase 1 Roadmap — Firebase Backend
-
-**Chosen stack:** Firebase (Firestore + Firebase Auth + Firebase Storage)
-
-### Prerequisites
-
-Before starting, create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com):
-
-1. Create project (e.g., "Norskk")
-2. Enable **Authentication** → Email/Password provider
-3. Enable **Cloud Firestore** → Start in test mode
-4. Enable **Storage** → For photos/file uploads
-5. Project Settings → General → Add Web App → Copy config object
-
-### Implementation Steps
-
-| # | Task | Details |
-|---|------|---------|
-| 1 | **Install Firebase SDK** | `firebase`, `firebase-admin`, `react-firebase-hooks` |
-| 2 | **Firebase config & init** | Create `src/lib/firebase/config.ts`, add `.env.local` with Firebase credentials |
-| 3 | **Firestore service layer** | Create `src/lib/firebase/firestore.ts` — typed CRUD for collections: `employees`, `projects`, `costCodes`, `equipment`, `attachments`, `tools`, `timeEntries`, `safetyForms`, `dailyReports`, `dispatchAssignments` |
-| 4 | **Auth context & provider** | Create `src/lib/firebase/auth.tsx` — wraps app, handles sign-in/sign-out/session |
-| 5 | **React data hooks** | Create hooks in `src/hooks/` (`useEmployees()`, `useProjects()`, etc.) using Firestore real-time listeners |
-| 6 | **Login page + route protection** | Create `src/app/login/page.tsx`, protect dashboard routes, wire "Log out" in TopBar |
-| 7 | **Wire up all pages** | Replace mock data imports with Firebase hooks across all 9 pages |
-| 8 | **Seed script** | Push existing mock data from `time-tracking-data.ts` into Firestore |
-| 9 | **Build Settings page** | Functional forms: company profile, user management, cost codes, notifications |
-| 10 | **Verify** | Zero errors, build passes, data persists across refreshes |
-
-### Firestore Collections (mapped from types)
-
-```
-employees/        → Employee interface
-projects/         → Project interface
-costCodes/        → CostCode interface
-equipment/        → Equipment interface
-attachments/      → Attachment interface
-tools/            → Tool interface
-timeEntries/      → TimeEntry interface
-safetyForms/      → SafetyForm interface (with nested flha?: FLHAData)
-dailyReports/     → DailyReport interface (with nested arrays)
-dispatchAssignments/ → DispatchAssignment interface
+```bash
+npm run lint
+npx tsc --noEmit
 ```
 
-### Future Phases
+### Preflight
 
-**Phase 2 — Core Features:**
-- Wire up Export buttons (CSV/PDF)
-- Global search in TopBar
-- File uploads for photos (Firebase Storage)
-- Error/loading states (`error.tsx`, `loading.tsx`, `not-found.tsx`)
+```bash
+npm run preflight
+```
 
-**Phase 3 — Polish & Deploy:**
-- Dark mode toggle (theme tokens already exist)
-- Notification system
-- Testing (Vitest + Playwright)
-- CI/CD & deployment (Vercel or Docker)
-- Multi-tenant / company scoping
-- Audit logging
+Strict mode (fails on warnings):
 
----
+```bash
+npm run preflight:strict
+```
 
-## Resume Instructions
+`preflight` checks:
 
-When continuing development, say:
+1. Required environment variables
+2. Lint
+3. Typecheck
+4. Production build
 
-> **"Let's continue with Firebase Phase 1"**
+## Key Paths
 
-Then paste your Firebase config object and we'll pick up from step 1.
+- Auth context: `src/lib/firebase/auth-context.tsx`
+- Firestore helpers: `src/lib/firebase/firestore.ts`
+- Admin bootstrap: `src/lib/firebase/admin.ts`
+- Invite API: `src/app/api/admin/invite-user/route.ts`
+- Permissions model: `src/hooks/use-permissions.ts`
+- Permission templates: `src/lib/constants/permissions.ts`
+
+## Production Notes
+
+- Keep seed page disabled in production (`NEXT_PUBLIC_ENABLE_SEED_PAGE=false`)
+- Set all Admin SDK env vars in your hosting platform
+- Deploy Firestore/Storage rules before first production release
+- Run `npm run preflight:strict` as a release gate

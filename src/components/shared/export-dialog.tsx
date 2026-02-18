@@ -133,8 +133,10 @@ export function ExportDialog({
       setGroupBy("none");
       setOrientation(defaultOrientation);
       setTitle(defaultTitle);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       setPreviewLoading(false);
       previewConfigRef.current = null;
     }

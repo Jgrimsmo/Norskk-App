@@ -3,7 +3,7 @@
 import * as React from "react";
 import { eachDayOfInterval, parseISO, format } from "date-fns";
 import { useEmployees } from "@/hooks/use-firestore";
-import type { TimeEntry, ApprovalStatus } from "@/lib/types/time-tracking";
+import type { TimeEntry } from "@/lib/types/time-tracking";
 import type { PayPeriod } from "@/lib/utils/pay-period";
 import {
   Table,

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
@@ -63,9 +64,11 @@ export default function LoginPage() {
       {/* Logo / Brand */}
       <div className="flex flex-col items-center gap-2">
         {profile?.logoUrl ? (
-          <img
+          <Image
             src={profile.logoUrl}
             alt={profile.name || "Company logo"}
+            width={160}
+            height={64}
             className="h-16 w-auto object-contain invert dark:invert-0"
           />
         ) : (

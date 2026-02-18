@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import SignatureCanvas from "react-signature-canvas";
 import { Eraser, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -91,9 +92,11 @@ export function SignaturePad({
           </div>
         ) : value && disabled ? (
           // Show saved signature as image when disabled
-          <img
+          <Image
             src={value}
             alt={`${label} signature`}
+            width={512}
+            height={80}
             className="h-[80px] w-full object-contain"
           />
         ) : (

@@ -20,6 +20,8 @@ import {
   X,
   Search,
   Clock,
+  RefreshCw,
+  Wrench,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +66,7 @@ import {
 import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { dailyReportStatusColors as statusColors } from "@/lib/constants/status-colors";
+import { fetchWeatherForAddress } from "@/lib/utils/weather";
 
 // ── Weather helpers ──
 const weatherIcons: Record<WeatherCondition, React.ElementType> = {
@@ -119,6 +122,12 @@ export default function DailyReportFormDialog({
 
   // Staff search
   const [staffSearch, setStaffSearch] = React.useState("");
+  // Equipment search
+  const [equipSearch, setEquipSearch] = React.useState("");
+
+  // Weather auto-fill
+  const [weatherLoading, setWeatherLoading] = React.useState(false);
+  const [weatherAutoFilled, setWeatherAutoFilled] = React.useState(false);
 
   React.useEffect(() => {
     setForm({ ...report });
@@ -161,6 +170,39 @@ export default function DailyReportFormDialog({
     });
   };
 
+  const toggleEquipment = (eqId: string) => {
+    if (isLocked) return;
+    setForm((prev) => {
+      const current = prev.onSiteEquipment ?? [];
+      const next = current.includes(eqId)
+        ? current.filter((id) => id !== eqId)
+        : [...current, eqId];
+      return { ...prev, onSiteEquipment: next };
+    });
+  };
+
+  const autoFetchWeather = React.useCallback(
+    async (projectId: string, date: string) => {
+      const proj = projects.find((p) => p.id === projectId);
+      if (!proj?.address || !date) return;
+      setWeatherLoading(true);
+      setWeatherAutoFilled(false);
+      try {
+        const wx = await fetchWeatherForAddress(proj.address, date);
+        if (wx) {
+          setForm((prev) => ({
+            ...prev,
+            weather: { ...prev.weather, ...wx },
+          }));
+          setWeatherAutoFilled(true);
+        }
+      } finally {
+        setWeatherLoading(false);
+      }
+    },
+    [projects]
+  );
+
   const project = projects.find((p) => p.id === form.projectId);
 
   // ── Matched time entries for this project + date ──
@@ -185,6 +227,22 @@ export default function DailyReportFormDialog({
     const q = staffSearch.toLowerCase();
     return activeEmployees.filter((e) => e.name.toLowerCase().includes(q));
   }, [activeEmployees, staffSearch]);
+
+  const activeEquipment = React.useMemo(
+    () => equipment.filter((e) => e.status !== "retired" && e.id !== EQUIPMENT_NONE_ID),
+    [equipment]
+  );
+
+  const filteredEquipment = React.useMemo(() => {
+    if (!equipSearch) return activeEquipment;
+    const q = equipSearch.toLowerCase();
+    return activeEquipment.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.number.toLowerCase().includes(q) ||
+        e.category.toLowerCase().includes(q)
+    );
+  }, [activeEquipment, equipSearch]);
 
   const totalPhotos =
     (form.morningPhotoUrls?.length ?? 0) +
@@ -237,7 +295,12 @@ export default function DailyReportFormDialog({
                   </Label>
                   <Select
                     value={form.projectId}
-                    onValueChange={(v) => update("projectId", v)}
+                    onValueChange={(v) => {
+                      update("projectId", v);
+                      if (form.weather.conditions.length === 0 && form.date) {
+                        autoFetchWeather(v, form.date);
+                      }
+                    }}
                     disabled={isLocked}
                   >
                     <SelectTrigger className="h-9 text-sm mt-1 cursor-pointer">
@@ -257,7 +320,12 @@ export default function DailyReportFormDialog({
                   <Input
                     type="date"
                     value={form.date}
-                    onChange={(e) => update("date", e.target.value)}
+                    onChange={(e) => {
+                      update("date", e.target.value);
+                      if (form.projectId && form.weather.conditions.length === 0) {
+                        autoFetchWeather(form.projectId, e.target.value);
+                      }
+                    }}
                     className="h-9 text-sm mt-1"
                     disabled={isLocked}
                   />
@@ -282,6 +350,25 @@ export default function DailyReportFormDialog({
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
                 <Cloud className="h-4 w-4 text-blue-500" />
                 Weather
+                {weatherLoading && (
+                  <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+                {weatherAutoFilled && !weatherLoading && (
+                  <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                    Auto-filled
+                  </span>
+                )}
+                {!isLocked && form.projectId && form.date && !weatherLoading && (
+                  <button
+                    type="button"
+                    onClick={() => autoFetchWeather(form.projectId, form.date)}
+                    className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
+                    title="Refresh weather from project address"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Refresh
+                  </button>
+                )}
               </h3>
               <div className="space-y-3">
                 {/* Condition chips */}
@@ -471,6 +558,93 @@ export default function DailyReportFormDialog({
                     {filteredEmployees.length === 0 && (
                       <p className="text-xs text-muted-foreground text-center py-3">
                         No employees found
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <Separator />
+
+            {/* ─── On-site Equipment ─── */}
+            <section>
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+                <Wrench className="h-4 w-4 text-yellow-500" />
+                On-site Equipment ({(form.onSiteEquipment ?? []).length})
+              </h3>
+
+              {/* Selected equipment chips */}
+              {(form.onSiteEquipment ?? []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {(form.onSiteEquipment ?? []).map((eqId) => {
+                    const eq = equipment.find((e) => e.id === eqId);
+                    return (
+                      <span
+                        key={eqId}
+                        className="inline-flex items-center gap-1 rounded-full bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2.5 py-1 text-xs font-medium"
+                      >
+                        {eq?.name ?? eqId}
+                        {eq?.number && (
+                          <span className="opacity-60">#{eq.number}</span>
+                        )}
+                        {!isLocked && (
+                          <button
+                            type="button"
+                            onClick={() => toggleEquipment(eqId)}
+                            className="hover:text-destructive cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Search + checkboxes */}
+              {!isLocked && (
+                <div className="rounded-lg border">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      value={equipSearch}
+                      onChange={(e) => setEquipSearch(e.target.value)}
+                      placeholder="Search equipment…"
+                      className="h-9 text-xs pl-8 border-0 border-b rounded-b-none focus-visible:ring-0"
+                    />
+                  </div>
+                  <div className="max-h-[180px] overflow-y-auto p-1.5 space-y-0.5">
+                    {filteredEquipment.map((eq) => {
+                      const checked = (form.onSiteEquipment ?? []).includes(eq.id);
+                      return (
+                        <label
+                          key={eq.id}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-xs"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => toggleEquipment(eq.id)}
+                            className="h-3.5 w-3.5"
+                          />
+                          <span className={checked ? "font-medium" : ""}>
+                            {eq.name}
+                          </span>
+                          {eq.number && (
+                            <span className="text-muted-foreground">#{eq.number}</span>
+                          )}
+                          {eq.category && (
+                            <span className="text-muted-foreground ml-auto">
+                              {eq.category}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                    {filteredEquipment.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-3">
+                        No equipment found
                       </p>
                     )}
                   </div>

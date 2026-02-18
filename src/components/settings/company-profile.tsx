@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Building2, CalendarDays, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -139,9 +140,11 @@ export function CompanyProfileSettings() {
         <div className="flex items-center gap-4">
           {profile.logoUrl ? (
             <div className="relative group">
-              <img
+              <Image
                 src={profile.logoUrl}
                 alt="Company logo"
+                width={64}
+                height={64}
                 className="h-16 w-16 rounded-lg object-contain border bg-white p-1"
               />
               <button

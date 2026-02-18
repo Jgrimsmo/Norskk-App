@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  FolderKanban,
   Download,
   Building2,
   Clock,

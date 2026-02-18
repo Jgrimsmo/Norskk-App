@@ -37,17 +37,6 @@ import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 
 import { useEmployees } from "@/hooks/use-firestore";
 import { useAuth } from "@/lib/firebase/auth-context";
-import {
-  initializeApp,
-  deleteApp,
-} from "firebase/app";
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  signOut as firebaseSignOut,
-  sendPasswordResetEmail,
-} from "firebase/auth";
 import type { Employee } from "@/lib/types/time-tracking";
 
 // ── Role options ──
@@ -70,7 +59,7 @@ const roleColors: Record<string, string> = {
 };
 
 export function UserManagementSettings() {
-  const { data: employees, loading, add, update, remove } = useEmployees();
+  const { data: employees, loading, update, remove } = useEmployees();
   const { user } = useAuth();
 
   // Inline editing
@@ -128,64 +117,54 @@ export function UserManagementSettings() {
 
     setAddPending(true);
     try {
-      // Use a secondary Firebase app to create the user without signing out the admin
-      const firebaseConfig = {
-        apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      };
-      const tempApp = initializeApp(firebaseConfig, "temp-invite");
-      const tempAuth = getAuth(tempApp);
+      if (!user) {
+        throw new Error("You must be signed in to invite users");
+      }
 
-      try {
-        // Create the account with a random temporary password
-        const tempPassword = crypto.randomUUID();
-        const credential = await createUserWithEmailAndPassword(
-          tempAuth,
-          newUser.email,
-          tempPassword
-        );
-        await updateProfile(credential.user, { displayName: newUser.name });
-        const newUid = credential.user.uid;
-
-        // Sign out of the secondary app (doesn't affect admin's session)
-        await firebaseSignOut(tempAuth);
-
-        // Send password reset email so the user can set their own password
-        // Use the main auth instance for this
-        const { auth } = await import("@/lib/firebase/config");
-        await sendPasswordResetEmail(auth, newUser.email);
-
-        // Create employee record in Firestore
-        await add({
-          id: newUid,
+      const idToken = await user.getIdToken();
+      const response = await fetch("/api/admin/invite-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
           name: newUser.name,
           email: newUser.email,
           phone: newUser.phone,
           role: newUser.role,
           status: newUser.status,
-          uid: newUid,
-          createdAt: new Date().toISOString(),
-        });
+        }),
+      });
 
-        toast.success("User invited!", {
-          description: `A password setup email has been sent to ${newUser.email}`,
-        });
-        setAdding(false);
-        setNewUser({
-          name: "",
-          email: "",
-          phone: "",
-          role: "Labourer",
-          status: "active",
-        });
-      } finally {
-        // Clean up the temporary app
-        await deleteApp(tempApp);
+      const result = (await response.json().catch(() => null)) as
+        | { error?: string; emailSent?: boolean; warning?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to invite user");
       }
+
+      toast.success("User invited!", {
+        description: result?.emailSent
+          ? `A password setup email has been sent to ${newUser.email}`
+          : `User created, but setup email may not have been sent. ${result?.warning || ""}`,
+      });
+
+      setAdding(false);
+      setNewUser({
+        name: "",
+        email: "",
+        phone: "",
+        role: "Labourer",
+        status: "active",
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to invite user";
-      if (message.includes("email-already-in-use")) {
+      if (
+        message.includes("email-already-in-use") ||
+        message.toLowerCase().includes("already exists")
+      ) {
         toast.error("A user with this email already exists");
       } else {
         toast.error("Failed to invite user", { description: message });
@@ -553,7 +532,7 @@ export function UserManagementSettings() {
                   colSpan={6}
                   className="text-center text-sm text-muted-foreground py-8"
                 >
-                  No users yet. Click "Add User" to get started.
+                  No users yet. Click Add User to get started.
                 </TableCell>
               </TableRow>
             )}

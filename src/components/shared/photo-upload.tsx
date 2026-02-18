@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Camera, X, Loader2, ImageIcon, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { uploadFiles } from "@/lib/firebase/storage";
 import {
   Dialog,
@@ -111,9 +111,10 @@ export function PhotoUpload({
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {photos.map((url, idx) => (
             <div key={idx} className="group relative aspect-square rounded-md overflow-hidden border">
-              <img
+              <Image
                 src={url}
                 alt={`Photo ${idx + 1}`}
+                fill
                 className="h-full w-full object-cover cursor-pointer"
                 onClick={() => setViewerIndex(idx)}
               />
@@ -206,9 +207,11 @@ export function PhotoUpload({
               onClick={() => setViewerIndex(null)}
             >
               {/* Image */}
-              <img
+              <Image
                 src={photos[viewerIndex]}
                 alt={`Photo ${viewerIndex + 1}`}
+                width={1600}
+                height={1200}
                 className="max-w-full max-h-full object-contain select-none"
                 onClick={(e) => e.stopPropagation()}
               />

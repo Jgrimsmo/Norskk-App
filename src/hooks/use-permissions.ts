@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { useEmployees, useRolePermissions } from "@/hooks/use-firestore";
 import { useRolePreview } from "@/lib/role-preview-context";
-import { DEFAULT_ROLE_TEMPLATES, ALL_PERMISSIONS } from "@/lib/constants/permissions";
+import { DEFAULT_ROLE_TEMPLATES } from "@/lib/constants/permissions";
 
 /**
  * Hook that resolves the current user's permissions.
@@ -35,8 +35,10 @@ export function usePermissions() {
   // Use preview role if set, otherwise use real role
   const role = previewRole ?? realRole;
 
-  // Resolve permissions: Firestore override → default template → full access fallback
+  // Resolve permissions: Firestore override → default template → deny by default
   const permissions = useMemo(() => {
+    if (!role) return new Set<string>();
+
     // Check Firestore first (case-insensitive match)
     const stored = rolePermissions.find(
       (rp) => rp.role.toLowerCase() === role.toLowerCase()
@@ -49,10 +51,9 @@ export function usePermissions() {
     );
     if (template) return new Set(template.permissions);
 
-    // If no employee record, no role, or no matching role config found,
-    // grant full access so the owner can still reach Settings and fix things.
-    return new Set(ALL_PERMISSIONS);
-  }, [role, rolePermissions, employee]);
+    // Unknown role config => deny all (fail closed).
+    return new Set<string>();
+  }, [role, rolePermissions]);
 
   const can = (permission: string): boolean => permissions.has(permission);
 

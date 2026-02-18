@@ -36,6 +36,15 @@ interface DailyReportPDFOptions {
   filename?: string;
 }
 
+type JsPdfWithAutoTable = jsPDF & {
+  lastAutoTable?: { finalY: number };
+};
+
+type JsPdfWithPageInfo = jsPDF & {
+  getCurrentPageInfo: () => { pageNumber: number };
+  getNumberOfPages: () => number;
+};
+
 export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
   const {
     report,
@@ -93,8 +102,8 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
     },
     styles: { cellPadding: 1.5 },
   });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  y = (doc as any).lastAutoTable.finalY + 4;
+  const docWithTable = doc as JsPdfWithAutoTable;
+  y = (docWithTable.lastAutoTable?.finalY ?? y) + 4;
 
   // ── 1. Weather ──
   y = sectionHeader(doc, "1. WEATHER CONDITIONS", margin, contentWidth, y);
@@ -306,7 +315,7 @@ export async function generateDailyReportPDF(opts: DailyReportPDFOptions) {
   }
 
   // ── Footer on all pages ──
-  const totalPages = (doc as any).getNumberOfPages();
+  const totalPages = (doc as JsPdfWithPageInfo).getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     drawFooter(doc, company, pageWidth, pageHeight, margin);
@@ -362,8 +371,10 @@ function drawFooter(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.text(`${company?.name || "Norskk"} — Confidential`, margin, fy);
+  const pageNumber = (doc as JsPdfWithPageInfo).getCurrentPageInfo().pageNumber;
+  const totalPages = (doc as JsPdfWithPageInfo).getNumberOfPages();
   doc.text(
-    `Generated ${new Date().toLocaleDateString("en-CA")}  •  Page ${(doc as any).getCurrentPageInfo().pageNumber} of ${(doc as any).getNumberOfPages()}`,
+    `Generated ${new Date().toLocaleDateString("en-CA")}  •  Page ${pageNumber} of ${totalPages}`,
     pageWidth - margin,
     fy,
     { align: "right" }

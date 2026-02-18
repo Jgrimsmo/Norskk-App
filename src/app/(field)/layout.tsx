@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/firebase/auth-context";
 import { Button } from "@/components/ui/button";
 import { LogOut, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 
 function FieldHeader() {
@@ -19,9 +20,11 @@ function FieldHeader() {
       <div className="flex items-center justify-between px-4 h-14">
         <div className="flex items-center gap-3">
           {profile?.logoUrl ? (
-            <img
+            <Image
               src={profile.logoUrl}
               alt={companyName}
+              width={96}
+              height={32}
               className="h-8 w-auto rounded invert dark:invert-0"
             />
           ) : (

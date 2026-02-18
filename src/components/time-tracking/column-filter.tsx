@@ -38,7 +38,6 @@ export function ColumnFilter({
     opt.label.toLowerCase().includes(search.toLowerCase())
   );
 
-  const isAllSelected = selected.size === 0;
   const activeCount = selected.size;
 
   const toggleOption = (id: string) => {

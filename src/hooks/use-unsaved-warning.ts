@@ -13,7 +13,10 @@ import { useEffect, useCallback, useRef } from "react";
  */
 export function useUnsavedWarning(isDirty: boolean) {
   const dirtyRef = useRef(isDirty);
-  dirtyRef.current = isDirty;
+
+  useEffect(() => {
+    dirtyRef.current = isDirty;
+  }, [isDirty]);
 
   // Browser navigation guard
   useEffect(() => {

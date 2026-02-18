@@ -22,9 +22,10 @@ import {
 interface SeedStep {
   label: string;
   collection: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data: any[];
+  data: { id: string }[];
 }
+
+const ENABLE_SEED_PAGE = process.env.NEXT_PUBLIC_ENABLE_SEED_PAGE === "true";
 
 const steps: SeedStep[] = [
   { label: "Employees", collection: Collections.EMPLOYEES, data: employees },
@@ -45,6 +46,13 @@ export default function SeedPage() {
   const [currentStep, setCurrentStep] = React.useState<string | null>(null);
 
   const runSeed = async () => {
+    if (!ENABLE_SEED_PAGE) {
+      toast.error("Seeding is disabled", {
+        description: "Enable NEXT_PUBLIC_ENABLE_SEED_PAGE=true to use this page.",
+      });
+      return;
+    }
+
     setRunning(true);
     setCompleted(new Set());
 
@@ -70,6 +78,19 @@ export default function SeedPage() {
       description: `${steps.reduce((n, s) => n + s.data.length, 0)} documents written across ${steps.length} collections.`,
     });
   };
+
+  if (!ENABLE_SEED_PAGE) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
+        <div className="w-full max-w-md space-y-3 rounded-xl border bg-card p-6 shadow-sm text-center">
+          <h1 className="text-xl font-bold">Seeding Disabled</h1>
+          <p className="text-sm text-muted-foreground">
+            This environment does not allow database seeding.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
