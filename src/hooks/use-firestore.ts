@@ -6,6 +6,7 @@ import type {
   Employee,
   Project,
   CostCode,
+  Developer,
   Equipment,
   Attachment,
   Tool,
@@ -28,6 +29,10 @@ export function useProjects() {
 
 export function useCostCodes() {
   return useCollection<CostCode>(Collections.COST_CODES);
+}
+
+export function useDevelopers() {
+  return useCollection<Developer>(Collections.DEVELOPERS);
 }
 
 export function useEquipment() {

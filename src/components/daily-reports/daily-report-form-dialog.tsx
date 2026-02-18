@@ -66,7 +66,7 @@ import {
 import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { dailyReportStatusColors as statusColors } from "@/lib/constants/status-colors";
-import { fetchWeatherForAddress } from "@/lib/utils/weather";
+import { fetchWeatherForProject } from "@/lib/utils/weather";
 
 // ── Weather helpers ──
 const weatherIcons: Record<WeatherCondition, React.ElementType> = {
@@ -184,11 +184,11 @@ export default function DailyReportFormDialog({
   const autoFetchWeather = React.useCallback(
     async (projectId: string, date: string) => {
       const proj = projects.find((p) => p.id === projectId);
-      if (!proj?.address || !date) return;
+      if (!proj?.city || !date) return;
       setWeatherLoading(true);
       setWeatherAutoFilled(false);
       try {
-        const wx = await fetchWeatherForAddress(proj.address, date);
+        const wx = await fetchWeatherForProject(proj.city, proj.province ?? "", date);
         if (wx) {
           setForm((prev) => ({
             ...prev,

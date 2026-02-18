@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // ── WMO Weather Code → WeatherCondition ──────────────────────────────────────
-// https://open-meteo.com/en/docs#weathervariables
 function wmoToConditions(code: number): string[] {
   if (code === 0) return ["sunny"];
   if (code <= 2) return ["partly-cloudy"];
@@ -19,94 +18,124 @@ function groundCondition(precip: number, minTempC: number): string {
   return minTempC < -10 ? "frozen" : "dry";
 }
 
-// ── GET /api/weather?address=...&date=YYYY-MM-DD ──────────────────────────────
+const DAILY_VARS =
+  "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max";
+
+/** Try the forecast API (covers today ± ~92 days with past_days param) */
+async function fetchForecast(lat: string, lon: string, date: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  const diffDays = Math.round(
+    (new Date(today).getTime() - new Date(date).getTime()) / 86_400_000
+  );
+
+  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  url.searchParams.set("latitude", lat);
+  url.searchParams.set("longitude", lon);
+  url.searchParams.set("daily", DAILY_VARS);
+  url.searchParams.set("timezone", "auto");
+  url.searchParams.set("start_date", date);
+  url.searchParams.set("end_date", date);
+  // Allow historical data up to 92 days back via past_days
+  if (diffDays > 0) url.searchParams.set("past_days", String(Math.min(diffDays + 1, 92)));
+
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/** Fall back to the archive API for dates older than 92 days */
+async function fetchArchive(lat: string, lon: string, date: string) {
+  const url = new URL("https://archive-api.open-meteo.com/v1/archive");
+  url.searchParams.set("latitude", lat);
+  url.searchParams.set("longitude", lon);
+  url.searchParams.set("daily", DAILY_VARS);
+  url.searchParams.set("timezone", "auto");
+  url.searchParams.set("start_date", date);
+  url.searchParams.set("end_date", date);
+
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function geocode(query: string): Promise<{ lat: string; lon: string } | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+      {
+        headers: { "User-Agent": "NorskApp/1.0", "Accept-Language": "en" },
+        signal: AbortSignal.timeout(8000),
+      }
+    );
+    if (!res.ok) return null;
+    const data: { lat: string; lon: string }[] = await res.json();
+    return data[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ── GET /api/weather?city=...&province=...&date=YYYY-MM-DD ───────────────────
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const address = searchParams.get("address");
-  const date = searchParams.get("date");
+  const city     = searchParams.get("city")     ?? "";
+  const province = searchParams.get("province") ?? "";
+  const date     = searchParams.get("date")     ?? "";
 
-  if (!address || !date) {
+  if (!city || !date) {
     return NextResponse.json(
-      { error: "Missing required params: address, date" },
+      { error: "Missing required params: city, date" },
       { status: 400 }
     );
   }
 
   try {
-    // ── 1. Geocode the address using Nominatim ──────────────────────────────
-    const geoRes = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
-      {
-        headers: {
-          "User-Agent": "NorskApp/1.0",
-          "Accept-Language": "en",
-        },
-        // 5-second timeout via AbortSignal
-        signal: AbortSignal.timeout(5000),
-      }
-    );
+    // ── 1. Geocode city + province ─────────────────────────────────────────
+    const query = province ? `${city}, ${province}` : city;
+    const coords = await geocode(query);
 
-    if (!geoRes.ok) {
-      return NextResponse.json(
-        { error: "Geocoding service unavailable" },
-        { status: 503 }
-      );
+    if (!coords) {
+      return NextResponse.json({ error: "Location not found" }, { status: 404 });
     }
 
-    const geoData: { lat: string; lon: string }[] = await geoRes.json();
-    if (!geoData.length) {
+    const { lat, lon } = coords;
+
+    // ── 2. Fetch weather (forecast first, archive fallback) ─────────────────
+    let wxData = await fetchForecast(lat, lon, date);
+
+    // Check if response has expected data; if not, try archive
+    const hasData = (d: unknown) => {
+      if (!d || typeof d !== "object") return false;
+      const daily = (d as Record<string, unknown>).daily;
+      if (!daily || typeof daily !== "object") return false;
+      const wc = (daily as Record<string, unknown[]>).weather_code;
+      return Array.isArray(wc) && wc.length > 0 && wc[0] !== null;
+    };
+
+    if (!hasData(wxData)) {
+      wxData = await fetchArchive(lat, lon, date);
+    }
+
+    if (!hasData(wxData)) {
       return NextResponse.json(
-        { error: "Address not found" },
+        { error: "No weather data available for this date" },
         { status: 404 }
       );
     }
 
-    const { lat, lon } = geoData[0];
-
-    // ── 2. Fetch daily weather from Open-Meteo ──────────────────────────────
-    const wxUrl = new URL("https://api.open-meteo.com/v1/forecast");
-    wxUrl.searchParams.set("latitude", lat);
-    wxUrl.searchParams.set("longitude", lon);
-    wxUrl.searchParams.set(
-      "daily",
-      "weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max"
-    );
-    wxUrl.searchParams.set("timezone", "auto");
-    wxUrl.searchParams.set("start_date", date);
-    wxUrl.searchParams.set("end_date", date);
-
-    const wxRes = await fetch(wxUrl.toString(), {
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (!wxRes.ok) {
-      return NextResponse.json(
-        { error: "Weather service unavailable" },
-        { status: 503 }
-      );
-    }
-
-    const wxData = await wxRes.json();
-
-    if (!wxData?.daily?.weathercode?.length) {
-      return NextResponse.json(
-        { error: "No weather data returned for this date" },
-        { status: 404 }
-      );
-    }
-
-    // ── 3. Parse the response ───────────────────────────────────────────────
-    const wmoCode: number = wxData.daily.weathercode[0];
-    const tMaxC: number = wxData.daily.temperature_2m_max[0];
-    const tMinC: number = wxData.daily.temperature_2m_min[0];
-    const precip: number = wxData.daily.precipitation_sum[0] ?? 0;
-    const windKph: number = wxData.daily.windspeed_10m_max[0] ?? 0;
+    // ── 3. Parse ────────────────────────────────────────────────────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const daily = (wxData as any).daily;
+    const wmoCode: number = daily.weather_code[0];
+    const tMaxC: number = daily.temperature_2m_max[0];
+    const tMinC: number = daily.temperature_2m_min[0];
+    const precip: number = daily.precipitation_sum[0] ?? 0;
+    const windKph: number = daily.wind_speed_10m_max[0] ?? 0;
 
     const tMaxF = Math.round(tMaxC * 9 / 5 + 32);
     const tMinF = Math.round(tMinC * 9 / 5 + 32);
 
     const conditions = wmoToConditions(wmoCode);
-    // Mark windy if sustained wind > 30 km/h and not already classified as such
     if (windKph > 30 && !conditions.includes("windy")) {
       conditions.push("windy");
     }
@@ -120,9 +149,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("[/api/weather]", err);
-    return NextResponse.json(
-      { error: "Failed to fetch weather data" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch weather data" }, { status: 500 });
   }
 }

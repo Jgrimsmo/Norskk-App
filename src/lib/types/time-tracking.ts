@@ -37,7 +37,9 @@ export interface Project {
   name: string;
   number: string;
   developer: string;
-  address: string;
+  address: string;     // street address
+  city?: string;
+  province?: string;
   status: ProjectStatus;
   costCodeIds: string[];
 }
@@ -46,6 +48,14 @@ export interface CostCode {
   id: string;
   code: string;
   description: string;
+}
+
+export interface Developer {
+  id: string;
+  name: string;
+  contact?: string;
+  phone?: string;
+  email?: string;
 }
 
 export type EquipmentStatus = "available" | "in-use" | "maintenance" | "retired";

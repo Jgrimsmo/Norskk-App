@@ -10,24 +10,19 @@ export interface AutoWeatherResult {
 }
 
 /**
- * Calls the server-side /api/weather endpoint, which geocodes the address and
- * returns daily weather from Open-Meteo. Returns null on any error so callers
- * can fail silently.
- *
- * @param address  Full street address of the project.
- * @param date     ISO date string (YYYY-MM-DD) for the report date.
+ * Fetches weather for a project location using city + province.
+ * Returns null on any error so callers can fail silently.
  */
-export async function fetchWeatherForAddress(
-  address: string,
+export async function fetchWeatherForProject(
+  city: string,
+  province: string,
   date: string
 ): Promise<AutoWeatherResult | null> {
   try {
-    const res = await fetch(
-      `/api/weather?address=${encodeURIComponent(address)}&date=${encodeURIComponent(date)}`
-    );
+    const params = new URLSearchParams({ city, province, date });
+    const res = await fetch(`/api/weather?${params.toString()}`);
     if (!res.ok) return null;
-    const data = await res.json();
-    return data as AutoWeatherResult;
+    return await res.json() as AutoWeatherResult;
   } catch {
     return null;
   }

@@ -5,6 +5,7 @@ export const Collections = {
   EMPLOYEES: "employees",
   PROJECTS: "projects",
   COST_CODES: "costCodes",
+  DEVELOPERS: "developers",
   EQUIPMENT: "equipment",
   ATTACHMENTS: "attachments",
   TOOLS: "tools",

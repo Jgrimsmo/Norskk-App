@@ -64,7 +64,7 @@ import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { Collections, EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
 import { dailyReportStatusColors as statusColors } from "@/lib/constants/status-colors";
-import { fetchWeatherForAddress } from "@/lib/utils/weather";
+import { fetchWeatherForProject } from "@/lib/utils/weather";
 
 // ── Weather helpers ──
 const weatherIcons: Record<WeatherCondition, React.ElementType> = {
@@ -159,11 +159,11 @@ export function FieldDailyReport() {
   const autoFetchWeather = React.useCallback(
     async (projectId: string, date: string) => {
       const proj = projects.find((p) => p.id === projectId);
-      if (!proj?.address || !date) return;
+      if (!proj?.city || !date) return;
       setWeatherLoading(true);
       setWeatherAutoFilled(false);
       try {
-        const wx = await fetchWeatherForAddress(proj.address, date);
+        const wx = await fetchWeatherForProject(proj.city, proj.province ?? "", date);
         if (wx) {
           setActiveReport((prev) =>
             prev ? { ...prev, weather: { ...prev.weather, ...wx } } : prev

@@ -17,6 +17,7 @@ import {
   User,
   Hash,
   Pencil,
+  Search,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CellInput } from "@/components/shared/cell-input";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CellSelect } from "@/components/shared/cell-select";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
 import {
@@ -54,7 +57,6 @@ import DailyReportFormDialog from "@/components/daily-reports/daily-report-form-
 
 import { useFirestoreState } from "@/hooks/use-firestore-state";
 import {
-  useProjects,
   useEmployees,
   useCostCodes,
   useSafetyForms,
@@ -67,6 +69,7 @@ import {
 } from "@/lib/constants/status-colors";
 import type {
   ProjectStatus,
+  Project,
   SafetyFormType,
   TimeEntry,
   DailyReport,
@@ -240,6 +243,83 @@ function PhotoGallery({ photos }: { photos: PhotoWithDate[] }) {
 }
 
 // ────────────────────────────────────────────
+// Cost Codes tab
+// ────────────────────────────────────────────
+
+function CostCodesTab({
+  assignedIds,
+  onToggle,
+}: {
+  assignedIds: string[];
+  onToggle: (id: string, checked: boolean) => void;
+}) {
+  const { data: allCodes } = useCostCodes();
+  const [search, setSearch] = React.useState("");
+  const assigned = new Set(assignedIds);
+
+  const filtered = allCodes
+    .filter((cc) => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return cc.code.toLowerCase().includes(q) || cc.description.toLowerCase().includes(q);
+    })
+    .sort((a, b) => a.code.localeCompare(b.code));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Select which cost codes are available on this project.
+        </p>
+        <span className="text-xs text-muted-foreground">
+          {assignedIds.length} of {allCodes.length} assigned
+        </span>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search cost codes…"
+          className="h-8 text-xs pl-8"
+        />
+      </div>
+
+      {allCodes.length === 0 ? (
+        <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+          No cost codes found. Add them in Settings → Cost Codes.
+        </div>
+      ) : (
+        <div className="rounded-lg border divide-y">
+          {filtered.map((cc) => (
+            <label
+              key={cc.id}
+              className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors"
+            >
+              <Checkbox
+                checked={assigned.has(cc.id)}
+                onCheckedChange={(v) => onToggle(cc.id, !!v)}
+              />
+              <span className="text-xs font-mono font-semibold text-primary w-[90px] shrink-0">
+                {cc.code}
+              </span>
+              <span className="text-xs text-muted-foreground">{cc.description}</span>
+            </label>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              No cost codes match your search.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
 // Main component
 // ────────────────────────────────────────────
 
@@ -249,7 +329,7 @@ interface ProjectDetailProps {
 
 export function ProjectDetail({ projectId }: ProjectDetailProps) {
   // ── Data sources ──
-  const { data: projects, loading: loadingProjects } = useProjects();
+  const [projects, setProjects, loadingProjects, savingProjects] = useFirestoreState<Project>(Collections.PROJECTS);
   const { data: employees } = useEmployees();
   const { data: costCodes } = useCostCodes();
   const { data: safetyForms, loading: loadingSafety } = useSafetyForms();
@@ -262,7 +342,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
   const project = projects.find((p) => p.id === projectId);
   const loading = loadingProjects || loadingTime || loadingReports || loadingSafety;
-  const saving = savingTime || savingReports;
+  const saving = savingTime || savingReports || savingProjects;
 
   // ── Unlock approved entries for editing ──
   const [unlockedIds, setUnlockedIds] = React.useState<Set<string>>(new Set());
@@ -449,10 +529,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                 {project.developer}
               </span>
             )}
-            {project.address && (
+            {(project.address || project.city || project.province) && (
               <span className="flex items-center gap-1">
                 <MapPin className="h-3.5 w-3.5" />
-                {project.address}
+                {[project.address, project.city, project.province].filter(Boolean).join(", ")}
               </span>
             )}
           </div>
@@ -514,6 +594,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           <TabsTrigger value="photos" className="gap-1.5">
             <ImageIcon className="h-3.5 w-3.5" />
             Photos
+          </TabsTrigger>
+          <TabsTrigger value="cost-codes" className="gap-1.5">
+            <Hash className="h-3.5 w-3.5" />
+            Cost Codes
           </TabsTrigger>
         </TabsList>
 
@@ -831,6 +915,21 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         {/* ── Photos (with date filter) ── */}
         <TabsContent value="photos" className="mt-4">
           <PhotoGallery photos={allPhotos} />
+        </TabsContent>
+
+        {/* ── Cost Codes ── */}
+        <TabsContent value="cost-codes" className="mt-4">
+          <CostCodesTab
+            assignedIds={project.costCodeIds ?? []}
+            onToggle={(id, checked) => {
+              const next = checked
+                ? [...(project.costCodeIds ?? []), id]
+                : (project.costCodeIds ?? []).filter((c) => c !== id);
+              setProjects((prev) =>
+                prev.map((p) => (p.id === project.id ? { ...p, costCodeIds: next } : p))
+              );
+            }}
+          />
         </TabsContent>
       </Tabs>
 

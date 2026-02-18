@@ -98,9 +98,9 @@ export function FieldTimeEntry() {
   }, [isEditing, existingEntry, initialized]);
 
   // ── Derived data ──
-  const activeEmployees = React.useMemo(
-    () => employees.filter((e) => e.status === "active"),
-    [employees]
+  const currentEmployee = React.useMemo(
+    () => employees.find((e) => e.id === employeeId),
+    [employees, employeeId]
   );
   const activeProjects = React.useMemo(
     () => projects.filter((p) => p.status === "active" || p.status === "bidding"),
@@ -228,21 +228,12 @@ export function FieldTimeEntry() {
 
       {/* ── Entry Form ── */}
       <div className="rounded-xl border bg-card shadow-sm p-4 space-y-4">
-        {/* Employee */}
-        <div className="space-y-1.5">
-          <Label className="text-sm font-medium">Who are you?</Label>
-          <Select value={employeeId} onValueChange={setEmployeeId}>
-            <SelectTrigger className="h-11 text-sm cursor-pointer">
-              <SelectValue placeholder="Select your name…" />
-            </SelectTrigger>
-            <SelectContent>
-              {activeEmployees.map((emp) => (
-                <SelectItem key={emp.id} value={emp.id} className="text-sm">
-                  {emp.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Employee — read-only display */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Submitting as</span>
+          <span className="font-semibold">
+            {currentEmployee?.name ?? "Unknown"}
+          </span>
         </div>
 
         <Separator />

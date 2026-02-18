@@ -12,6 +12,7 @@ interface CellSelectProps {
   onChange: (v: string) => void;
   options: { id: string; label: string }[];
   placeholder: string;
+  footer?: React.ReactNode;
 }
 
 export const CellSelect = memo(function CellSelect({
@@ -19,6 +20,7 @@ export const CellSelect = memo(function CellSelect({
   onChange,
   options,
   placeholder,
+  footer,
 }: CellSelectProps) {
   return (
     <Select value={value} onValueChange={onChange}>
@@ -39,6 +41,9 @@ export const CellSelect = memo(function CellSelect({
             {opt.label}
           </SelectItem>
         ))}
+        {footer && (
+          <div className="border-t mt-1 pt-1 px-1 pb-1">{footer}</div>
+        )}
       </SelectContent>
     </Select>
   );
