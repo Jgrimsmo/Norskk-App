@@ -16,6 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Smartphone,
+  Building2,
+  Receipt,
 } from "lucide-react";
 import {
   Sidebar,
@@ -70,6 +72,7 @@ const navSections: NavSection[] = [
     items: [
       { title: "Employees", href: "/employees", icon: Users, permission: "employees.view" },
       { title: "Equipment", href: "/equipment", icon: Wrench, permission: "equipment.view" },
+      { title: "Vendors", href: "/vendors", icon: Building2, permission: "vendors.view" },
     ],
   },
   {
@@ -77,6 +80,7 @@ const navSections: NavSection[] = [
     items: [
       { title: "Daily Reports", href: "/daily-reports", icon: ClipboardList, permission: "daily-reports.view" },
       { title: "Safety", href: "/safety", icon: ShieldCheck, permission: "safety.view" },
+      { title: "Payables", href: "/payables", icon: Receipt, permission: "payables.view" },
     ],
   },
   {

@@ -98,6 +98,26 @@ export const PERMISSION_MODULES = [
       { id: "view-others", label: "View other employees' data" },
     ],
   },
+  {
+    id: "vendors",
+    label: "Vendors",
+    actions: [
+      { id: "view", label: "View vendors" },
+      { id: "create", label: "Add vendors" },
+      { id: "edit", label: "Edit vendors" },
+      { id: "delete", label: "Delete vendors" },
+    ],
+  },
+  {
+    id: "payables",
+    label: "Payables",
+    actions: [
+      { id: "view", label: "View invoices" },
+      { id: "create", label: "Upload invoices" },
+      { id: "approve", label: "Approve / reject invoices" },
+      { id: "delete", label: "Delete invoices" },
+    ],
+  },
 ] as const;
 
 // Build a flat list of all permission keys: "time-tracking.view", "dispatch.edit", etc.
@@ -135,6 +155,9 @@ const FOREMAN_PERMISSIONS: string[] = [
   "safety.edit",
   "field.view",
   "field.view-others",
+  "vendors.view",
+  "payables.view",
+  "payables.create",
 ];
 
 /** Operator — can log time, view dispatch and equipment, submit reports */
@@ -152,6 +175,9 @@ const OPERATOR_PERMISSIONS: string[] = [
   "safety.view",
   "safety.create",
   "field.view",
+  "vendors.view",
+  "payables.view",
+  "payables.create",
 ];
 
 /** Labourer — basic field access, log own time */
@@ -165,6 +191,7 @@ const LABOURER_PERMISSIONS: string[] = [
   "safety.view",
   "safety.create",
   "field.view",
+  "vendors.view",
 ];
 
 /** Safety Officer — full safety access + read-only on most modules */
@@ -183,6 +210,8 @@ const SAFETY_OFFICER_PERMISSIONS: string[] = [
   "safety.edit",
   "safety.delete",
   "field.view",
+  "vendors.view",
+  "payables.view",
 ];
 
 export interface RoleTemplate {

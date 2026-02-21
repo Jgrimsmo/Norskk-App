@@ -42,6 +42,7 @@ export interface Project {
   province?: string;
   status: ProjectStatus;
   costCodeIds: string[];
+  payablesCostCodeIds?: string[]; // cost codes available in invoice uploads
 }
 
 export interface CostCode {
@@ -295,6 +296,41 @@ export interface FLHAData {
   // Section 6 — Supervisor sign-off
   supervisorId: string;
   supervisorSignature: string; // base64 data URL
+}
+
+// ── Vendors ─────────────────────────────────
+export type VendorType = "vendor" | "subcontractor";
+
+export interface Vendor {
+  id: string;
+  name: string;
+  contact?: string;
+  phone?: string;
+  email?: string;
+  type?: VendorType;
+}
+
+// ── Payables (Invoices) ──────────────────────
+export type InvoiceStatus = "needs-review" | "approved" | "rejected";
+export type BillingType = "tm" | "lump-sum";
+
+export interface Invoice {
+  id: string;
+  projectId: string;
+  vendorId: string;
+  amount: number;
+  date: string;        // ISO YYYY-MM-DD
+  costCodeId?: string;
+  billingType?: BillingType;
+  fileUrl: string;     // Firebase Storage download URL
+  fileName: string;
+  status: InvoiceStatus;
+  notes?: string;
+  createdAt: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectedAt?: string;
+  rejectedBy?: string;
 }
 
 // ── Settings ────────────────────────────────

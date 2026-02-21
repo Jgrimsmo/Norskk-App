@@ -18,6 +18,10 @@ import {
   Hash,
   Pencil,
   Search,
+  Receipt,
+  Plus,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -60,8 +64,12 @@ import {
   useEmployees,
   useCostCodes,
   useSafetyForms,
+  useInvoices,
+  useVendors,
 } from "@/hooks/use-firestore";
+import { InvoiceUploadDialog } from "@/components/payables/invoice-upload-dialog";
 import { Collections } from "@/lib/firebase/collections";
+import { useAuth } from "@/lib/firebase/auth-context";
 import {
   projectStatusColors,
   dailyReportStatusColors,
@@ -73,6 +81,8 @@ import type {
   SafetyFormType,
   TimeEntry,
   DailyReport,
+  Invoice,
+  InvoiceStatus,
 } from "@/lib/types/time-tracking";
 
 // ────────────────────────────────────────────
@@ -246,14 +256,19 @@ function PhotoGallery({ photos }: { photos: PhotoWithDate[] }) {
 // Cost Codes tab
 // ────────────────────────────────────────────
 
-function CostCodesTab({
+function CostCodeChecklist({
+  label,
+  description,
   assignedIds,
+  allCodes,
   onToggle,
 }: {
+  label: string;
+  description: string;
   assignedIds: string[];
+  allCodes: import("@/lib/types/time-tracking").CostCode[];
   onToggle: (id: string, checked: boolean) => void;
 }) {
-  const { data: allCodes } = useCostCodes();
   const [search, setSearch] = React.useState("");
   const assigned = new Set(assignedIds);
 
@@ -266,17 +281,16 @@ function CostCodesTab({
     .sort((a, b) => a.code.localeCompare(b.code));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Select which cost codes are available on this project.
-        </p>
+        <div>
+          <p className="text-sm font-medium">{label}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
         <span className="text-xs text-muted-foreground">
-          {assignedIds.length} of {allCodes.length} assigned
+          {assignedIds.length} of {allCodes.length} selected
         </span>
       </div>
-
-      {/* Search */}
       <div className="relative max-w-sm">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
@@ -286,9 +300,8 @@ function CostCodesTab({
           className="h-8 text-xs pl-8"
         />
       </div>
-
       {allCodes.length === 0 ? (
-        <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+        <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
           No cost codes found. Add them in Settings → Cost Codes.
         </div>
       ) : (
@@ -315,6 +328,200 @@ function CostCodesTab({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function CostCodesTab({
+  assignedIds,
+  payablesIds,
+  onToggle,
+  onTogglePayables,
+}: {
+  assignedIds: string[];
+  payablesIds: string[];
+  onToggle: (id: string, checked: boolean) => void;
+  onTogglePayables: (id: string, checked: boolean) => void;
+}) {
+  const { data: allCodes } = useCostCodes();
+
+  return (
+    <div className="space-y-8">
+      <CostCodeChecklist
+        label="Time Tracking"
+        description="Cost codes available when logging time entries on this project."
+        assignedIds={assignedIds}
+        allCodes={allCodes}
+        onToggle={onToggle}
+      />
+      <div className="border-t" />
+      <CostCodeChecklist
+        label="Payables"
+        description="Cost codes available when uploading invoices for this project."
+        assignedIds={payablesIds}
+        allCodes={allCodes}
+        onToggle={onTogglePayables}
+      />
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
+// Invoices Tab
+// ────────────────────────────────────────────
+
+const invoiceStatusColors: Record<InvoiceStatus, string> = {
+  "needs-review": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  approved: "bg-green-100 text-green-800 border-green-200",
+  rejected: "bg-red-100 text-red-800 border-red-200",
+};
+
+const invoiceStatusLabels: Record<InvoiceStatus, string> = {
+  "needs-review": "Needs Review",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
+function InvoicesTab({ projectId }: { projectId: string }) {
+  const { user } = useAuth();
+  const { data: allInvoices, update: updateInvoice, remove: removeInvoice } = useInvoices();
+  const { data: vendors } = useVendors();
+  const { data: costCodes } = useCostCodes();
+  const [uploadOpen, setUploadOpen] = React.useState(false);
+  const [allProjects] = useFirestoreState<Project>(Collections.PROJECTS);
+
+  const projectInvoices = React.useMemo(
+    () => [...allInvoices]
+      .filter((inv) => inv.projectId === projectId)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+    [allInvoices, projectId]
+  );
+
+  const vendorMap = React.useMemo(
+    () => Object.fromEntries(vendors.map((v) => [v.id, v.name])),
+    [vendors]
+  );
+
+  const costCodeMap = React.useMemo(
+    () => Object.fromEntries(costCodes.map((c) => [c.id, c.code])),
+    [costCodes]
+  );
+
+  const handleApprove = (inv: Invoice) => {
+    const actor = user?.displayName || user?.email || "Unknown";
+    updateInvoice(inv.id, { status: "approved", approvedAt: new Date().toISOString(), approvedBy: actor, rejectedAt: undefined, rejectedBy: undefined } as Partial<Invoice>);
+  };
+
+  const handleReject = (inv: Invoice) => {
+    const actor = user?.displayName || user?.email || "Unknown";
+    updateInvoice(inv.id, { status: "rejected", rejectedAt: new Date().toISOString(), rejectedBy: actor, approvedAt: undefined, approvedBy: undefined } as Partial<Invoice>);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {projectInvoices.length} invoice{projectInvoices.length !== 1 ? "s" : ""} for this project
+        </p>
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setUploadOpen(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          Upload Invoice
+        </Button>
+      </div>
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
+                <TableHead className="w-[110px] text-xs font-semibold px-3">Date</TableHead>
+                <TableHead className="w-[170px] text-xs font-semibold px-3">Vendor</TableHead>
+                <TableHead className="w-[110px] text-xs font-semibold px-3">Amount</TableHead>
+                <TableHead className="w-[120px] text-xs font-semibold px-3">Cost Code</TableHead>
+                <TableHead className="w-[90px] text-xs font-semibold px-3">Status</TableHead>
+                <TableHead className="w-[60px] text-xs font-semibold px-3">PDF</TableHead>
+                <TableHead className="w-[100px] text-xs font-semibold px-3">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projectInvoices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground text-sm">
+                    No invoices yet. Upload the first one.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                projectInvoices.map((inv) => (
+                  <TableRow key={inv.id} className="h-[36px] group">
+                    <TableCell className="text-xs px-3">{inv.date}</TableCell>
+                    <TableCell className="text-xs px-3">{vendorMap[inv.vendorId] ?? "—"}</TableCell>
+                    <TableCell className="text-xs px-3 font-medium">
+                      ${inv.amount.toLocaleString("en-CA", { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-xs px-3 text-muted-foreground">
+                      {inv.costCodeId ? costCodeMap[inv.costCodeId] ?? "—" : "—"}
+                    </TableCell>
+                    <TableCell className="px-3">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-medium ${invoiceStatusColors[inv.status]}`}
+                      >
+                        {invoiceStatusLabels[inv.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-3">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" asChild>
+                        <a href={inv.fileUrl} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
+                    </TableCell>
+                    <TableCell className="px-3">
+                      <div className="flex items-center gap-0.5">
+                        {inv.status !== "approved" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-green-600 hover:bg-green-50"
+                            onClick={() => handleApprove(inv)}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {inv.status !== "rejected" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-500 hover:bg-red-50"
+                            onClick={() => handleReject(inv)}
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        {projectInvoices.length > 0 && (
+          <div className="border-t px-3 py-2 text-xs text-muted-foreground flex justify-between">
+            <span>{projectInvoices.length} invoices</span>
+            <span className="font-medium text-foreground">
+              Total: ${projectInvoices.reduce((s, i) => s + i.amount, 0).toLocaleString("en-CA", { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        )}
+      </div>
+      <InvoiceUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        projects={allProjects}
+        vendors={vendors}
+        costCodes={costCodes}
+        defaultProjectId={projectId}
+      />
     </div>
   );
 }
@@ -598,6 +805,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           <TabsTrigger value="cost-codes" className="gap-1.5">
             <Hash className="h-3.5 w-3.5" />
             Cost Codes
+          </TabsTrigger>
+          <TabsTrigger value="invoices" className="gap-1.5">
+            <Receipt className="h-3.5 w-3.5" />
+            Invoices
           </TabsTrigger>
         </TabsList>
 
@@ -917,16 +1128,30 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           <PhotoGallery photos={allPhotos} />
         </TabsContent>
 
+        {/* ── Invoices ── */}
+        <TabsContent value="invoices" className="mt-4">
+          <InvoicesTab projectId={projectId} />
+        </TabsContent>
+
         {/* ── Cost Codes ── */}
         <TabsContent value="cost-codes" className="mt-4">
           <CostCodesTab
             assignedIds={project.costCodeIds ?? []}
+            payablesIds={project.payablesCostCodeIds ?? []}
             onToggle={(id, checked) => {
               const next = checked
                 ? [...(project.costCodeIds ?? []), id]
                 : (project.costCodeIds ?? []).filter((c) => c !== id);
               setProjects((prev) =>
                 prev.map((p) => (p.id === project.id ? { ...p, costCodeIds: next } : p))
+              );
+            }}
+            onTogglePayables={(id, checked) => {
+              const next = checked
+                ? [...(project.payablesCostCodeIds ?? []), id]
+                : (project.payablesCostCodeIds ?? []).filter((c) => c !== id);
+              setProjects((prev) =>
+                prev.map((p) => (p.id === project.id ? { ...p, payablesCostCodeIds: next } : p))
               );
             }}
           />

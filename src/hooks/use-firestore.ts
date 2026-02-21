@@ -15,6 +15,8 @@ import type {
   DispatchAssignment,
   DailyReport,
   RolePermissions,
+  Vendor,
+  Invoice,
 } from "@/lib/types/time-tracking";
 
 // ── Core entities ───────────────────────────
@@ -67,4 +69,12 @@ export function useDailyReports() {
 
 export function useRolePermissions() {
   return useCollection<RolePermissions>(Collections.ROLE_PERMISSIONS);
+}
+
+export function useVendors() {
+  return useCollection<Vendor>(Collections.VENDORS);
+}
+
+export function useInvoices() {
+  return useCollection<Invoice>(Collections.INVOICES);
 }

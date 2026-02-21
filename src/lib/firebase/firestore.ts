@@ -15,6 +15,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   onSnapshot,
   query,
   where,
@@ -80,7 +81,11 @@ export async function update<T extends { id: string }>(
   id: string,
   data: Partial<Omit<T, "id">>
 ): Promise<void> {
-  await updateDoc(docRef(path, id), data as DocumentData);
+  // Replace undefined values with deleteField() so Firestore removes those fields
+  const sanitized = Object.fromEntries(
+    Object.entries(data).map(([k, v]) => [k, v === undefined ? deleteField() : v])
+  );
+  await updateDoc(docRef(path, id), sanitized as DocumentData);
 }
 
 /** Delete a document */
