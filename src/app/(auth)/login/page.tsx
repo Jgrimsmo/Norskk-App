@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/firebase/auth-context";
-import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +11,6 @@ import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const { signIn, resetPassword, user } = useAuth();
-  const { profile } = useCompanyProfile();
   const router = useRouter();
 
   const [email, setEmail] = React.useState("");
@@ -64,7 +62,7 @@ export default function LoginPage() {
       <div className="flex flex-col items-start gap-1">
         <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
         <p className="text-sm text-muted-foreground">
-          Sign in to your {profile?.name || "Norskk"} account
+          Sign in to your Norskk.cloud account
         </p>
       </div>
 
