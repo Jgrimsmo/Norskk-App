@@ -6,6 +6,7 @@ import { AuthGuard } from "@/components/auth-guard";
 import { CompanyProfileProvider } from "@/hooks/use-company-profile";
 import { GlobalSearch } from "@/components/global-search";
 import { RolePreviewProvider } from "@/lib/role-preview-context";
+import { RoleRedirect } from "@/components/role-redirect";
 
 export default function DashboardLayout({
   children,
@@ -16,6 +17,7 @@ export default function DashboardLayout({
     <AuthGuard>
       <CompanyProfileProvider>
         <RolePreviewProvider>
+          <RoleRedirect />
           <TooltipProvider>
             <SidebarProvider>
               <AppSidebar />

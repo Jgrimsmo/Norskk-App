@@ -67,13 +67,18 @@ export async function POST(req: Request) {
     }
 
     const { auth, db } = getAdminServices();
-    const decoded = await auth.verifyIdToken(token);
 
+    console.log("[invite] verifying ID token...");
+    const decoded = await auth.verifyIdToken(token);
+    console.log("[invite] token verified, uid:", decoded.uid);
+
+    console.log("[invite] reading requester employee doc...");
     const requesterSnap = await db
       .collection(Collections.EMPLOYEES)
       .doc(decoded.uid)
       .get();
     const requesterRole = String(requesterSnap.data()?.role || "").toLowerCase();
+    console.log("[invite] requester role:", requesterRole);
 
     if (requesterRole !== "admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
@@ -137,6 +142,7 @@ export async function POST(req: Request) {
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to invite user";
+    console.error("[invite] ERROR:", err);
     const normalized = message.toLowerCase();
 
     if (normalized.includes("email-already-exists")) {

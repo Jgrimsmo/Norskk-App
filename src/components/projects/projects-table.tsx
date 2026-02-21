@@ -35,6 +35,13 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
 
@@ -60,19 +67,15 @@ const statusLabels: Record<ProjectStatus, string> = {
   bidding: "Bidding",
 };
 
-function newBlankProject(): Project {
-  return {
-    id: `proj-${crypto.randomUUID().slice(0, 8)}`,
-    number: "",
-    name: "",
-    developer: "",
-    address: "",
-    city: "",
-    province: "",
-    status: "bidding",
-    costCodeIds: [],
-  };
-}
+const BLANK_NEW_PROJECT_FORM = {
+  number: "",
+  name: "",
+  developer: "",
+  address: "",
+  city: "",
+  province: "",
+  status: "active" as ProjectStatus,
+};
 
 /** Compose a full address string for display / geocoding */
 export function composeAddress(p: { address?: string; city?: string; province?: string }) {
@@ -190,6 +193,28 @@ export function ProjectsTable({
   const { data: dailyReports } = useDailyReports();
   const { data: safetyForms } = useSafetyForms();
 
+  // ── Add form state ──
+  const [adding, setAdding] = React.useState(false);
+  const [newForm, setNewForm] = React.useState(BLANK_NEW_PROJECT_FORM);
+
+  const handleAddSubmit = React.useCallback(() => {
+    if (!newForm.name.trim()) return;
+    const project: Project = {
+      id: `proj-${crypto.randomUUID().slice(0, 8)}`,
+      number: newForm.number.trim(),
+      name: newForm.name.trim(),
+      developer: newForm.developer,
+      address: newForm.address.trim(),
+      city: newForm.city.trim(),
+      province: newForm.province.trim(),
+      status: newForm.status,
+      costCodeIds: [],
+    };
+    onProjectsChange((prev) => [...prev, project]);
+    setAdding(false);
+    setNewForm(BLANK_NEW_PROJECT_FORM);
+  }, [newForm, onProjectsChange]);
+
   // ── Edit state (all rows locked by default) ──
   const [editingIds, setEditingIds] = React.useState<Set<string>>(new Set());
   const snapshots = React.useRef<Map<string, Project>>(new Map());
@@ -289,23 +314,126 @@ export function ProjectsTable({
     [onProjectsChange]
   );
 
-  const addProject = React.useCallback(() => {
-    const blank = newBlankProject();
-    onProjectsChange((prev) => [...prev, blank]);
-    snapshots.current.set(blank.id, { ...blank });
-    setEditingIds((prev) => new Set(prev).add(blank.id));
-  }, [onProjectsChange]);
-
   return (
     <div className="space-y-3">
       {/* Toolbar */}
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" className="gap-1.5 text-xs cursor-pointer" onClick={addProject}>
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs cursor-pointer" onClick={() => setAdding(true)} disabled={adding}>
           <Plus className="h-3.5 w-3.5" />
           Add Project
         </Button>
         <ProjectsExport projects={filteredProjects} costCodes={costCodes} />
       </div>
+
+      {/* Add form */}
+      {adding && (
+        <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 border-b bg-muted/40">
+            <Plus className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">New Project</h3>
+          </div>
+
+          <div className="p-5 space-y-3">
+            {/* All fields in one row */}
+            {/* Project # | Name | Developer | Street | City | Prov | Status */}
+            <div className="grid gap-3 grid-cols-[90px_1fr_160px_1fr_130px_48px_120px]">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Project #</Label>
+                <Input
+                  value={newForm.number}
+                  onChange={(e) => setNewForm((p) => ({ ...p, number: e.target.value }))}
+                  placeholder="2026-001"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Name <span className="text-destructive">*</span></Label>
+                <Input
+                  value={newForm.name}
+                  onChange={(e) => setNewForm((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="Project name"
+                  className="h-8 text-xs"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Developer</Label>
+                <Select value={newForm.developer || "__none__"} onValueChange={(v) => setNewForm((p) => ({ ...p, developer: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="— None —" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__" className="text-xs">— None —</SelectItem>
+                    {developers.map((d) => (
+                      <SelectItem key={d.id} value={d.name} className="text-xs">{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Street</Label>
+                <Input
+                  value={newForm.address}
+                  onChange={(e) => setNewForm((p) => ({ ...p, address: e.target.value }))}
+                  placeholder="123 Main St"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">City</Label>
+                <Input
+                  value={newForm.city}
+                  onChange={(e) => setNewForm((p) => ({ ...p, city: e.target.value }))}
+                  placeholder="Edmonton"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Prov.</Label>
+                <Input
+                  value={newForm.province}
+                  onChange={(e) => setNewForm((p) => ({ ...p, province: e.target.value }))}
+                  placeholder="AB"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Status</Label>
+                <Select value={newForm.status} onValueChange={(v) => setNewForm((p) => ({ ...p, status: v as ProjectStatus }))}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(statusLabels) as [ProjectStatus, string][]).map(([value, label]) => (
+                      <SelectItem key={value} value={value} className="text-xs">{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs cursor-pointer"
+                onClick={() => { setAdding(false); setNewForm(BLANK_NEW_PROJECT_FORM); }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="text-xs cursor-pointer"
+                onClick={handleAddSubmit}
+                disabled={!newForm.name.trim()}
+              >
+                Add Project
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
