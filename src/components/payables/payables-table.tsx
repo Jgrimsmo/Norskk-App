@@ -187,7 +187,7 @@ export function PayablesTable({
               </TableRow>
             ) : (
               invoices.map((inv) => (
-                <TableRow key={inv.id} className="group">
+                <TableRow key={inv.id} className="h-[36px] group">
                   <TableCell className="text-xs px-3">{inv.date}</TableCell>
                   <TableCell className="text-xs px-3 font-medium">
                     {projectMap[inv.projectId] ?? "—"}
@@ -205,26 +205,41 @@ export function PayablesTable({
                     {inv.billingType === "tm" ? "T&M" : inv.billingType === "lump-sum" ? "Lump Sum" : "—"}
                   </TableCell>
                   <TableCell className="p-0 px-1">
-                    <div>
+                    {(inv.status === "approved" && inv.approvedBy) || (inv.status === "rejected" && inv.rejectedBy) ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <CellSelect
+                              value={inv.status}
+                              onChange={(v) => onUpdateStatus(inv.id, v as InvoiceStatus)}
+                              options={statusOptions}
+                              placeholder="Status"
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="start">
+                          {inv.status === "approved" && inv.approvedBy && (
+                            <p className="text-xs">
+                              Approved by {inv.approvedBy}
+                              {inv.approvedAt && <> · {new Date(inv.approvedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
+                            </p>
+                          )}
+                          {inv.status === "rejected" && inv.rejectedBy && (
+                            <p className="text-xs">
+                              Rejected by {inv.rejectedBy}
+                              {inv.rejectedAt && <> · {new Date(inv.rejectedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
+                            </p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
                       <CellSelect
                         value={inv.status}
                         onChange={(v) => onUpdateStatus(inv.id, v as InvoiceStatus)}
                         options={statusOptions}
                         placeholder="Status"
                       />
-                      {inv.status === "approved" && inv.approvedBy && (
-                        <p className="px-2 pb-1 text-[10px] leading-tight text-muted-foreground">
-                          {inv.approvedBy}
-                          {inv.approvedAt && <> · {new Date(inv.approvedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
-                        </p>
-                      )}
-                      {inv.status === "rejected" && inv.rejectedBy && (
-                        <p className="px-2 pb-1 text-[10px] leading-tight text-muted-foreground">
-                          {inv.rejectedBy}
-                          {inv.rejectedAt && <> · {new Date(inv.rejectedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
-                        </p>
-                      )}
-                    </div>
+                    )}
                   </TableCell>
                   <TableCell className="px-3">
                     <Tooltip>

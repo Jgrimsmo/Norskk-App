@@ -27,8 +27,8 @@ export default function AuthLayout({
 
             {/* Brand name */}
             <div>
-              <h1 className="text-5xl font-black tracking-tight text-white" style={{ fontFamily: "var(--font-montserrat)" }}>Norskk</h1>
-              <p className="mt-2 text-zinc-400 text-lg font-bold" style={{ fontFamily: "var(--font-montserrat)" }}>Construction Management Platform</p>
+              <h1 className="text-5xl font-black tracking-tight text-white" style={{ fontFamily: "var(--font-volkhov)" }}>Norskk</h1>
+              <p className="mt-2 text-zinc-400 text-lg font-bold" style={{ fontFamily: "var(--font-volkhov)" }}>Construction Management Platform</p>
             </div>
 
             {/* Tagline */}
@@ -54,7 +54,7 @@ export default function AuthLayout({
               height={56}
               className="h-14 w-14 object-contain invert dark:invert-0"
             />
-            <span className="text-2xl font-black tracking-tight" style={{ fontFamily: "var(--font-montserrat)" }}>Norskk</span>
+            <span className="text-2xl font-black tracking-tight" style={{ fontFamily: "var(--font-volkhov)" }}>Norskk</span>
           </div>
 
           {children}
