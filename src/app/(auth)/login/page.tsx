@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
@@ -61,21 +60,8 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-sm space-y-6">
-      {/* Logo / Brand */}
-      <div className="flex flex-col items-center gap-2">
-        {profile?.logoUrl ? (
-          <Image
-            src={profile.logoUrl}
-            alt={profile.name || "Company logo"}
-            width={160}
-            height={64}
-            className="h-16 w-auto object-contain invert dark:invert-0"
-          />
-        ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-xl">
-            {(profile?.name ?? "N").charAt(0).toUpperCase()}
-          </div>
-        )}
+      {/* Header */}
+      <div className="flex flex-col items-start gap-1">
         <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
         <p className="text-sm text-muted-foreground">
           Sign in to your {profile?.name || "Norskk"} account
