@@ -64,11 +64,11 @@ export function WeekView({
                 onExpandDay(day);
               }}
             >
-              <div className="text-xs text-muted-foreground uppercase">
+              <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                 {format(day, "EEE")}
               </div>
               <div
-                className={`text-base font-semibold ${
+                className={`text-base font-bold ${
                   today ? "text-primary" : "text-foreground"
                 }`}
               >
@@ -78,7 +78,7 @@ export function WeekView({
 
             {/* Day body */}
             <ScrollArea className="flex-1 p-1.5">
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {dayDispatches.map((dispatch) => {
                   const project = projects.find(
                     (p) => p.id === dispatch.projectId
@@ -88,65 +88,57 @@ export function WeekView({
                   return (
                     <div
                       key={dispatch.id}
-                      className={`rounded-md px-2 py-2 border ${color.bg} ${color.border}`}
+                      className={`rounded border bg-card border-l-4 ${color.accent} overflow-hidden`}
                     >
-                      {/* Project header */}
-                      <div className={`text-xs font-semibold ${color.text} truncate mb-1.5`}>
+                      {/* Project name */}
+                      <div className="px-1.5 pt-1.5 pb-1 text-[11px] font-bold text-foreground truncate border-b border-border/50">
                         {project?.name}
                       </div>
 
-                      {/* Resource lists */}
-                      <div className="space-y-1">
+                      {/* Resource sections */}
+                      <div className="px-1.5 py-1 space-y-1.5">
                         {dispatch.employeeIds.length > 0 && (
-                          <ResourceList
-                            icon={<Users className={`h-3 w-3 shrink-0 ${color.text} opacity-60`} />}
+                          <ResourceSection
+                            label="Crew"
+                            icon={<Users className="h-2.5 w-2.5" />}
                             items={dispatch.employeeIds.map((id) => ({
                               id,
                               name: employees.find((e) => e.id === id)?.name ?? id,
                             }))}
-                            color={color.text}
-                            onRemove={(id) => {
-                              onRemoveResource(dispatch.id, "employee", id);
-                            }}
+                            onRemove={(id) => onRemoveResource(dispatch.id, "employee", id)}
                           />
                         )}
                         {dispatch.equipmentIds.length > 0 && (
-                          <ResourceList
-                            icon={<Wrench className={`h-3 w-3 shrink-0 ${color.text} opacity-60`} />}
+                          <ResourceSection
+                            label="Equipment"
+                            icon={<Wrench className="h-2.5 w-2.5" />}
                             items={dispatch.equipmentIds.map((id) => ({
                               id,
                               name: equipment.find((e) => e.id === id)?.name ?? id,
                             }))}
-                            color={color.text}
-                            onRemove={(id) => {
-                              onRemoveResource(dispatch.id, "equipment", id);
-                            }}
+                            onRemove={(id) => onRemoveResource(dispatch.id, "equipment", id)}
                           />
                         )}
                         {dispatch.attachmentIds.length > 0 && (
-                          <ResourceList
-                            icon={<Paperclip className={`h-3 w-3 shrink-0 ${color.text} opacity-60`} />}
+                          <ResourceSection
+                            label="Attachments"
+                            icon={<Paperclip className="h-2.5 w-2.5" />}
                             items={dispatch.attachmentIds.map((id) => ({
                               id,
                               name: attachments.find((a) => a.id === id)?.name ?? id,
                             }))}
-                            color={color.text}
-                            onRemove={(id) => {
-                              onRemoveResource(dispatch.id, "attachment", id);
-                            }}
+                            onRemove={(id) => onRemoveResource(dispatch.id, "attachment", id)}
                           />
                         )}
                         {dispatch.toolIds.length > 0 && (
-                          <ResourceList
-                            icon={<Hammer className={`h-3 w-3 shrink-0 ${color.text} opacity-60`} />}
+                          <ResourceSection
+                            label="Tools"
+                            icon={<Hammer className="h-2.5 w-2.5" />}
                             items={dispatch.toolIds.map((id) => ({
                               id,
                               name: tools.find((t) => t.id === id)?.name ?? id,
                             }))}
-                            color={color.text}
-                            onRemove={(id) => {
-                              onRemoveResource(dispatch.id, "tool", id);
-                            }}
+                            onRemove={(id) => onRemoveResource(dispatch.id, "tool", id)}
                           />
                         )}
                       </div>
@@ -156,7 +148,7 @@ export function WeekView({
 
                 {dayDispatches.length === 0 && (
                   <div className="text-center py-4">
-                    <div className="text-xs text-muted-foreground/50">—</div>
+                    <div className="text-xs text-muted-foreground/40">—</div>
                   </div>
                 )}
 
@@ -171,37 +163,42 @@ export function WeekView({
   );
 }
 
-// ── Inline resource list with per-item delete ──
-function ResourceList({
+// ── Titled resource section with list below ──
+function ResourceSection({
+  label,
   icon,
   items,
-  color,
   onRemove,
 }: {
+  label: string;
   icon: React.ReactNode;
   items: { id: string; name: string }[];
-  color: string;
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="space-y-0.5">
-      {items.map((item) => (
-        <div key={item.id} className="flex items-center gap-1 group">
-          {icon}
-          <span className={`text-[11px] ${color} leading-tight truncate`}>
-            {item.name}
-          </span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(item.id);
-            }}
-            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
-          >
-            <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-          </button>
-        </div>
-      ))}
+    <div>
+      <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-foreground mb-0.5">
+        {icon}
+        {label}
+      </div>
+      <div className="space-y-0.5">
+        {items.map((item) => (
+          <div key={item.id} className="flex items-center gap-1 group">
+            <span className="text-[11px] text-foreground leading-tight truncate">
+              {item.name}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(item.id);
+              }}
+              className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+            >
+              <X className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

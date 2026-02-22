@@ -40,7 +40,7 @@ export function MonthView({
       </div>
 
       {/* Day cells */}
-      <div className="grid grid-cols-7 auto-rows-[minmax(90px,1fr)]">
+      <div className="grid grid-cols-7 auto-rows-[minmax(110px,1fr)]">
         {days.map((day) => {
           const dayDispatches = getDispatches(day);
           const today = isToday(day);
@@ -80,7 +80,7 @@ export function MonthView({
                   return (
                     <div
                       key={dispatch.id}
-                      className={`rounded px-1 py-0.5 text-[9px] font-medium truncate border ${color.bg} ${color.border} ${color.text} cursor-pointer`}
+                      className={`rounded px-1.5 py-1 text-xs font-medium truncate border bg-card border-l-2 ${color.accent} text-foreground cursor-pointer hover:bg-muted/50 transition-colors`}
                       onClick={(e) => {
                         e.stopPropagation();
                         onExpandDay(day);
@@ -89,8 +89,8 @@ export function MonthView({
                       <span className="flex items-center gap-1">
                         <span className={`w-1.5 h-1.5 rounded-full ${color.dot} shrink-0`} />
                         {project?.name}
-                        <span className="ml-auto flex items-center gap-0.5">
-                          <Users className="h-2 w-2" />
+                        <span className="ml-auto flex items-center gap-0.5 text-muted-foreground">
+                          <Users className="h-2.5 w-2.5" />
                           {dispatch.employeeIds.length}
                         </span>
                       </span>
