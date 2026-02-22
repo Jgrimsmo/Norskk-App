@@ -24,7 +24,6 @@ import {
   Wrench,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -50,7 +49,6 @@ import { PhotoUpload } from "@/components/shared/photo-upload";
 
 import type {
   DailyReport,
-  DailyReportStatus,
   WeatherCondition,
 } from "@/lib/types/time-tracking";
 
@@ -65,7 +63,7 @@ import {
 } from "@/hooks/use-firestore";
 import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
-import { dailyReportStatusColors as statusColors } from "@/lib/constants/status-colors";
+
 import { fetchWeatherForProject } from "@/lib/utils/weather";
 
 // ── Weather helpers ──
@@ -264,12 +262,6 @@ export default function DailyReportFormDialog({
             <div>
               <DialogTitle className="text-lg flex items-center gap-2">
                 Daily Site Report
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] capitalize ${statusColors[form.status]}`}
-                >
-                  {form.status}
-                </Badge>
               </DialogTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {project
@@ -728,29 +720,7 @@ export default function DailyReportFormDialog({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-3 border-t shrink-0 bg-muted/20">
-          <div className="flex items-center gap-2">
-            {!isLocked && (
-              <Select
-                value={form.status}
-                onValueChange={(v) => update("status", v as DailyReportStatus)}
-              >
-                <SelectTrigger className="h-8 w-36 text-xs cursor-pointer">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent position="popper">
-                  <SelectItem value="draft" className="text-xs">
-                    Draft
-                  </SelectItem>
-                  <SelectItem value="submitted" className="text-xs">
-                    Submitted
-                  </SelectItem>
-                  <SelectItem value="approved" className="text-xs">
-                    Approved
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          <div className="flex items-center gap-2" />
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"

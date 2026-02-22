@@ -17,7 +17,6 @@ import { exportToExcel, exportToCSV } from "@/lib/export/csv";
 import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
 import { dailyReportCSVColumns, dailyReportPDFColumns, dailyReportPDFRows } from "@/lib/export/columns";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -54,7 +53,7 @@ function nextId(): string {
   return `dr-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-import { dailyReportStatusColors as statusColors } from "@/lib/constants/status-colors";
+
 
 const weatherLabels: Record<WeatherCondition, string> = {
   sunny: "☀️ Sunny",
@@ -119,9 +118,6 @@ export default function DailyReportsTable() {
   const [authorFilter, setAuthorFilter] = React.useState<Set<string>>(
     new Set()
   );
-  const [statusFilter, setStatusFilter] = React.useState<Set<string>>(
-    new Set()
-  );
   const [searchQuery, setSearchQuery] = React.useState("");
 
   // Lookups
@@ -148,8 +144,6 @@ export default function DailyReportsTable() {
         return false;
       // Author
       if (authorFilter.size > 0 && !authorFilter.has(r.authorId)) return false;
-      // Status
-      if (statusFilter.size > 0 && !statusFilter.has(r.status)) return false;
       // Search
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -171,7 +165,6 @@ export default function DailyReportsTable() {
     dateRange,
     projectFilter,
     authorFilter,
-    statusFilter,
     searchQuery,
     getProjectName,
     getEmployeeName,
@@ -218,12 +211,6 @@ export default function DailyReportsTable() {
   const authorOptions = [...new Set(reports.map((r) => r.authorId))].map(
     (id) => ({ id, label: getEmployeeName(id) })
   );
-  const statusOptions = [
-    { id: "draft", label: "Draft" },
-    { id: "submitted", label: "Submitted" },
-    { id: "approved", label: "Approved" },
-  ];
-
   return (
     <>
       {/* Toolbar */}
@@ -283,21 +270,14 @@ export default function DailyReportsTable() {
               <TableHead className="w-[120px]">Weather</TableHead>
               <TableHead className="w-[70px]">Staff</TableHead>
               <TableHead className="w-[60px]">Photos</TableHead>
-              <TableHead className="w-[90px]">
-                <ColumnFilter
-                  title="Status"
-                  options={statusOptions}
-                  selected={statusFilter}
-                  onChange={setStatusFilter}
-                />
-              </TableHead>
+
               <TableHead className="w-[60px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredReports.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-12">
+                <TableCell colSpan={8} className="text-center py-12">
                   <FileText className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
                   <p className="text-sm text-muted-foreground">
                     No reports found
@@ -364,14 +344,6 @@ export default function DailyReportsTable() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] capitalize ${statusColors[report.status]}`}
-                      >
-                        {report.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
                       <DeleteConfirmButton
                         onConfirm={() => handleDelete(report.id)}
                         itemLabel="this daily report"
@@ -414,13 +386,11 @@ const DAILY_REPORT_EXPORT_COLUMNS: ExportColumnDef[] = [
   { id: "weather", header: "Weather" },
   { id: "staff", header: "Staff" },
   { id: "photos", header: "Photos" },
-  { id: "status", header: "Status" },
 ];
 
 const DAILY_REPORT_GROUP_OPTIONS = [
   { value: "project", label: "Project" },
   { value: "author", label: "Author" },
-  { value: "status", label: "Status" },
 ];
 
 function DailyReportsExport({ reports, employees, projects }: { reports: DailyReport[]; employees: Employee[]; projects: Project[] }) {

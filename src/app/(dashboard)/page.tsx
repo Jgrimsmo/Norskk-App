@@ -9,6 +9,8 @@ import {
   ShieldCheck,
   ArrowRight,
   Users,
+  FileText,
+  Receipt,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -31,8 +33,12 @@ import {
   useDispatches,
   useCostCodes,
   useEquipment,
+  useDailyReports,
+  useInvoices,
+  useVendors,
 } from "@/hooks/use-firestore";
 import { useAuth } from "@/lib/firebase/auth-context";
+import { usePermissions } from "@/hooks/use-permissions";
 
 import { lookupName } from "@/lib/utils/lookup";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
@@ -42,6 +48,18 @@ const approvalColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
   approved: "bg-green-100 text-green-800 border-green-200",
   rejected: "bg-red-100 text-red-800 border-red-200",
+};
+
+const invoiceStatusColors: Record<string, string> = {
+  "needs-review": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  approved: "bg-green-100 text-green-800 border-green-200",
+  rejected: "bg-red-100 text-red-800 border-red-200",
+};
+
+const invoiceStatusLabels: Record<string, string> = {
+  "needs-review": "Needs Review",
+  approved: "Approved",
+  rejected: "Rejected",
 };
 
 const workTypeLabels: Record<string, string> = {
@@ -60,6 +78,7 @@ const formTypeLabels: Record<string, string> = {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const { data: employees, loading: l1 } = useEmployees();
   const { data: projects, loading: l2 } = useProjects();
   const { data: timeEntries, loading: l3 } = useTimeEntries();
@@ -67,7 +86,10 @@ export default function DashboardPage() {
   const { data: dispatches, loading: l5 } = useDispatches();
   const { data: costCodes, loading: l6 } = useCostCodes();
   const { data: equipment, loading: l7 } = useEquipment();
-  const loading = l1 || l2 || l3 || l4 || l5 || l6 || l7;
+  const { data: dailyReports, loading: l8 } = useDailyReports();
+  const { data: invoices, loading: l9 } = useInvoices();
+  const { data: vendors, loading: l10 } = useVendors();
+  const loading = l1 || l2 || l3 || l4 || l5 || l6 || l7 || l8 || l9 || l10;
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -81,12 +103,22 @@ export default function DashboardPage() {
   // ── Recent time entries (last 8) ──
   const recentEntries = [...timeEntries]
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 8);
+    .slice(0, 5);
+
+  // ── Recent daily reports (last 8) ──
+  const recentDailyReports = [...dailyReports]
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.time ?? "").localeCompare(a.time ?? ""))
+    .slice(0, 5);
+
+  // ── Recent invoices (last 8) ──
+  const recentInvoices = [...invoices]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5);
 
   // ── Recent safety forms (last 8) ──
   const recentSafety = [...safetyForms]
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 8);
+    .slice(0, 5);
 
   // Greeting
   const firstName = user?.displayName?.split(" ")[0] ?? "there";
@@ -102,6 +134,8 @@ export default function DashboardPage() {
           <Skeleton className="h-28 rounded-xl" />
           <Skeleton className="h-28 rounded-xl" />
         </div>
+        <Skeleton className="h-64 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
         <Skeleton className="h-64 rounded-xl" />
       </div>
@@ -144,146 +178,231 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* ─── Recent Time Entries ─── */}
-        <div className="rounded-xl border bg-card shadow-sm">
-          <div className="flex items-center justify-between p-5 pb-3">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">Recent Time Entries</h2>
-            </div>
-            <Link href="/time-tracking">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-              >
-                View all
-                <ArrowRight className="h-3 w-3" />
-              </Button>
-            </Link>
-          </div>
-
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50 hover:bg-muted/50 h-[36px]">
-                  <TableHead className="text-xs font-semibold px-3">Date</TableHead>
-                  <TableHead className="text-xs font-semibold px-3">Employee</TableHead>
-                  <TableHead className="text-xs font-semibold px-3">Project</TableHead>
-                  <TableHead className="text-xs font-semibold px-3">Cost Code</TableHead>
-                  <TableHead className="text-xs font-semibold px-3">Equipment</TableHead>
-                  <TableHead className="text-xs font-semibold px-3">Work Type</TableHead>
-                  <TableHead className="text-xs font-semibold px-3">Hours</TableHead>
-                  <TableHead className="text-xs font-semibold px-3">Notes</TableHead>
-                  <TableHead className="text-xs font-semibold px-3">Approval</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentEntries.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center text-sm text-muted-foreground">
-                      No time entries yet
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  recentEntries.map((entry) => (
-                    <TableRow key={entry.id} className="h-[36px] hover:bg-muted/20">
-                      <TableCell className="text-xs px-3 whitespace-nowrap">
-                        {format(parseISO(entry.date), "MM/dd/yyyy")}
-                      </TableCell>
-                      <TableCell className="text-xs px-3 truncate max-w-[140px]">
-                        {lookupName(entry.employeeId, employees)}
-                      </TableCell>
-                      <TableCell className="text-xs px-3 truncate max-w-[160px]">
-                        {lookupName(entry.projectId, projects)}
-                      </TableCell>
-                      <TableCell className="text-xs px-3 truncate max-w-[140px]">
-                        {lookupName(entry.costCodeId, costCodes)}
-                      </TableCell>
-                      <TableCell className="text-xs px-3 truncate max-w-[140px]">
-                        {entry.equipmentId && entry.equipmentId !== EQUIPMENT_NONE_ID
-                          ? lookupName(entry.equipmentId, equipment)
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="text-xs px-3 whitespace-nowrap">
-                        {workTypeLabels[entry.workType] ?? entry.workType}
-                      </TableCell>
-                      <TableCell className="text-xs px-3 font-medium">
-                        {entry.hours}
-                      </TableCell>
-                      <TableCell className="text-xs px-3 truncate max-w-[160px] text-muted-foreground">
-                        {entry.notes || "—"}
-                      </TableCell>
-                      <TableCell className="px-3">
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] capitalize ${approvalColors[entry.approval]}`}
-                        >
-                          {entry.approval}
-                        </Badge>
-                      </TableCell>
+        {/* ─── Operations ─── */}
+        {can("time-tracking.view") && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Operations</p>
+            <div className="rounded-xl border bg-card shadow-sm">
+              <div className="flex items-center justify-between p-5 pb-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold">Recent Time Entries</h2>
+                </div>
+                <Link href="/time-tracking">
+                  <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                    View all <ArrowRight className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50 h-[36px]">
+                      <TableHead className="text-xs font-semibold px-3">Date</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Employee</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Project</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Cost Code</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Equipment</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Work Type</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Hours</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Notes</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Approval</TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-
-        {/* ─── Recent Safety Forms ─── */}
-        <div className="rounded-xl border bg-card shadow-sm">
-          <div className="flex items-center justify-between p-5 pb-0">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">Recent Safety Forms</h2>
+                  </TableHeader>
+                  <TableBody>
+                    {recentEntries.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="h-24 text-center text-sm text-muted-foreground">No time entries yet</TableCell>
+                      </TableRow>
+                    ) : (
+                      recentEntries.map((entry) => (
+                        <TableRow key={entry.id} className="h-[36px] hover:bg-muted/20">
+                          <TableCell className="text-xs px-3 whitespace-nowrap">{format(parseISO(entry.date), "MM/dd/yyyy")}</TableCell>
+                          <TableCell className="text-xs px-3 truncate max-w-[140px]">{lookupName(entry.employeeId, employees)}</TableCell>
+                          <TableCell className="text-xs px-3 truncate max-w-[160px]">{lookupName(entry.projectId, projects)}</TableCell>
+                          <TableCell className="text-xs px-3 truncate max-w-[140px]">{lookupName(entry.costCodeId, costCodes)}</TableCell>
+                          <TableCell className="text-xs px-3 truncate max-w-[140px]">
+                            {entry.equipmentId && entry.equipmentId !== EQUIPMENT_NONE_ID ? lookupName(entry.equipmentId, equipment) : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs px-3 whitespace-nowrap">{workTypeLabels[entry.workType] ?? entry.workType}</TableCell>
+                          <TableCell className="text-xs px-3 font-medium">{entry.hours}</TableCell>
+                          <TableCell className="text-xs px-3 truncate max-w-[160px] text-muted-foreground">{entry.notes || "—"}</TableCell>
+                          <TableCell className="px-3">
+                            <Badge variant="outline" className={`text-[10px] capitalize ${approvalColors[entry.approval]}`}>
+                              {entry.approval}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-            <Link href="/safety">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-              >
-                View all
-                <ArrowRight className="h-3 w-3" />
-              </Button>
-            </Link>
           </div>
+        )}
 
-          <div className="p-5 pt-3">
-            {recentSafety.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                No safety forms yet
-              </p>
-            ) : (
-              <div className="space-y-1">
-                {recentSafety.map((form) => (
-                  <div
-                    key={form.id}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/40 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {form.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {lookupName(form.submittedById, employees)} · {formTypeLabels[form.formType] ?? form.formType}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] capitalize shrink-0 ${safetyStatusColors[form.status]}`}
-                    >
-                      {form.status}
-                    </Badge>
-                    <span className="shrink-0 text-xs text-muted-foreground w-14 text-right">
-                      {format(parseISO(form.date), "MMM d")}
-                    </span>
+        {/* ─── Reporting ─── */}
+        {(can("daily-reports.view") || can("safety.view")) && (
+          <div className="space-y-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Reporting</p>
+
+            {can("daily-reports.view") && (
+              <div className="rounded-xl border bg-card shadow-sm">
+                <div className="flex items-center justify-between p-5 pb-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <h2 className="text-sm font-semibold">Recent Daily Reports</h2>
                   </div>
-                ))}
+                  <Link href="/daily-reports">
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                      View all <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50 h-[36px]">
+                        <TableHead className="text-xs font-semibold px-3">Date</TableHead>
+                        <TableHead className="text-xs font-semibold px-3">Report #</TableHead>
+                        <TableHead className="text-xs font-semibold px-3">Project</TableHead>
+                        <TableHead className="text-xs font-semibold px-3">Author</TableHead>
+                        <TableHead className="text-xs font-semibold px-3">Weather</TableHead>
+                        <TableHead className="text-xs font-semibold px-3">Staff</TableHead>
+                        <TableHead className="text-xs font-semibold px-3">Work Description</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentDailyReports.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">No daily reports yet</TableCell>
+                        </TableRow>
+                      ) : (
+                        recentDailyReports.map((report) => (
+                          <TableRow key={report.id} className="h-[36px] hover:bg-muted/20">
+                            <TableCell className="text-xs px-3 whitespace-nowrap">{format(parseISO(report.date), "MM/dd/yyyy")}</TableCell>
+                            <TableCell className="text-xs px-3 font-medium">#{report.reportNumber}</TableCell>
+                            <TableCell className="text-xs px-3 truncate max-w-[160px]">{lookupName(report.projectId, projects)}</TableCell>
+                            <TableCell className="text-xs px-3 truncate max-w-[140px]">{lookupName(report.authorId, employees)}</TableCell>
+                            <TableCell className="text-xs px-3 truncate max-w-[140px]">
+                              {report.weather?.conditions?.length ? report.weather.conditions.join(", ") : "—"}
+                              {report.weather?.temperature ? ` · ${report.weather.temperature}` : ""}
+                            </TableCell>
+                            <TableCell className="text-xs px-3">{report.onSiteStaff?.length ?? 0}</TableCell>
+                            <TableCell className="text-xs px-3 truncate max-w-[200px] text-muted-foreground">{report.workDescription || "—"}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            {can("safety.view") && (
+              <div className="rounded-xl border bg-card shadow-sm">
+                <div className="flex items-center justify-between p-5 pb-0">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                    <h2 className="text-sm font-semibold">Recent Safety Forms</h2>
+                  </div>
+                  <Link href="/safety">
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                      View all <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                </div>
+                <div className="p-5 pt-3">
+                  {recentSafety.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-muted-foreground">No safety forms yet</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {recentSafety.map((form) => (
+                        <div key={form.id} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/40 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{form.title}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {lookupName(form.submittedById, employees)} · {formTypeLabels[form.formType] ?? form.formType}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className={`text-[10px] capitalize shrink-0 ${safetyStatusColors[form.status]}`}>
+                            {form.status}
+                          </Badge>
+                          <span className="shrink-0 text-xs text-muted-foreground w-14 text-right">
+                            {format(parseISO(form.date), "MMM d")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
-        </div>
+        )}
+
+        {/* ─── Accounting ─── */}
+        {can("payables.view") && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Accounting</p>
+            <div className="rounded-xl border bg-card shadow-sm">
+              <div className="flex items-center justify-between p-5 pb-3">
+                <div className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold">Recent Payables</h2>
+                </div>
+                <Link href="/payables">
+                  <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                    View all <ArrowRight className="h-3 w-3" />
+                  </Button>
+                </Link>
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50 h-[36px]">
+                      <TableHead className="text-xs font-semibold px-3">Date</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Vendor</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Project</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">File</TableHead>
+                      <TableHead className="text-xs font-semibold px-3 text-right">Amount</TableHead>
+                      <TableHead className="text-xs font-semibold px-3">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentInvoices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-24 text-center text-sm text-muted-foreground">No invoices yet</TableCell>
+                      </TableRow>
+                    ) : (
+                      recentInvoices.map((inv) => (
+                        <TableRow key={inv.id} className="h-[36px] hover:bg-muted/20">
+                          <TableCell className="text-xs px-3 whitespace-nowrap">{format(parseISO(inv.date), "MM/dd/yyyy")}</TableCell>
+                          <TableCell className="text-xs px-3 truncate max-w-[140px]">
+                            {vendors.find((v) => v.id === inv.vendorId)?.name ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-xs px-3 truncate max-w-[160px]">{lookupName(inv.projectId, projects)}</TableCell>
+                          <TableCell className="text-xs px-3 truncate max-w-[160px] text-muted-foreground">{inv.fileName}</TableCell>
+                          <TableCell className="text-xs px-3 text-right font-medium whitespace-nowrap">
+                            {inv.amount != null
+                              ? `$${inv.amount.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="px-3">
+                            <Badge variant="outline" className={`text-[10px] ${invoiceStatusColors[inv.status]}`}>
+                              {invoiceStatusLabels[inv.status] ?? inv.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </RequirePermission>
   );

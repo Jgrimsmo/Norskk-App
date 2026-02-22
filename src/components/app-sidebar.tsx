@@ -80,6 +80,11 @@ const navSections: NavSection[] = [
     items: [
       { title: "Daily Reports", href: "/daily-reports", icon: ClipboardList, permission: "daily-reports.view" },
       { title: "Safety", href: "/safety", icon: ShieldCheck, permission: "safety.view" },
+    ],
+  },
+  {
+    label: "Accounting",
+    items: [
       { title: "Payables", href: "/payables", icon: Receipt, permission: "payables.view" },
     ],
   },

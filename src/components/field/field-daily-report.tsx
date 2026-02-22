@@ -29,7 +29,6 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -48,7 +47,6 @@ import { PhotoUpload } from "@/components/shared/photo-upload";
 
 import type {
   DailyReport,
-  DailyReportStatus,
   WeatherCondition,
 } from "@/lib/types/time-tracking";
 import {
@@ -63,7 +61,7 @@ import {
 import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { Collections, EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
-import { dailyReportStatusColors as statusColors } from "@/lib/constants/status-colors";
+
 import { fetchWeatherForProject } from "@/lib/utils/weather";
 
 // ── Weather helpers ──
@@ -177,12 +175,23 @@ export function FieldDailyReport() {
     [projects]
   );
 
+  const today = format(new Date(), "yyyy-MM-dd");
+
   const myReports = React.useMemo(
     () =>
       reports
         .filter((r) => r.authorId === employeeId)
         .sort((a, b) => b.date.localeCompare(a.date)),
     [reports, employeeId]
+  );
+
+  // Today's reports filed by other employees
+  const todayOthersReports = React.useMemo(
+    () =>
+      reports
+        .filter((r) => r.date === today && r.authorId !== employeeId)
+        .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? "")),
+    [reports, employeeId, today]
   );
 
   const activeEmployees = React.useMemo(
@@ -242,12 +251,12 @@ export function FieldDailyReport() {
 
   // ── Helpers ──
   const update = <K extends keyof DailyReport>(key: K, value: DailyReport[K]) => {
-    if (!activeReport || activeReport.status === "approved") return;
+    if (!activeReport) return;
     setActiveReport((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
   const toggleWeatherCondition = (cond: WeatherCondition) => {
-    if (!activeReport || activeReport.status === "approved") return;
+    if (!activeReport) return;
     setActiveReport((prev) => {
       if (!prev) return prev;
       const conditions = prev.weather.conditions.includes(cond)
@@ -261,14 +270,14 @@ export function FieldDailyReport() {
     key: K,
     value: DailyReport["weather"][K]
   ) => {
-    if (!activeReport || activeReport.status === "approved") return;
+    if (!activeReport) return;
     setActiveReport((prev) =>
       prev ? { ...prev, weather: { ...prev.weather, [key]: value } } : prev
     );
   };
 
   const toggleStaff = (empId: string) => {
-    if (!activeReport || activeReport.status === "approved") return;
+    if (!activeReport) return;
     setActiveReport((prev) => {
       if (!prev) return prev;
       const staff = prev.onSiteStaff.includes(empId)
@@ -279,7 +288,7 @@ export function FieldDailyReport() {
   };
 
   const toggleEquipment = (eqId: string) => {
-    if (!activeReport || activeReport.status === "approved") return;
+    if (!activeReport) return;
     setActiveReport((prev) => {
       if (!prev) return prev;
       const current = prev.onSiteEquipment ?? [];
@@ -331,7 +340,43 @@ export function FieldDailyReport() {
           </Button>
         </div>
 
-        {/* Reports list */}
+        {/* ── Today on Site (others' reports) ── */}
+        {todayOthersReports.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Today on Site
+            </p>
+            {todayOthersReports.map((r) => {
+              const proj = projects.find((p) => p.id === r.projectId);
+              const author = employees.find((e) => e.id === r.authorId);
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => handleOpen(r)}
+                  className="w-full rounded-xl border bg-muted/30 shadow-sm p-4 text-left cursor-pointer hover:bg-muted/50 active:bg-muted/70 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <span className="text-sm font-semibold">
+                      {proj ? proj.name : "No project"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {author ? author.name : "Unknown"}
+                    {r.time && ` · ${r.time}`}
+                    {r.onSiteStaff.length > 0 && ` · ${r.onSiteStaff.length} staff`}
+                  </p>
+                  {r.workDescription && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {r.workDescription}
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── My Reports ── */}
         {myReports.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
@@ -347,6 +392,9 @@ export function FieldDailyReport() {
           </div>
         ) : (
           <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              My Reports
+            </p>
             {myReports.map((r) => {
               const proj = projects.find((p) => p.id === r.projectId);
               return (
@@ -355,16 +403,10 @@ export function FieldDailyReport() {
                   onClick={() => handleOpen(r)}
                   className="w-full rounded-xl border bg-card shadow-sm p-4 text-left cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors"
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-start justify-between mb-1">
                     <span className="text-sm font-semibold">
                       {proj ? proj.name : "No project"}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] capitalize ${statusColors[r.status]}`}
-                    >
-                      {r.status}
-                    </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {format(parseISO(r.date), "MMM d, yyyy")}
@@ -387,7 +429,7 @@ export function FieldDailyReport() {
   }
 
   // ─── EDIT VIEW ───
-  const isLocked = activeReport?.status === "approved";
+  const isLocked = false;
   const totalPhotos =
     (activeReport?.morningPhotoUrls?.length ?? 0) +
     (activeReport?.workPhotoUrls?.length ?? 0) +
@@ -415,12 +457,6 @@ export function FieldDailyReport() {
             Daily Site Report
           </h1>
         </div>
-        <Badge
-          variant="outline"
-          className={`text-[10px] capitalize ${statusColors[activeReport.status]}`}
-        >
-          {activeReport.status}
-        </Badge>
       </div>
 
       {/* ─── Project, Date, Time ─── */}
@@ -449,7 +485,7 @@ export function FieldDailyReport() {
             </SelectContent>
           </Select>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-3">
           <div>
             <Label className="text-xs text-muted-foreground">Date</Label>
             <Input
@@ -839,21 +875,6 @@ export function FieldDailyReport() {
 
       {/* ─── Sticky Footer ─── */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t p-4 flex items-center gap-3 max-w-lg mx-auto">
-        {!isLocked && (
-          <Select
-            value={activeReport.status}
-            onValueChange={(v) => update("status", v as DailyReportStatus)}
-          >
-            <SelectTrigger className="h-10 w-32 text-xs cursor-pointer">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="draft" className="text-xs">Draft</SelectItem>
-              <SelectItem value="submitted" className="text-xs">Submitted</SelectItem>
-              <SelectItem value="approved" className="text-xs">Approved</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
         <Button
           className="flex-1 h-10 text-sm cursor-pointer"
           onClick={handleSave}

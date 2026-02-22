@@ -72,7 +72,6 @@ import { Collections } from "@/lib/firebase/collections";
 import { useAuth } from "@/lib/firebase/auth-context";
 import {
   projectStatusColors,
-  dailyReportStatusColors,
   safetyStatusColors,
 } from "@/lib/constants/status-colors";
 import type {
@@ -993,14 +992,13 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                     <TableHead className="text-xs font-semibold px-3">Weather</TableHead>
                     <TableHead className="text-xs font-semibold px-3">Staff</TableHead>
                     <TableHead className="w-[70px] text-xs font-semibold px-3 text-right">Photos</TableHead>
-                    <TableHead className="w-[90px] text-xs font-semibold px-3">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {projectDailyReports.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={8}
+                        colSpan={7}
                         className="h-32 text-center text-muted-foreground"
                       >
                         No daily reports match the current filters.
@@ -1035,14 +1033,6 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                           </TableCell>
                           <TableCell className="text-xs px-3 text-right">
                             {photoCount > 0 ? photoCount : "—"}
-                          </TableCell>
-                          <TableCell className="text-xs px-3">
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] capitalize ${dailyReportStatusColors[dr.status]}`}
-                            >
-                              {dr.status}
-                            </Badge>
                           </TableCell>
                         </TableRow>
                       );
