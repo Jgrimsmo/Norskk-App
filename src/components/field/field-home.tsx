@@ -3,7 +3,6 @@
 import * as React from "react";
 import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
 import {
-  Clock,
   Truck,
   FileText,
   ChevronRight,
@@ -15,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+
 import { Badge } from "@/components/ui/badge";
 
 import {

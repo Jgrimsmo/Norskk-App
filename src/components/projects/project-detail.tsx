@@ -383,7 +383,7 @@ const invoiceStatusLabels: Record<InvoiceStatus, string> = {
 
 function InvoicesTab({ projectId }: { projectId: string }) {
   const { user } = useAuth();
-  const { data: allInvoices, update: updateInvoice, remove: removeInvoice } = useInvoices();
+  const { data: allInvoices, update: updateInvoice } = useInvoices();
   const { data: vendors } = useVendors();
   const { data: costCodes } = useCostCodes();
   const [uploadOpen, setUploadOpen] = React.useState(false);

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -104,12 +104,6 @@ function NotePopover({
 // ────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────
-
-const statusColors: Record<InvoiceStatus, string> = {
-  "needs-review": "bg-yellow-100 text-yellow-800 border-yellow-200",
-  approved: "bg-green-100 text-green-800 border-green-200",
-  rejected: "bg-red-100 text-red-800 border-red-200",
-};
 
 const statusOptions = [
   { id: "needs-review", label: "Needs Review" },

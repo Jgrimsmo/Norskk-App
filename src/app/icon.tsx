@@ -26,7 +26,6 @@ export default async function Icon() {
           borderRadius: 14,
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={src} width={46} height={46} alt="Norskk" />
       </div>
     ),

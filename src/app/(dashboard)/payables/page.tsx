@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Receipt, Plus, DollarSign, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, DollarSign, Clock, CheckCircle2 } from "lucide-react";
 
 import { PayablesTable } from "@/components/payables/payables-table";
 import { InvoiceUploadDialog } from "@/components/payables/invoice-upload-dialog";
