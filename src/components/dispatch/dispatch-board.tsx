@@ -19,138 +19,38 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
-  Plus,
-  Users,
-  Wrench,
-  Paperclip,
-  Hammer,
-  FolderKanban,
-  Search,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import type {
   DispatchAssignment,
   DispatchView,
 } from "@/lib/types/time-tracking";
 
-import {
-  useEmployees,
-  useProjects,
-  useEquipment,
-  useAttachments,
-  useTools,
-} from "@/hooks/use-firestore";
+
 import { useFirestoreState } from "@/hooks/use-firestore-state";
-import { Collections, EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
+import { Collections } from "@/lib/firebase/collections";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
 import { nextDispatchId } from "./dispatch-helpers";
 import { DayView } from "./day-view";
 import { WeekView } from "./week-view";
 import { MonthView } from "./month-view";
+import { DispatchSidebar } from "./dispatch-sidebar";
 
 // ────────────────────────────────────────────────────────
 // Main Dispatch Board
 // ────────────────────────────────────────────────────────
 export default function DispatchBoard() {
-  const { data: employees } = useEmployees();
-  const { data: projects } = useProjects();
-  const { data: equipment } = useEquipment();
-  const { data: attachments } = useAttachments();
-  const { data: tools } = useTools();
   const [dispatches, setDispatches, , dispatchesSaving] = useFirestoreState<DispatchAssignment>(Collections.DISPATCHES);
-
-  // Filtered arrays (were module-level constants)
-  const activeEmployees = React.useMemo(() => employees.filter((e) => e.status === "active"), [employees]);
-  const activeProjects = React.useMemo(() => projects.filter((p) => p.status === "active" || p.status === "bidding"), [projects]);
-  const availableEquipment = React.useMemo(() => equipment.filter((e) => e.id !== EQUIPMENT_NONE_ID && e.status !== "retired"), [equipment]);
-  const availableAttachments = React.useMemo(() => attachments.filter((a) => a.status !== "retired"), [attachments]);
-  const availableTools = React.useMemo(() => tools.filter((t) => t.status !== "retired" && t.status !== "lost"), [tools]);
 
   // View state
   const [view, setView] = React.useState<DispatchView>("week");
   const [currentDate, setCurrentDate] = React.useState(new Date());
 
-  // Selection state
+  // Selected project (shared between sidebar and calendar)
   const [selectedProjectId, setSelectedProjectId] = React.useState("");
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = React.useState<
-    Set<string>
-  >(new Set());
-  const [selectedEquipmentIds, setSelectedEquipmentIds] = React.useState<
-    Set<string>
-  >(new Set());
-  const [selectedAttachmentIds, setSelectedAttachmentIds] = React.useState<
-    Set<string>
-  >(new Set());
-  const [selectedToolIds, setSelectedToolIds] = React.useState<Set<string>>(
-    new Set()
-  );
-
-  // Search filters for resource lists
-  const [empSearch, setEmpSearch] = React.useState("");
-  const [eqSearch, setEqSearch] = React.useState("");
-  const [attSearch, setAttSearch] = React.useState("");
-  const [tlSearch, setTlSearch] = React.useState("");
-
-  const filteredEmployees = React.useMemo(
-    () =>
-      empSearch
-        ? activeEmployees.filter(
-            (e) =>
-              e.name.toLowerCase().includes(empSearch.toLowerCase()) ||
-              e.role.toLowerCase().includes(empSearch.toLowerCase())
-          )
-        : activeEmployees,
-    [empSearch, activeEmployees]
-  );
-  const filteredEquipment = React.useMemo(
-    () =>
-      eqSearch
-        ? availableEquipment.filter(
-            (e) =>
-              e.name.toLowerCase().includes(eqSearch.toLowerCase()) ||
-              e.number.toLowerCase().includes(eqSearch.toLowerCase()) ||
-              e.category.toLowerCase().includes(eqSearch.toLowerCase())
-          )
-        : availableEquipment,
-    [eqSearch, availableEquipment]
-  );
-  const filteredAttachments = React.useMemo(
-    () =>
-      attSearch
-        ? availableAttachments.filter(
-            (a) =>
-              a.name.toLowerCase().includes(attSearch.toLowerCase()) ||
-              a.number.toLowerCase().includes(attSearch.toLowerCase())
-          )
-        : availableAttachments,
-    [attSearch, availableAttachments]
-  );
-  const filteredTools = React.useMemo(
-    () =>
-      tlSearch
-        ? availableTools.filter(
-            (t) =>
-              t.name.toLowerCase().includes(tlSearch.toLowerCase()) ||
-              t.number.toLowerCase().includes(tlSearch.toLowerCase()) ||
-              t.category.toLowerCase().includes(tlSearch.toLowerCase())
-          )
-        : availableTools,
-    [tlSearch, availableTools]
-  );
 
   // ── Navigation ──
   const goBack = () => {
@@ -181,14 +81,28 @@ export default function DispatchBoard() {
     return eachDayOfInterval({ start: gridStart, end: gridEnd });
   }, [currentDate, view]);
 
-  // ── Get dispatches for a day ──
+  // ── Get dispatches for a day (handles multi-day spans) ──
   const getDispatchesForDay = React.useCallback(
     (day: Date): DispatchAssignment[] => {
       const dateStr = format(day, "yyyy-MM-dd");
-      return dispatches.filter((d) => d.date === dateStr);
+      return dispatches.filter((d) => {
+        const endDate = d.endDate ?? d.date;
+        return d.date <= dateStr && dateStr <= endDate;
+      });
     },
     [dispatches]
   );
+
+  // ── All dispatches overlapping the current week ──
+  const weekDispatches = React.useMemo(() => {
+    if (view !== "week" || calendarDays.length === 0) return [];
+    const weekStart = format(calendarDays[0], "yyyy-MM-dd");
+    const weekEnd = format(calendarDays[calendarDays.length - 1], "yyyy-MM-dd");
+    return dispatches.filter((d) => {
+      const endDate = d.endDate ?? d.date;
+      return d.date <= weekEnd && endDate >= weekStart;
+    });
+  }, [dispatches, calendarDays, view]);
 
   // ── Check if a resource is already dispatched on a day ──
   const isResourceOnDay = React.useCallback(
@@ -197,109 +111,205 @@ export default function DispatchBoard() {
       type: "employee" | "equipment" | "attachment" | "tool",
       resourceId: string
     ): boolean => {
+      const dayStr = format(day, "yyyy-MM-dd");
       const dayDispatches = getDispatchesForDay(day);
       return dayDispatches.some((d) => {
-        if (type === "employee") return d.employeeIds.includes(resourceId);
-        if (type === "equipment") return d.equipmentIds.includes(resourceId);
-        if (type === "attachment") return d.attachmentIds.includes(resourceId);
-        if (type === "tool") return d.toolIds.includes(resourceId);
-        return false;
+        let ids: string[];
+        if (type === "employee") ids = d.employeeIds;
+        else if (type === "equipment") ids = d.equipmentIds;
+        else if (type === "attachment") ids = d.attachmentIds;
+        else if (type === "tool") ids = d.toolIds;
+        else return false;
+        if (!ids.includes(resourceId)) return false;
+        // If the resource has a pinned date range, only count it for that range
+        const rd = d.resourceDates?.[resourceId];
+        if (rd) return dayStr >= rd.start && dayStr <= rd.end;
+        return true;
       });
     },
     [getDispatchesForDay]
   );
 
+  // ── Assign project directly to a day (from drag) ──
+  const assignProjectToDay = React.useCallback(
+    (projectId: string, day: Date) => {
+      const dateStr = format(day, "yyyy-MM-dd");
+      const alreadyExists = dispatches.some(
+        (d) => d.projectId === projectId &&
+               d.date <= dateStr &&
+               (d.endDate ?? d.date) >= dateStr
+      );
+      if (alreadyExists) return;
+      setDispatches((prev) => [
+        ...prev,
+        {
+          id: nextDispatchId(),
+          date: dateStr,
+          projectId,
+          employeeIds: [],
+          equipmentIds: [],
+          attachmentIds: [],
+          toolIds: [],
+        },
+      ]);
+    },
+    [dispatches, setDispatches]
+  );
+
   // ── Has selection ──
-  const hasSelection =
-    selectedProjectId !== "" &&
-    (selectedEmployeeIds.size > 0 ||
-      selectedEquipmentIds.size > 0 ||
-      selectedAttachmentIds.size > 0 ||
-      selectedToolIds.size > 0);
+  const hasSelection = selectedProjectId !== "";
 
   // ── Assign selection to a day ──
   const assignToDay = React.useCallback(
     (day: Date) => {
       if (!hasSelection) return;
-
       const dateStr = format(day, "yyyy-MM-dd");
-
-      // Filter out resources already dispatched on this day (any project)
-      const newEmployees = [...selectedEmployeeIds].filter(
-        (id) => !isResourceOnDay(day, "employee", id)
+      const alreadyExists = dispatches.some(
+        (d) => d.projectId === selectedProjectId &&
+               d.date <= dateStr &&
+               (d.endDate ?? d.date) >= dateStr
       );
-      const newEquipment = [...selectedEquipmentIds].filter(
-        (id) => !isResourceOnDay(day, "equipment", id)
-      );
-      const newAttachments = [...selectedAttachmentIds].filter(
-        (id) => !isResourceOnDay(day, "attachment", id)
-      );
-      const newTools = [...selectedToolIds].filter(
-        (id) => !isResourceOnDay(day, "tool", id)
-      );
-
-      // If everything was already assigned, no-op
-      if (
-        newEmployees.length === 0 &&
-        newEquipment.length === 0 &&
-        newAttachments.length === 0 &&
-        newTools.length === 0
-      ) {
-        return;
-      }
-
-      // Find existing dispatch for this project on this day
-      const existingIdx = dispatches.findIndex(
-        (d) => d.date === dateStr && d.projectId === selectedProjectId
-      );
-
-      if (existingIdx !== -1) {
-        // Merge into existing
-        setDispatches((prev) => {
-          const updated = [...prev];
-          const existing = { ...updated[existingIdx] };
-          existing.employeeIds = [
-            ...new Set([...existing.employeeIds, ...newEmployees]),
-          ];
-          existing.equipmentIds = [
-            ...new Set([...existing.equipmentIds, ...newEquipment]),
-          ];
-          existing.attachmentIds = [
-            ...new Set([...existing.attachmentIds, ...newAttachments]),
-          ];
-          existing.toolIds = [
-            ...new Set([...existing.toolIds, ...newTools]),
-          ];
-          updated[existingIdx] = existing;
-          return updated;
-        });
-      } else {
-        // Create new dispatch
-        setDispatches((prev) => [
-          ...prev,
-          {
-            id: nextDispatchId(),
-            date: dateStr,
-            projectId: selectedProjectId,
-            employeeIds: newEmployees,
-            equipmentIds: newEquipment,
-            attachmentIds: newAttachments,
-            toolIds: newTools,
-          },
-        ]);
-      }
+      if (alreadyExists) return;
+      setDispatches((prev) => [
+        ...prev,
+        {
+          id: nextDispatchId(),
+          date: dateStr,
+          projectId: selectedProjectId,
+          employeeIds: [],
+          equipmentIds: [],
+          attachmentIds: [],
+          toolIds: [],
+        },
+      ]);
     },
-    [
-      hasSelection,
-      selectedProjectId,
-      selectedEmployeeIds,
-      selectedEquipmentIds,
-      selectedAttachmentIds,
-      selectedToolIds,
-      dispatches,
-      isResourceOnDay,
-      setDispatches,
-    ]
+    [hasSelection, selectedProjectId, dispatches, setDispatches]
+  );
+
+  // ── Assign selection across a date range (week view multi-day) ──
+  const assignRange = React.useCallback(
+    (startDay: Date, endDay: Date) => {
+      if (!hasSelection) return;
+      const startStr = format(startDay, "yyyy-MM-dd");
+      const endStr = format(endDay, "yyyy-MM-dd");
+      const projectOverlap = dispatches.some((d) => {
+        if (d.projectId !== selectedProjectId) return false;
+        const dEnd = d.endDate ?? d.date;
+        return d.date <= endStr && dEnd >= startStr;
+      });
+      if (projectOverlap) return;
+      setDispatches((prev) => [
+        ...prev,
+        {
+          id: nextDispatchId(),
+          date: startStr,
+          ...(endStr !== startStr && { endDate: endStr }),
+          projectId: selectedProjectId,
+          employeeIds: [],
+          equipmentIds: [],
+          attachmentIds: [],
+          toolIds: [],
+        },
+      ]);
+    },
+    [hasSelection, selectedProjectId, dispatches, setDispatches]
+  );
+
+  // ── Remove an entire dispatch ──
+  const removeDispatch = React.useCallback(
+    (dispatchId: string) => {
+      setDispatches((prev) => prev.filter((d) => d.id !== dispatchId));
+    },
+    [setDispatches]
+  );
+
+  // ── Update per-resource date range within a dispatch ──
+  const updateResourceDates = React.useCallback(
+    (dispatchId: string, resourceId: string, start: string, end: string) => {
+      setDispatches((prev) =>
+        prev.map((d) => {
+          if (d.id !== dispatchId) return d;
+          return {
+            ...d,
+            resourceDates: {
+              ...(d.resourceDates ?? {}),
+              [resourceId]: { start, end },
+            },
+          };
+        })
+      );
+    },
+    [setDispatches]
+  );
+
+  // ── Resize a dispatch's end date ──
+  const resizeDispatch = React.useCallback(
+    (dispatchId: string, newEndDate: string) => {
+      setDispatches((prev) =>
+        prev.map((d) => {
+          if (d.id !== dispatchId) return d;
+          if (newEndDate === d.date) {
+            // single day — strip endDate
+            const { endDate: _drop, ...rest } = d;
+            void _drop;
+            return rest;
+          }
+          return { ...d, endDate: newEndDate };
+        })
+      );
+    },
+    [setDispatches]
+  );
+
+  // ── Add a single resource to an existing dispatch ──
+  const addResourceToDispatch = React.useCallback(
+    (
+      dispatchId: string,
+      type: "employee" | "equipment" | "attachment" | "tool",
+      resourceId: string,
+      targetDate?: string, // if provided, pins resource to just this day via resourceDates
+    ) => {
+      const dispatch = dispatches.find((d) => d.id === dispatchId);
+      if (!dispatch) return;
+
+      // If dropping onto a specific day, only check that day for conflicts.
+      // Otherwise check every day in the dispatch's full span.
+      let alreadyScheduled: boolean;
+      if (targetDate) {
+        alreadyScheduled = isResourceOnDay(new Date(targetDate + "T00:00:00"), type, resourceId);
+      } else {
+        const spanStart = new Date(dispatch.date + "T00:00:00");
+        const spanEnd = new Date((dispatch.endDate ?? dispatch.date) + "T00:00:00");
+        const spanDays: Date[] = [];
+        let cur = spanStart;
+        while (cur <= spanEnd) { spanDays.push(cur); cur = addDays(cur, 1); }
+        alreadyScheduled = spanDays.some((d) => isResourceOnDay(d, type, resourceId));
+      }
+      if (alreadyScheduled) return;
+
+      setDispatches((prev) =>
+        prev.map((d) => {
+          if (d.id !== dispatchId) return d;
+          const copy = { ...d };
+          if (type === "employee" && !copy.employeeIds.includes(resourceId))
+            copy.employeeIds = [...copy.employeeIds, resourceId];
+          if (type === "equipment" && !copy.equipmentIds.includes(resourceId))
+            copy.equipmentIds = [...copy.equipmentIds, resourceId];
+          if (type === "attachment" && !copy.attachmentIds.includes(resourceId))
+            copy.attachmentIds = [...copy.attachmentIds, resourceId];
+          if (type === "tool" && !copy.toolIds.includes(resourceId))
+            copy.toolIds = [...copy.toolIds, resourceId];
+          if (targetDate) {
+            copy.resourceDates = {
+              ...(copy.resourceDates ?? {}),
+              [resourceId]: { start: targetDate, end: targetDate },
+            };
+          }
+          return copy;
+        })
+      );
+    },
+    [dispatches, isResourceOnDay, setDispatches]
   );
 
   // ── Remove a single resource from a dispatch ──
@@ -339,27 +349,7 @@ export default function DispatchBoard() {
   );
 
   // ── Clear selection ──
-  const clearSelection = () => {
-    setSelectedProjectId("");
-    setSelectedEmployeeIds(new Set());
-    setSelectedEquipmentIds(new Set());
-    setSelectedAttachmentIds(new Set());
-    setSelectedToolIds(new Set());
-  };
-
-  // ── Toggle helpers ──
-  const toggleSet = (
-    set: Set<string>,
-    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
-    id: string
-  ) => {
-    setter((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const clearSelection = () => setSelectedProjectId("");
 
   // ── Header label ──
   const headerLabel = React.useMemo(() => {
@@ -379,286 +369,34 @@ export default function DispatchBoard() {
   return (
     <div className="flex gap-4 h-full">
       {/* ─── LEFT: Resource Selection Panel ─── */}
-      <div className="w-72 shrink-0 rounded-xl border bg-card shadow-sm flex flex-col h-full overflow-hidden">
-        <div className="px-4 pt-4 pb-3 border-b shrink-0">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Dispatch Resources
-            </h3>
-            {hasSelection && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 px-1.5 text-[10px] text-muted-foreground cursor-pointer"
-                onClick={clearSelection}
-              >
-                Clear all
-              </Button>
-            )}
-          </div>
-          {hasSelection ? (
-            <p className="text-[10px] text-primary font-medium mt-1">
-              Click a day on the calendar to assign →
-            </p>
-          ) : (
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Select items then click a day to assign
-            </p>
-          )}
-        </div>
-
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="p-3 space-y-1">
-            {/* Project */}
-            <div className="pb-2">
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-1.5 px-1">
-                <FolderKanban className="h-3 w-3" /> Project
-              </label>
-              <Select
-                value={selectedProjectId}
-                onValueChange={setSelectedProjectId}
-              >
-                <SelectTrigger className="h-8 text-xs cursor-pointer">
-                  <SelectValue placeholder="Select project…" />
-                </SelectTrigger>
-                <SelectContent position="popper">
-                  {activeProjects.map((p) => (
-                    <SelectItem key={p.id} value={p.id} className="text-xs">
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Separator />
-
-            {/* Employees */}
-            <div className="py-2">
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-1.5 px-1">
-                <Users className="h-3 w-3" /> Employees
-                {selectedEmployeeIds.size > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-auto text-[9px] h-4 px-1 normal-case tracking-normal"
-                  >
-                    {selectedEmployeeIds.size} selected
-                  </Badge>
-                )}
-              </label>
-              <div className="relative mb-1.5">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                <Input
-                  value={empSearch}
-                  onChange={(e) => setEmpSearch(e.target.value)}
-                  placeholder="Search employees…"
-                  aria-label="Search employees"
-                  className="h-7 text-xs pl-7 pr-2"
-                />
-              </div>
-              <div className="space-y-0.5">
-                {filteredEmployees.map((emp) => (
-                  <label
-                    key={emp.id}
-                    className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/50 cursor-pointer text-xs"
-                  >
-                    <Checkbox
-                      checked={selectedEmployeeIds.has(emp.id)}
-                      onCheckedChange={() =>
-                        toggleSet(
-                          selectedEmployeeIds,
-                          setSelectedEmployeeIds,
-                          emp.id
-                        )
-                      }
-                      className="h-3.5 w-3.5"
-                    />
-                    <span className="truncate">{emp.name}</span>
-                    <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                      {emp.role}
-                    </span>
-                  </label>
-                ))}
-                {filteredEmployees.length === 0 && (
-                  <p className="text-[10px] text-muted-foreground/60 text-center py-1">No matches</p>
-                )}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Equipment */}
-            <div className="py-2">
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-1.5 px-1">
-                <Wrench className="h-3 w-3" /> Equipment
-                {selectedEquipmentIds.size > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-auto text-[9px] h-4 px-1 normal-case tracking-normal"
-                  >
-                    {selectedEquipmentIds.size} selected
-                  </Badge>
-                )}
-              </label>
-              <div className="relative mb-1.5">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                <Input
-                  value={eqSearch}
-                  onChange={(e) => setEqSearch(e.target.value)}
-                  placeholder="Search equipment…"
-                  aria-label="Search equipment"
-                  className="h-7 text-xs pl-7 pr-2"
-                />
-              </div>
-              <div className="space-y-0.5">
-                {filteredEquipment.map((eq) => (
-                  <label
-                    key={eq.id}
-                    className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/50 cursor-pointer text-xs"
-                  >
-                    <Checkbox
-                      checked={selectedEquipmentIds.has(eq.id)}
-                      onCheckedChange={() =>
-                        toggleSet(
-                          selectedEquipmentIds,
-                          setSelectedEquipmentIds,
-                          eq.id
-                        )
-                      }
-                      className="h-3.5 w-3.5"
-                    />
-                    <span className="truncate">{eq.name}</span>
-                  </label>
-                ))}
-                {filteredEquipment.length === 0 && (
-                  <p className="text-[10px] text-muted-foreground/60 text-center py-1">No matches</p>
-                )}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Attachments */}
-            <div className="py-2">
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-1.5 px-1">
-                <Paperclip className="h-3 w-3" /> Attachments
-                {selectedAttachmentIds.size > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-auto text-[9px] h-4 px-1 normal-case tracking-normal"
-                  >
-                    {selectedAttachmentIds.size} selected
-                  </Badge>
-                )}
-              </label>
-              <div className="relative mb-1.5">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                <Input
-                  value={attSearch}
-                  onChange={(e) => setAttSearch(e.target.value)}
-                  placeholder="Search attachments…"
-                  aria-label="Search attachments"
-                  className="h-7 text-xs pl-7 pr-2"
-                />
-              </div>
-              <div className="space-y-0.5">
-                {filteredAttachments.map((att) => (
-                  <label
-                    key={att.id}
-                    className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/50 cursor-pointer text-xs"
-                  >
-                    <Checkbox
-                      checked={selectedAttachmentIds.has(att.id)}
-                      onCheckedChange={() =>
-                        toggleSet(
-                          selectedAttachmentIds,
-                          setSelectedAttachmentIds,
-                          att.id
-                        )
-                      }
-                      className="h-3.5 w-3.5"
-                    />
-                    <span className="truncate">{att.name}</span>
-                  </label>
-                ))}
-                {filteredAttachments.length === 0 && (
-                  <p className="text-[10px] text-muted-foreground/60 text-center py-1">No matches</p>
-                )}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Tools */}
-            <div className="py-2">
-              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-1.5 px-1">
-                <Hammer className="h-3 w-3" /> Tools
-                {selectedToolIds.size > 0 && (
-                  <Badge
-                    variant="outline"
-                    className="ml-auto text-[9px] h-4 px-1 normal-case tracking-normal"
-                  >
-                    {selectedToolIds.size} selected
-                  </Badge>
-                )}
-              </label>
-              <div className="relative mb-1.5">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                <Input
-                  value={tlSearch}
-                  onChange={(e) => setTlSearch(e.target.value)}
-                  placeholder="Search tools…"
-                  aria-label="Search tools"
-                  className="h-7 text-xs pl-7 pr-2"
-                />
-              </div>
-              <div className="space-y-0.5">
-                {filteredTools.map((tl) => (
-                  <label
-                    key={tl.id}
-                    className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/50 cursor-pointer text-xs"
-                  >
-                    <Checkbox
-                      checked={selectedToolIds.has(tl.id)}
-                      onCheckedChange={() =>
-                        toggleSet(selectedToolIds, setSelectedToolIds, tl.id)
-                      }
-                      className="h-3.5 w-3.5"
-                    />
-                    <span className="truncate">{tl.name}</span>
-                  </label>
-                ))}
-                {filteredTools.length === 0 && (
-                  <p className="text-[10px] text-muted-foreground/60 text-center py-1">No matches</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </ScrollArea>
-      </div>
+      <DispatchSidebar
+        selectedProjectId={selectedProjectId}
+        setSelectedProjectId={setSelectedProjectId}
+        hasSelection={hasSelection}
+        clearSelection={clearSelection}
+      />
 
       {/* ─── RIGHT: Calendar Area ─── */}
-      <div className="flex-1 rounded-xl border bg-card shadow-sm flex flex-col min-w-0">
+      <div className="flex-1 rounded-xl border border-border bg-card shadow-sm flex flex-col min-w-0">
         {/* Calendar Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">
+            <h2 className="text-xl font-bold text-foreground tracking-tight">
               {headerLabel}
-            </h3>
+            </h2>
           </div>
           <div className="flex items-center gap-2">
             {/* View toggle */}
-            <div className="flex rounded-lg border overflow-hidden">
+            <div className="flex gap-0.5 bg-muted/60 p-1 rounded-lg">
               {(["day", "week", "month"] as DispatchView[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`px-3 py-1 text-xs font-medium capitalize cursor-pointer transition-colors ${
+                  className={`px-3 py-1 text-xs font-semibold capitalize cursor-pointer rounded-md transition-all ${
                     view === v
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-card text-muted-foreground hover:bg-muted/50"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {v}
@@ -704,14 +442,21 @@ export default function DispatchBoard() {
               dispatches={getDispatchesForDay(currentDate)}
               onAssign={() => assignToDay(currentDate)}
               onRemoveResource={removeResource}
+              onRemoveDispatch={removeDispatch}
               hasSelection={hasSelection}
             />
           ) : view === "week" ? (
             <WeekView
               days={calendarDays}
-              getDispatches={getDispatchesForDay}
-              onAssign={assignToDay}
+              weekDispatches={weekDispatches}
+              onAssignRange={assignRange}
+              onAssignProjectToDay={assignProjectToDay}
               onRemoveResource={removeResource}
+              onRemoveDispatch={removeDispatch}
+              onResizeDispatch={resizeDispatch}
+              onUpdateResourceDates={updateResourceDates}
+              onAddResource={(id, type, rid) => addResourceToDispatch(id, type, rid)}
+              onAddResourceToDay={(id, type, rid, day) => addResourceToDispatch(id, type, rid, day)}
               hasSelection={hasSelection}
               onExpandDay={(d) => {
                 setCurrentDate(d);

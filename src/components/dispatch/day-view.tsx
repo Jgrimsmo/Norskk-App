@@ -13,6 +13,7 @@ interface DayViewProps {
   dispatches: DispatchAssignment[];
   onAssign: () => void;
   onRemoveResource: OnRemoveResource;
+  onRemoveDispatch: (dispatchId: string) => void;
   hasSelection: boolean;
 }
 
@@ -21,6 +22,7 @@ export function DayView({
   dispatches,
   onAssign,
   onRemoveResource,
+  onRemoveDispatch,
   hasSelection,
 }: DayViewProps) {
   return (
@@ -61,6 +63,7 @@ export function DayView({
           key={dispatch.id}
           dispatch={dispatch}
           onRemoveResource={onRemoveResource}
+          onRemoveDispatch={onRemoveDispatch}
         />
       ))}
 

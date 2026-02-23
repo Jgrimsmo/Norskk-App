@@ -92,12 +92,15 @@ export interface Tool {
 // ── Dispatch ────────────────────────────────
 export interface DispatchAssignment {
   id: string;
-  date: string; // ISO date string YYYY-MM-DD
+  date: string;     // start date ISO YYYY-MM-DD
+  endDate?: string; // end date ISO YYYY-MM-DD (if multi-day; omit or same as date for single day)
   projectId: string;
   employeeIds: string[];
   equipmentIds: string[];
   attachmentIds: string[];
   toolIds: string[];
+  // Per-resource date overrides — if absent the resource covers the full dispatch span
+  resourceDates?: Record<string, { start: string; end: string }>;
 }
 
 export type DispatchView = "day" | "week" | "month";

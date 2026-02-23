@@ -1,6 +1,7 @@
 "use client";
 
-import { Users, Wrench, Paperclip, Hammer, CircleCheck } from "lucide-react";
+import { Users, Wrench, Paperclip, Hammer, CircleCheck, GripVertical, ChevronDown } from "lucide-react";
+import React from "react";
 import type { DispatchAssignment } from "@/lib/types/time-tracking";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import {
@@ -36,8 +37,10 @@ function useActiveResources() {
 // ────────────────────────────────────────────────────────
 export function WeekDayAvailability({
   dispatches,
+  isDraggable = false,
 }: {
   dispatches: DispatchAssignment[];
+  isDraggable?: boolean;
 }) {
   const { activeEmployees, availableEquipment, availableAttachments, availableTools } =
     useActiveResources();
@@ -55,12 +58,17 @@ export function WeekDayAvailability({
     avail.attachments.length > 0 ||
     avail.tools.length > 0;
 
+  const [empOpen, setEmpOpen] = React.useState(true);
+  const [eqOpen, setEqOpen] = React.useState(true);
+  const [attOpen, setAttOpen] = React.useState(true);
+  const [tlOpen, setTlOpen] = React.useState(true);
+
   if (!hasAny) return null;
 
   return (
-    <div className="mt-1.5 rounded border bg-card border-l-4 border-l-green-500 overflow-hidden">
+    <div className="mt-1.5 rounded-xl overflow-hidden shadow-sm border border-border bg-card border-l-4 border-l-emerald-500">
       {/* Header */}
-      <div className="px-1.5 pt-1.5 pb-1 text-[11px] font-bold text-green-700 truncate border-b border-border/50 flex items-center gap-1">
+      <div className="px-2 pt-2 pb-1.5 text-sm font-bold text-emerald-700 border-b border-border/50 flex items-center gap-1">
         <CircleCheck className="h-3 w-3 shrink-0" />
         Available
       </div>
@@ -69,50 +77,110 @@ export function WeekDayAvailability({
       <div className="px-1.5 py-1 space-y-1.5">
         {avail.employees.length > 0 && (
           <div>
-            <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-foreground mb-0.5">
+            <button
+              onClick={() => setEmpOpen((v) => !v)}
+              className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-foreground mb-1 w-full hover:text-foreground/70 transition-colors"
+            >
               <Users className="h-2.5 w-2.5" /> Crew
-            </div>
-            <div className="space-y-0.5">
+              {!empOpen && <span className="ml-1 text-[10px] font-normal text-muted-foreground normal-case tracking-normal">{avail.employees.length}</span>}
+              <ChevronDown className={`ml-auto h-3 w-3 transition-transform ${empOpen ? "" : "-rotate-90"}`} />
+            </button>
+            {empOpen && (
+              <div className="flex flex-col gap-0.5">
               {avail.employees.map((e) => (
-                <div key={e.id} className="text-[11px] text-foreground leading-tight truncate">{e.name}</div>
+                <div
+                  key={e.id}
+                  className={`flex items-center gap-1 rounded bg-background/60 border border-border/40 px-1.5 py-0.5 text-sm text-foreground leading-tight transition-colors${isDraggable ? " cursor-grab active:cursor-grabbing hover:bg-background" : ""}`}
+                  draggable={isDraggable}
+                  onDragStart={isDraggable ? (ev) => { ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "employee", id: e.id })); ev.dataTransfer.effectAllowed = "copy"; } : undefined}
+                >
+                  {isDraggable && <GripVertical className="h-3 w-3 shrink-0 opacity-30" />}
+                  <span className="truncate">{e.name}</span>
+                </div>
               ))}
             </div>
+            )}
           </div>
         )}
         {avail.equipment.length > 0 && (
           <div>
-            <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-foreground mb-0.5">
+            <button
+              onClick={() => setEqOpen((v) => !v)}
+              className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-foreground mb-1 w-full hover:text-foreground/70 transition-colors"
+            >
               <Wrench className="h-2.5 w-2.5" /> Equipment
-            </div>
-            <div className="space-y-0.5">
+              {!eqOpen && <span className="ml-1 text-[10px] font-normal text-muted-foreground normal-case tracking-normal">{avail.equipment.length}</span>}
+              <ChevronDown className={`ml-auto h-3 w-3 transition-transform ${eqOpen ? "" : "-rotate-90"}`} />
+            </button>
+            {eqOpen && (
+              <div className="flex flex-col gap-0.5">
               {avail.equipment.map((e) => (
-                <div key={e.id} className="text-[11px] text-foreground leading-tight truncate">{e.name}</div>
+                <div
+                  key={e.id}
+                  className={`flex items-center gap-1 rounded bg-background/60 border border-border/40 px-1.5 py-0.5 text-sm text-foreground leading-tight transition-colors${isDraggable ? " cursor-grab active:cursor-grabbing hover:bg-background" : ""}`}
+                  draggable={isDraggable}
+                  onDragStart={isDraggable ? (ev) => { ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "equipment", id: e.id })); ev.dataTransfer.effectAllowed = "copy"; } : undefined}
+                >
+                  {isDraggable && <GripVertical className="h-3 w-3 shrink-0 opacity-30" />}
+                  <span className="truncate">{e.name}</span>
+                </div>
               ))}
             </div>
+            )}
           </div>
         )}
         {avail.attachments.length > 0 && (
           <div>
-            <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-foreground mb-0.5">
+            <button
+              onClick={() => setAttOpen((v) => !v)}
+              className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-foreground mb-1 w-full hover:text-foreground/70 transition-colors"
+            >
               <Paperclip className="h-2.5 w-2.5" /> Attachments
-            </div>
-            <div className="space-y-0.5">
+              {!attOpen && <span className="ml-1 text-[10px] font-normal text-muted-foreground normal-case tracking-normal">{avail.attachments.length}</span>}
+              <ChevronDown className={`ml-auto h-3 w-3 transition-transform ${attOpen ? "" : "-rotate-90"}`} />
+            </button>
+            {attOpen && (
+              <div className="flex flex-col gap-0.5">
               {avail.attachments.map((a) => (
-                <div key={a.id} className="text-[11px] text-foreground leading-tight truncate">{a.name}</div>
+                <div
+                  key={a.id}
+                  className={`flex items-center gap-1 rounded bg-background/60 border border-border/40 px-1.5 py-0.5 text-sm text-foreground leading-tight transition-colors${isDraggable ? " cursor-grab active:cursor-grabbing hover:bg-background" : ""}`}
+                  draggable={isDraggable}
+                  onDragStart={isDraggable ? (ev) => { ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "attachment", id: a.id })); ev.dataTransfer.effectAllowed = "copy"; } : undefined}
+                >
+                  {isDraggable && <GripVertical className="h-3 w-3 shrink-0 opacity-30" />}
+                  <span className="truncate">{a.name}</span>
+                </div>
               ))}
             </div>
+            )}
           </div>
         )}
         {avail.tools.length > 0 && (
           <div>
-            <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-foreground mb-0.5">
+            <button
+              onClick={() => setTlOpen((v) => !v)}
+              className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-foreground mb-1 w-full hover:text-foreground/70 transition-colors"
+            >
               <Hammer className="h-2.5 w-2.5" /> Tools
-            </div>
-            <div className="space-y-0.5">
+              {!tlOpen && <span className="ml-1 text-[10px] font-normal text-muted-foreground normal-case tracking-normal">{avail.tools.length}</span>}
+              <ChevronDown className={`ml-auto h-3 w-3 transition-transform ${tlOpen ? "" : "-rotate-90"}`} />
+            </button>
+            {tlOpen && (
+              <div className="flex flex-col gap-0.5">
               {avail.tools.map((t) => (
-                <div key={t.id} className="text-[11px] text-foreground leading-tight truncate">{t.name}</div>
+                <div
+                  key={t.id}
+                  className={`flex items-center gap-1 rounded bg-background/60 border border-border/40 px-1.5 py-0.5 text-sm text-foreground leading-tight transition-colors${isDraggable ? " cursor-grab active:cursor-grabbing hover:bg-background" : ""}`}
+                  draggable={isDraggable}
+                  onDragStart={isDraggable ? (ev) => { ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "tool", id: t.id })); ev.dataTransfer.effectAllowed = "copy"; } : undefined}
+                >
+                  {isDraggable && <GripVertical className="h-3 w-3 shrink-0 opacity-30" />}
+                  <span className="truncate">{t.name}</span>
+                </div>
               ))}
             </div>
+            )}
           </div>
         )}
       </div>
@@ -158,24 +226,24 @@ export function AvailableResourcesPanel({
       <div className="flex-1 grid grid-cols-4 divide-x min-w-0">
         <AvailCell icon={<Users className="h-3.5 w-3.5" />} label="Crew">
           {avail.employees.map((emp) => (
-            <div key={emp.id} className="text-sm text-foreground">
+            <div key={emp.id} className="rounded bg-muted/60 border border-border/40 px-2 py-1 text-sm text-foreground truncate">
               {emp.name}
             </div>
           ))}
         </AvailCell>
         <AvailCell icon={<Wrench className="h-3.5 w-3.5" />} label="Equipment">
           {avail.equipment.map((eq) => (
-            <div key={eq.id} className="text-sm text-foreground">{eq.name}</div>
+            <div key={eq.id} className="rounded bg-muted/60 border border-border/40 px-2 py-1 text-sm text-foreground truncate">{eq.name}</div>
           ))}
         </AvailCell>
         <AvailCell icon={<Paperclip className="h-3.5 w-3.5" />} label="Attachments">
           {avail.attachments.map((att) => (
-            <div key={att.id} className="text-sm text-foreground">{att.name}</div>
+            <div key={att.id} className="rounded bg-muted/60 border border-border/40 px-2 py-1 text-sm text-foreground truncate">{att.name}</div>
           ))}
         </AvailCell>
         <AvailCell icon={<Hammer className="h-3.5 w-3.5" />} label="Tools">
           {avail.tools.map((tl) => (
-            <div key={tl.id} className="text-sm text-foreground">{tl.name}</div>
+            <div key={tl.id} className="rounded bg-muted/60 border border-border/40 px-2 py-1 text-sm text-foreground truncate">{tl.name}</div>
           ))}
         </AvailCell>
       </div>

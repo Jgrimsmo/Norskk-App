@@ -80,7 +80,7 @@ export function MonthView({
                   return (
                     <div
                       key={dispatch.id}
-                      className={`rounded px-1.5 py-1 text-xs font-medium truncate border bg-card border-l-2 ${color.accent} text-foreground cursor-pointer hover:bg-muted/50 transition-colors`}
+                      className={`rounded-lg px-1.5 py-1 text-xs font-medium truncate shadow-md ${color.bg} ${color.text} cursor-pointer transition-colors`}
                       onClick={(e) => {
                         e.stopPropagation();
                         onExpandDay(day);

@@ -15,9 +15,10 @@ import {
 interface DispatchCardProps {
   dispatch: DispatchAssignment;
   onRemoveResource: OnRemoveResource;
+  onRemoveDispatch: (dispatchId: string) => void;
 }
 
-export function DispatchCard({ dispatch, onRemoveResource }: DispatchCardProps) {
+export function DispatchCard({ dispatch, onRemoveResource, onRemoveDispatch }: DispatchCardProps) {
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
   const { data: equipment } = useEquipment();
@@ -28,12 +29,26 @@ export function DispatchCard({ dispatch, onRemoveResource }: DispatchCardProps) 
   const color = getProjectColor(dispatch.projectId, projects);
 
   return (
-    <div className={`flex rounded-lg border bg-card overflow-hidden border-l-4 ${color.accent}`}>
+    <div className="flex bg-card overflow-hidden shadow-md">
       {/* Project name cell */}
-      <div className="w-48 shrink-0 px-4 py-4 border-r flex items-start">
-        <span className="text-sm font-bold text-foreground leading-snug">
-          {project?.name}
-        </span>
+      <div className={`w-48 shrink-0 px-4 py-4 border-r border-border/30 flex items-start justify-between gap-2 ${color.bg}`}>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className={`text-base font-bold leading-snug shrink-0 ${color.text}`}>
+            {project?.name}
+          </span>
+          {(project?.address || project?.city) && (
+            <span className={`text-xs opacity-60 leading-snug truncate ${color.text}`}>
+              {[project.address, project.city].filter(Boolean).join(", ")}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => onRemoveDispatch(dispatch.id)}
+          className="shrink-0 mt-0.5 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+          title="Remove project from this day"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {/* Resource columns */}
@@ -93,22 +108,22 @@ function ResourceCell({
 }) {
   return (
     <div className="px-3 py-4">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+      <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-2">
         {icon}
         {label}
       </div>
       {items.length === 0 ? (
-        <span className="text-xs text-muted-foreground/30">—</span>
+        <span className="text-sm text-muted-foreground/30">—</span>
       ) : (
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1">
           {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-1 group">
-              <span className="text-sm text-foreground truncate">{item.name}</span>
+            <div key={item.id} className="flex items-center justify-between gap-1 rounded bg-muted/60 border border-border/40 px-2 py-1">
+              <span className="text-base text-foreground truncate">{item.name}</span>
               <button
                 onClick={() => onRemove(item.id)}
-                className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shrink-0"
+                className="cursor-pointer shrink-0 text-muted-foreground hover:text-destructive transition-colors"
               >
-                <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           ))}
