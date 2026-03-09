@@ -259,7 +259,7 @@ export function FieldDispatch() {
                               </span>
                               {project?.address && (
                                 <p className="text-xs text-muted-foreground">
-                                  {project.address}
+                                  {[project.address, project.city, project.province].filter(Boolean).join(", ")}
                                 </p>
                               )}
                             </div>

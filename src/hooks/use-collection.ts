@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import {
   getAll,
@@ -36,6 +36,11 @@ export function useCollection<T extends { id: string }>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Keep constraints in a ref so the effect always uses the latest
+  // without needing to serialize QueryConstraint objects for deps.
+  const constraintsRef = useRef(constraints);
+  constraintsRef.current = constraints;
+
   // Real-time subscription
   useEffect(() => {
     setLoading(true);
@@ -46,7 +51,7 @@ export function useCollection<T extends { id: string }>(
         setLoading(false);
         setError(null);
       },
-      ...constraints,
+      ...constraintsRef.current,
       (err: Error) => {
         setError(err);
         setLoading(false);
@@ -54,7 +59,6 @@ export function useCollection<T extends { id: string }>(
       },
     );
     return unsub;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
   const addItem = useCallback(
@@ -99,14 +103,13 @@ export function useCollection<T extends { id: string }>(
   const refresh = useCallback(async () => {
     try {
       setLoading(true);
-      const items = await getAll<T>(path, ...constraints);
+      const items = await getAll<T>(path, ...constraintsRef.current);
       setData(items);
     } catch (e) {
       setError(e as Error);
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
   return {

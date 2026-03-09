@@ -164,7 +164,9 @@ export function GlobalSearch() {
                 </CommandItem>
               </CommandGroup>
 
-              <SearchResults navigate={navigate} />
+              {query.trim().length > 0 && (
+                <SearchResults navigate={navigate} />
+              )}
             </CommandList>
           </Command>
         </div>

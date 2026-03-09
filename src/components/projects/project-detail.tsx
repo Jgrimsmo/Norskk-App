@@ -85,6 +85,7 @@ import type {
   InvoiceStatus,
 } from "@/lib/types/time-tracking";
 import { useRelockOnClickOutside } from "@/hooks/use-relock-on-click-outside";
+import { formTypeLabels } from "@/lib/constants/labels";
 
 // ────────────────────────────────────────────
 // Labels
@@ -95,14 +96,6 @@ const statusLabels: Record<ProjectStatus, string> = {
   "on-hold": "On Hold",
   completed: "Completed",
   bidding: "Bidding",
-};
-
-const formTypeLabels: Record<SafetyFormType, string> = {
-  flha: "FLHA",
-  "toolbox-talk": "Toolbox Talk",
-  "near-miss": "Near Miss",
-  "incident-report": "Incident Report",
-  "safety-inspection": "Safety Inspection",
 };
 
 const workTypeOptions = [

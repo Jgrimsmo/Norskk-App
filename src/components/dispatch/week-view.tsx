@@ -439,17 +439,30 @@ export function WeekView({
                           </div>
                         ) : (
                           <div
-                            className="py-2 text-center text-[10px] text-white/40 italic relative z-10"
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              try {
-                                const data = JSON.parse(e.dataTransfer.getData("text/plain"));
-                                onAddResource(dispatch.id, data.type, data.id);
-                              } catch {}
-                            }}
+                            className="py-2 text-center text-[10px] text-white/40 italic relative z-10 grid"
+                            style={{ gridTemplateColumns: `repeat(${spanDays}, 1fr)` }}
                           >
-                            Drop resources here
+                            {Array.from({ length: spanDays }).map((_, i) => {
+                              const colDayStr = dayStrs[startCol + i];
+                              return (
+                                <div
+                                  key={colDayStr}
+                                  className="h-full"
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    try {
+                                      const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+                                      onAddResourceToDay(dispatch.id, data.type, data.id, colDayStr);
+                                    } catch {}
+                                  }}
+                                >
+                                  {i === Math.floor(spanDays / 2) && (
+                                    <span>Drop resources here</span>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

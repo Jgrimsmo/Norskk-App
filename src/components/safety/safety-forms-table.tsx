@@ -40,37 +40,14 @@ import {
   type Project,
 } from "@/lib/types/time-tracking";
 import { useEmployees, useProjects } from "@/hooks/use-firestore";
+import { safetyStatusColors as statusColors, formTypeColors } from "@/lib/constants/status-colors";
+import { formTypeLabels, safetyStatusLabels as statusLabels } from "@/lib/constants/labels";
 
 // ────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────
 
 import { lookupName } from "@/lib/utils/lookup";
-
-const formTypeLabels: Record<SafetyFormType, string> = {
-  flha: "FLHA",
-  "toolbox-talk": "Toolbox Talk",
-  "near-miss": "Near Miss",
-  "incident-report": "Incident Report",
-  "safety-inspection": "Safety Inspection",
-};
-
-const formTypeColors: Record<SafetyFormType, string> = {
-  flha: "bg-blue-100 text-blue-800 border-blue-200",
-  "toolbox-talk": "bg-purple-100 text-purple-800 border-purple-200",
-  "near-miss": "bg-orange-100 text-orange-800 border-orange-200",
-  "incident-report": "bg-red-100 text-red-800 border-red-200",
-  "safety-inspection": "bg-teal-100 text-teal-800 border-teal-200",
-};
-
-import { safetyStatusColors as statusColors } from "@/lib/constants/status-colors";
-
-const statusLabels: Record<SafetyFormStatus, string> = {
-  draft: "Draft",
-  submitted: "Submitted",
-  reviewed: "Reviewed",
-  closed: "Closed",
-};
 
 function newBlankForm(date: string, formType: SafetyFormType): SafetyForm {
   return {

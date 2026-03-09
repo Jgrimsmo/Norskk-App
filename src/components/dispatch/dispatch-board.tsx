@@ -19,10 +19,14 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Save,
+  Undo2,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 
 import type {
   DispatchAssignment,
@@ -30,20 +34,135 @@ import type {
 } from "@/lib/types/time-tracking";
 
 
-import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { Collections } from "@/lib/firebase/collections";
-import { SavingIndicator } from "@/components/shared/saving-indicator";
 import { nextDispatchId } from "./dispatch-helpers";
 import { DayView } from "./day-view";
 import { WeekView } from "./week-view";
 import { MonthView } from "./month-view";
 import { DispatchSidebar } from "./dispatch-sidebar";
+import { useProjects, useDispatches } from "@/hooks/use-firestore";
+import { createDispatchNotifications } from "@/lib/utils/notifications";
+import { create, update as updateDoc, remove as removeDoc } from "@/lib/firebase/firestore";
+import { toast } from "sonner";
 
 // ────────────────────────────────────────────────────────
 // Main Dispatch Board
 // ────────────────────────────────────────────────────────
 export default function DispatchBoard() {
-  const [dispatches, setDispatches, , dispatchesSaving] = useFirestoreState<DispatchAssignment>(Collections.DISPATCHES);
+  // Live Firestore data (read-only subscription)
+  const { data: savedDispatches, loading: loadingDispatches } = useDispatches();
+  const { data: projects } = useProjects();
+
+  // Local editing state — mutations only touch this until Save
+  const [localDispatches, setLocalDispatches] = React.useState<DispatchAssignment[]>([]);
+  const [initialized, setInitialized] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [justSaved, setJustSaved] = React.useState(false);
+
+  // Initialize local state from Firestore once loaded
+  React.useEffect(() => {
+    if (!loadingDispatches && !initialized) {
+      setLocalDispatches(savedDispatches);
+      setInitialized(true);
+    }
+  }, [savedDispatches, loadingDispatches, initialized]);
+
+  // Dirty check: local differs from saved
+  const isDirty = React.useMemo(() => {
+    if (!initialized) return false;
+    return JSON.stringify(localDispatches) !== JSON.stringify(savedDispatches);
+  }, [localDispatches, savedDispatches, initialized]);
+
+  // After save, suppress dirty bar until Firestore catches up or user edits again
+  const showDirtyBar = isDirty && !justSaved;
+
+  // Clear justSaved when Firestore delivers the post-save data
+  React.useEffect(() => {
+    if (justSaved) setJustSaved(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedDispatches]);
+
+  // Clear justSaved if user edits again after saving
+  React.useEffect(() => {
+    if (justSaved && isDirty) setJustSaved(false);
+  }, [justSaved, isDirty]);
+
+  React.useEffect(() => {
+    if (initialized && !isDirty) {
+      setLocalDispatches(savedDispatches);
+    }
+    // Only re-sync when savedDispatches changes and we're not dirty
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedDispatches]);
+
+  // Use local dispatches for all reads
+  const dispatches = localDispatches;
+  const setDispatches = setLocalDispatches;
+
+  // Project name lookup for notifications
+  const projectLookup = React.useCallback(
+    (id: string) => projects.find((p) => p.id === id)?.name || "Unknown Project",
+    [projects]
+  );
+
+  // ── Save: diff local vs saved, write to Firestore, send notifications ──
+  const handleSave = React.useCallback(async () => {
+    // Capture the pre-save state before any async work
+    const snapshotBefore = [...savedDispatches];
+    const snapshotAfter = [...localDispatches];
+
+    setSaving(true);
+    try {
+      const savedMap = new Map(snapshotBefore.map((d) => [d.id, d]));
+      const localMap = new Map(snapshotAfter.map((d) => [d.id, d]));
+
+      const ops: Promise<void>[] = [];
+
+      // Added dispatches
+      for (const d of snapshotAfter) {
+        if (!savedMap.has(d.id)) {
+          ops.push(create<DispatchAssignment>(Collections.DISPATCHES, d));
+        }
+      }
+
+      // Removed dispatches
+      for (const d of snapshotBefore) {
+        if (!localMap.has(d.id)) {
+          ops.push(removeDoc(Collections.DISPATCHES, d.id));
+        }
+      }
+
+      // Updated dispatches
+      for (const d of snapshotAfter) {
+        const old = savedMap.get(d.id);
+        if (old && JSON.stringify(old) !== JSON.stringify(d)) {
+          const { id, ...rest } = d;
+          ops.push(updateDoc<DispatchAssignment>(Collections.DISPATCHES, id, rest));
+        }
+      }
+
+      await Promise.all(ops);
+
+      // Send notifications after successful save
+      await createDispatchNotifications(snapshotBefore, snapshotAfter, projectLookup);
+
+      // Force local and saved to match so isDirty clears immediately
+      // (the Firestore subscription will reconcile shortly after)
+      setLocalDispatches(snapshotAfter);
+      setJustSaved(true);
+
+      toast.success("Dispatch saved successfully.");
+    } catch {
+      toast.error("Failed to save dispatch changes.");
+    } finally {
+      setSaving(false);
+    }
+  }, [savedDispatches, localDispatches, projectLookup]);
+
+  // ── Discard: reset local state to Firestore ──
+  const handleDiscard = React.useCallback(() => {
+    setLocalDispatches(savedDispatches);
+  }, [savedDispatches]);
 
   // View state
   const [view, setView] = React.useState<DispatchView>("week");
@@ -368,6 +487,11 @@ export default function DispatchBoard() {
             );
           if (type === "tool")
             copy.toolIds = copy.toolIds.filter((id) => id !== resourceId);
+          // Clean up resourceDates for the removed resource
+          if (copy.resourceDates?.[resourceId]) {
+            const { [resourceId]: _, ...rest } = copy.resourceDates;
+            copy.resourceDates = Object.keys(rest).length > 0 ? rest : undefined;
+          }
           return copy;
         });
         // Remove dispatches with no resources left
@@ -514,7 +638,38 @@ export default function DispatchBoard() {
           )}
         </div>
       </div>
-      <SavingIndicator saving={dispatchesSaving} />
+
+      {/* Save / Discard bar */}
+      {showDirtyBar && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border bg-card px-4 py-2.5 shadow-lg">
+          <Badge variant="outline" className="text-xs font-medium text-yellow-700 bg-yellow-50 border-yellow-200 dark:text-yellow-300 dark:bg-yellow-900/30">
+            Unsaved changes
+          </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 text-xs cursor-pointer"
+            onClick={handleDiscard}
+            disabled={saving}
+          >
+            <Undo2 className="h-3 w-3" />
+            Discard
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 gap-1.5 text-xs cursor-pointer"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Save className="h-3 w-3" />
+            )}
+            {saving ? "Saving…" : "Save & Notify"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

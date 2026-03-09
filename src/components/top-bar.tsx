@@ -1,8 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Eye, X } from "lucide-react";
-import { toast } from "sonner";
+import { Eye, X } from "lucide-react";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { useRolePreview } from "@/lib/role-preview-context";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -30,6 +29,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { GlobalSearch } from "@/components/global-search";
+import { NotificationBell } from "@/components/shared/notification-bell";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -212,15 +212,7 @@ export function TopBar() {
         )}
 
         {/* Notifications */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative h-9 w-9 text-muted-foreground hover:text-foreground"
-          onClick={() => toast.info("Notifications coming soon", { description: "Real-time notifications will be available once the backend is connected." })}
-        >
-          <Bell className="h-5 w-5" />
-          <span className="sr-only">Notifications</span>
-        </Button>
+        <NotificationBell />
 
         {/* User menu */}
         <DropdownMenu>

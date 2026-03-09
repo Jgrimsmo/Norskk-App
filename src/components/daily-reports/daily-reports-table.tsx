@@ -205,11 +205,17 @@ export default function DailyReportsTable() {
   };
 
   // Filter options
-  const projectOptions = [...new Set(reports.map((r) => r.projectId))].map(
-    (id) => ({ id, label: getProjectName(id) })
+  const projectOptions = React.useMemo(
+    () => [...new Set(reports.map((r) => r.projectId))].map(
+      (id) => ({ id, label: getProjectName(id) })
+    ),
+    [reports, getProjectName]
   );
-  const authorOptions = [...new Set(reports.map((r) => r.authorId))].map(
-    (id) => ({ id, label: getEmployeeName(id) })
+  const authorOptions = React.useMemo(
+    () => [...new Set(reports.map((r) => r.authorId))].map(
+      (id) => ({ id, label: getEmployeeName(id) })
+    ),
+    [reports, getEmployeeName]
   );
   return (
     <>

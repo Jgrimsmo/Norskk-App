@@ -5,8 +5,10 @@ import type {
   AttachmentStatus,
   ToolStatus,
   SafetyFormStatus,
+  SafetyFormType,
   DailyReportStatus,
   ApprovalStatus,
+  InvoiceStatus,
 } from "@/lib/types/time-tracking";
 
 // ── Project Status ──
@@ -66,4 +68,20 @@ export const approvalStatusColors: Record<ApprovalStatus, string> = {
   pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
   approved: "bg-green-100 text-green-800 border-green-200",
   rejected: "bg-red-100 text-red-800 border-red-200",
+};
+
+// ── Invoice Status ──
+export const invoiceStatusColors: Record<InvoiceStatus, string> = {
+  "needs-review": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  approved: "bg-green-100 text-green-800 border-green-200",
+  rejected: "bg-red-100 text-red-800 border-red-200",
+};
+
+// ── Safety Form Type ──
+export const formTypeColors: Record<SafetyFormType, string> = {
+  flha: "bg-blue-100 text-blue-800 border-blue-200",
+  "toolbox-talk": "bg-purple-100 text-purple-800 border-purple-200",
+  "near-miss": "bg-orange-100 text-orange-800 border-orange-200",
+  "incident-report": "bg-red-100 text-red-800 border-red-200",
+  "safety-inspection": "bg-teal-100 text-teal-800 border-teal-200",
 };

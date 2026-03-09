@@ -144,10 +144,8 @@ function AddressCell({
 
 // ── Stat cell ─────────────────────────────────────────────
 function StatCell({
-  icon: Icon,
   count,
   sub,
-  tooltip,
 }: {
   icon: React.ElementType;
   count: number;
@@ -155,20 +153,10 @@ function StatCell({
   tooltip: string;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="flex flex-col items-center leading-tight select-none cursor-default">
-          <span className="text-xs font-semibold text-foreground">{count}</span>
-          {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="top">
-        <p className="text-xs flex items-center gap-1.5">
-          <Icon className="h-3 w-3" />
-          {tooltip}
-        </p>
-      </TooltipContent>
-    </Tooltip>
+    <div className="flex flex-col items-center leading-tight select-none">
+      <span className="text-xs font-semibold text-foreground">{count}</span>
+      {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
+    </div>
   );
 }
 
@@ -199,6 +187,22 @@ export function ProjectsTable({
   // ── Add form state ──
   const [adding, setAdding] = React.useState(false);
   const [newForm, setNewForm] = React.useState(BLANK_NEW_PROJECT_FORM);
+
+  // Auto-generate next project number: YY-NN (01–99, wraps around)
+  const nextProjectNumber = React.useMemo(() => {
+    const yy = String(new Date().getFullYear()).slice(-2); // e.g. "26"
+    const prefix = `${yy}-`;
+    // Find the highest number used this year
+    let maxNum = 0;
+    for (const p of projectList) {
+      if (p.number.startsWith(prefix)) {
+        const num = parseInt(p.number.slice(prefix.length), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+    }
+    const next = maxNum >= 99 ? 1 : maxNum + 1;
+    return `${prefix}${String(next).padStart(2, "0")}`;
+  }, [projectList]);
 
   const handleAddSubmit = React.useCallback(() => {
     if (!newForm.name.trim()) return;
@@ -371,7 +375,7 @@ export function ProjectsTable({
     <div className="space-y-3">
       {/* Toolbar */}
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" className="gap-1.5 text-xs cursor-pointer" onClick={() => setAdding(true)} disabled={adding}>
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs cursor-pointer" onClick={() => { setNewForm((f) => ({ ...f, number: nextProjectNumber })); setAdding(true); }} disabled={adding}>
           <Plus className="h-3.5 w-3.5" />
           Add Project
         </Button>
@@ -531,7 +535,7 @@ export function ProjectsTable({
                         <p className="text-sm font-medium">No projects yet</p>
                         <p className="text-xs">Create your first project to track time, reports and safety.</p>
                         <button
-                          onClick={() => setAdding(true)}
+                          onClick={() => { setNewForm((f) => ({ ...f, number: nextProjectNumber })); setAdding(true); }}
                           className="mt-1 text-xs text-primary hover:underline cursor-pointer"
                         >
                           + Add Project

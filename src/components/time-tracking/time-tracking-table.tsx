@@ -46,22 +46,24 @@ import {
   useAttachments,
   useTools,
 } from "@/hooks/use-firestore";
+import { approvalStatusColors } from "@/lib/constants/status-colors";
+import { workTypeLabels } from "@/lib/constants/labels";
 
 // ────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────
 import { lookupName } from "@/lib/utils/lookup";
 
-const approvalColors: Record<ApprovalStatus, string> = {
-  pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  approved: "bg-green-100 text-green-800 border-green-200",
-  rejected: "bg-red-100 text-red-800 border-red-200",
-};
+const workTypeOptions = [
+  { id: "lump-sum", label: "Lump Sum" },
+  { id: "tm", label: "T&M" },
+];
 
-const workTypeLabels: Record<WorkType, string> = {
-  "lump-sum": "Lump Sum",
-  tm: "T&M",
-};
+const approvalOptions = [
+  { id: "pending", label: "Pending" },
+  { id: "approved", label: "Approved" },
+  { id: "rejected", label: "Rejected" },
+];
 
 function newBlankEntry(date: string): TimeEntry {
   return {
@@ -112,44 +114,41 @@ export function TimeTrackingTable({
   const [approvalFilter, setApprovalFilter] = React.useState<Set<string>>(new Set());
 
   // Lookup option arrays for dropdowns
-  const employeeOptions = employees.map((e) => ({ id: e.id, label: e.name }));
-  const projectOptions = projects.map((p) => ({
-    id: p.id,
-    label: p.name,
-  }));
-  const costCodeOptions = costCodes.map((c) => ({
-    id: c.id,
-    label: c.code,
-  }));
-  const equipmentOptions = [
-    { id: EQUIPMENT_NONE_ID, label: "None" },
-    ...equipment
-      .filter((e) => e.id !== EQUIPMENT_NONE_ID)
-      .map((e) => ({ id: e.id, label: e.name })),
-  ];
-  const attachmentOptions = [
-    { id: "none", label: "None" },
-    ...attachments.map((a) => ({
-      id: a.id,
-      label: a.name,
-    })),
-  ];
-  const toolOptions = [
-    { id: "none", label: "None" },
-    ...tools.map((t) => ({
-      id: t.id,
-      label: t.name,
-    })),
-  ];
-  const workTypeOptions = [
-    { id: "lump-sum", label: "Lump Sum" },
-    { id: "tm", label: "T&M" },
-  ];
-  const approvalOptions = [
-    { id: "pending", label: "Pending" },
-    { id: "approved", label: "Approved" },
-    { id: "rejected", label: "Rejected" },
-  ];
+  const employeeOptions = React.useMemo(
+    () => employees.map((e) => ({ id: e.id, label: e.name })),
+    [employees]
+  );
+  const projectOptions = React.useMemo(
+    () => projects.map((p) => ({ id: p.id, label: p.name })),
+    [projects]
+  );
+  const costCodeOptions = React.useMemo(
+    () => costCodes.map((c) => ({ id: c.id, label: c.code })),
+    [costCodes]
+  );
+  const equipmentOptions = React.useMemo(
+    () => [
+      { id: EQUIPMENT_NONE_ID, label: "None" },
+      ...equipment
+        .filter((e) => e.id !== EQUIPMENT_NONE_ID)
+        .map((e) => ({ id: e.id, label: e.name })),
+    ],
+    [equipment]
+  );
+  const attachmentOptions = React.useMemo(
+    () => [
+      { id: "none", label: "None" },
+      ...attachments.map((a) => ({ id: a.id, label: a.name })),
+    ],
+    [attachments]
+  );
+  const toolOptions = React.useMemo(
+    () => [
+      { id: "none", label: "None" },
+      ...tools.map((t) => ({ id: t.id, label: t.name })),
+    ],
+    [tools]
+  );
 
   // ── Filtered entries ──
   const filteredEntries = React.useMemo(() => {
@@ -422,7 +421,7 @@ export function TimeTrackingTable({
                       {isApproved ? (
                         <Badge
                           variant="outline"
-                          className={`text-[10px] font-medium capitalize ${approvalColors[entry.approval]}`}
+                          className={`text-[10px] font-medium capitalize ${approvalStatusColors[entry.approval]}`}
                         >
                           {entry.approval}
                         </Badge>

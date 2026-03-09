@@ -17,6 +17,7 @@ import type {
   RolePermissions,
   Vendor,
   Invoice,
+  AppNotification,
 } from "@/lib/types/time-tracking";
 
 // ── Core entities ───────────────────────────
@@ -77,4 +78,8 @@ export function useVendors() {
 
 export function useInvoices() {
   return useCollection<Invoice>(Collections.INVOICES);
+}
+
+export function useNotifications() {
+  return useCollection<AppNotification>(Collections.NOTIFICATIONS);
 }

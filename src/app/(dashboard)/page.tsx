@@ -42,39 +42,17 @@ import { usePermissions } from "@/hooks/use-permissions";
 
 import { lookupName } from "@/lib/utils/lookup";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
-import { safetyStatusColors } from "@/lib/constants/status-colors";
-
-const approvalColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  approved: "bg-green-100 text-green-800 border-green-200",
-  rejected: "bg-red-100 text-red-800 border-red-200",
-};
-
-const invoiceStatusColors: Record<string, string> = {
-  "needs-review": "bg-yellow-100 text-yellow-800 border-yellow-200",
-  approved: "bg-green-100 text-green-800 border-green-200",
-  rejected: "bg-red-100 text-red-800 border-red-200",
-};
-
-const invoiceStatusLabels: Record<string, string> = {
-  "needs-review": "Needs Review",
-  approved: "Approved",
-  rejected: "Rejected",
-};
-
-const workTypeLabels: Record<string, string> = {
-  "lump-sum": "Lump Sum",
-  tm: "T&M",
-};
+import {
+  safetyStatusColors,
+  approvalStatusColors,
+  invoiceStatusColors,
+} from "@/lib/constants/status-colors";
+import {
+  workTypeLabels,
+  formTypeLabels,
+  invoiceStatusLabels,
+} from "@/lib/constants/labels";
 import { RequirePermission } from "@/components/require-permission";
-
-const formTypeLabels: Record<string, string> = {
-  flha: "FLHA",
-  "toolbox-talk": "Toolbox Talk",
-  "near-miss": "Near Miss",
-  "incident-report": "Incident Report",
-  "safety-inspection": "Safety Inspection",
-};
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -94,31 +72,41 @@ export default function DashboardPage() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   // ── Today's dispatch stats ──
-  const todayDispatches = dispatches.filter((d) => d.date === today);
-  const todayProjectIds = new Set(todayDispatches.map((d) => d.projectId));
-  const todayEmployeeIds = new Set(todayDispatches.flatMap((d) => d.employeeIds));
-  const activeProjectsToday = todayProjectIds.size;
-  const peopleOnSiteToday = todayEmployeeIds.size;
+  const { activeProjectsToday, peopleOnSiteToday } = React.useMemo(() => {
+    const todayDispatches = dispatches.filter((d) => d.date === today);
+    const todayProjectIds = new Set(todayDispatches.map((d) => d.projectId));
+    const todayEmployeeIds = new Set(todayDispatches.flatMap((d) => d.employeeIds));
+    return {
+      activeProjectsToday: todayProjectIds.size,
+      peopleOnSiteToday: todayEmployeeIds.size,
+    };
+  }, [dispatches, today]);
 
-  // ── Recent time entries (last 8) ──
-  const recentEntries = [...timeEntries]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 5);
+  // ── Recent time entries (last 5) ──
+  const recentEntries = React.useMemo(
+    () => [...timeEntries].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+    [timeEntries]
+  );
 
-  // ── Recent daily reports (last 8) ──
-  const recentDailyReports = [...dailyReports]
-    .sort((a, b) => b.date.localeCompare(a.date) || (b.time ?? "").localeCompare(a.time ?? ""))
-    .slice(0, 5);
+  // ── Recent daily reports (last 5) ──
+  const recentDailyReports = React.useMemo(
+    () => [...dailyReports]
+      .sort((a, b) => b.date.localeCompare(a.date) || (b.time ?? "").localeCompare(a.time ?? ""))
+      .slice(0, 5),
+    [dailyReports]
+  );
 
-  // ── Recent invoices (last 8) ──
-  const recentInvoices = [...invoices]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 5);
+  // ── Recent invoices (last 5) ──
+  const recentInvoices = React.useMemo(
+    () => [...invoices].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+    [invoices]
+  );
 
-  // ── Recent safety forms (last 8) ──
-  const recentSafety = [...safetyForms]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 5);
+  // ── Recent safety forms (last 5) ──
+  const recentSafety = React.useMemo(
+    () => [...safetyForms].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+    [safetyForms]
+  );
 
   // Greeting
   const firstName = user?.displayName?.split(" ")[0] ?? "there";
@@ -228,7 +216,7 @@ export default function DashboardPage() {
                           <TableCell className="text-xs px-3 font-medium">{entry.hours}</TableCell>
                           <TableCell className="text-xs px-3 truncate max-w-[160px] text-muted-foreground">{entry.notes || "—"}</TableCell>
                           <TableCell className="px-3">
-                            <Badge variant="outline" className={`text-[10px] capitalize ${approvalColors[entry.approval]}`}>
+                            <Badge variant="outline" className={`text-[10px] capitalize ${approvalStatusColors[entry.approval]}`}>
                               {entry.approval}
                             </Badge>
                           </TableCell>

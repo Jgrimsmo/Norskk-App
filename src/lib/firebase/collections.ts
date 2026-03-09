@@ -17,6 +17,7 @@ export const Collections = {
   ROLE_PERMISSIONS: "rolePermissions",
   VENDORS: "vendors",
   INVOICES: "invoices",
+  NOTIFICATIONS: "notifications",
 } as const;
 
 /** Sentinel equipment ID representing "no equipment". */

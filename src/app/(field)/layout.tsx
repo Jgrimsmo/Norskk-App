@@ -9,6 +9,7 @@ import { LogOut, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
+import { NotificationBell } from "@/components/shared/notification-bell";
 
 function FieldHeader() {
   const { signOut } = useAuth();
@@ -42,6 +43,7 @@ function FieldHeader() {
               <span className="hidden sm:inline">Admin</span>
             </Button>
           </Link>
+          <NotificationBell />
           <ThemeToggle />
           <Button
             variant="ghost"
