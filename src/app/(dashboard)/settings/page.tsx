@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Building2,
   Users,
@@ -9,6 +10,7 @@ import {
   Shield,
   Palette,
   Database,
+  UserCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,10 +20,18 @@ import { CompanyProfileSettings } from "@/components/settings/company-profile";
 import { UserManagementSettings } from "@/components/settings/user-management";
 import { CostCodesSettings } from "@/components/settings/cost-codes";
 import { RolePermissionsSettings } from "@/components/settings/role-permissions";
+import { ProfileSettings } from "@/components/settings/profile-settings";
 import { RequirePermission } from "@/components/require-permission";
 
 // ── Section registry ──
 const sections = [
+  {
+    id: "profile",
+    title: "My Profile",
+    icon: UserCircle,
+    component: ProfileSettings,
+    ready: true,
+  },
   {
     id: "company",
     title: "Company Profile",
@@ -74,7 +84,18 @@ const sections = [
 ] as const;
 
 export default function SettingsPage() {
-  const [activeSection, setActiveSection] = React.useState("company");
+  const searchParams = useSearchParams();
+  const [activeSection, setActiveSection] = React.useState(
+    searchParams.get("section") ?? "profile"
+  );
+
+  // Sync URL param on mount if provided
+  React.useEffect(() => {
+    const section = searchParams.get("section");
+    if (section && sections.find((s) => s.id === section)) {
+      setActiveSection(section);
+    }
+  }, [searchParams]);
 
   const active = sections.find((s) => s.id === activeSection);
   const ActiveComponent = active?.component;

@@ -329,8 +329,8 @@ export default function DashboardPage() {
                           <Badge variant="outline" className={`text-[10px] capitalize shrink-0 ${safetyStatusColors[form.status]}`}>
                             {form.status}
                           </Badge>
-                          <span className="shrink-0 text-xs text-muted-foreground w-14 text-right">
-                            {format(parseISO(form.date), "MMM d")}
+                          <span className="shrink-0 text-xs text-muted-foreground w-[70px] text-right">
+                            {format(parseISO(form.date), "MM/dd/yyyy")}
                           </span>
                         </div>
                       ))}

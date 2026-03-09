@@ -64,11 +64,12 @@ export function DayView({
           dispatch={dispatch}
           onRemoveResource={onRemoveResource}
           onRemoveDispatch={onRemoveDispatch}
+          dayStr={format(day, "yyyy-MM-dd")}
         />
       ))}
 
       {/* Available resources */}
-      <AvailableResourcesPanel dispatches={dispatches} />
+      <AvailableResourcesPanel dispatches={dispatches} dayStr={format(day, "yyyy-MM-dd")} />
     </div>
   );
 }

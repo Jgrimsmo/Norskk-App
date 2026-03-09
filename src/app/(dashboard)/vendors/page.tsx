@@ -61,7 +61,11 @@ export default function VendorsPage() {
 
         {/* Table */}
         {loading ? (
-          <Skeleton className="h-64 w-full rounded-xl" />
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-lg" />
+            ))}
+          </div>
         ) : (
           <VendorsTable vendors={vendors} onVendorsChange={setVendors} />
         )}

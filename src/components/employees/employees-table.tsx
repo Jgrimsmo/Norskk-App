@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Users } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
@@ -186,11 +186,24 @@ export function EmployeesTable({
             <TableBody>
               {filteredEmployees.length === 0 && (
                 <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="h-32 text-center text-muted-foreground"
-                  >
-                    No employees match the current filters.
+                  <TableCell colSpan={6} className="h-40 text-center">
+                    {employeeList.length === 0 ? (
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Users className="h-8 w-8 opacity-30" />
+                        <p className="text-sm font-medium">No employees yet</p>
+                        <p className="text-xs">Add your first employee to get started.</p>
+                        <button
+                          onClick={addEmployee}
+                          className="mt-1 text-xs text-primary hover:underline cursor-pointer"
+                        >
+                          + Add Employee
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        No employees match the current filters.
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               )}
@@ -202,8 +215,12 @@ export function EmployeesTable({
                   <TableRow
                     key={emp.id}
                     className={`group h-[36px] ${
-                      isInactive ? "bg-gray-50/30" : "hover:bg-muted/20"
+                      isInactive
+                        ? "bg-gray-50/30 cursor-pointer hover:bg-muted/20"
+                        : "hover:bg-muted/20"
                     }`}
+                    onClick={isInactive ? (e) => unlockRow(emp.id, e) : undefined}
+                    title={isInactive ? "Click to edit" : undefined}
                   >
                     {/* Name */}
                     <TableCell className="p-0 px-1">

@@ -71,21 +71,37 @@ export function FieldDispatch() {
     return allDispatches.filter(
       (d) =>
         d.employeeIds.includes(employeeId) &&
-        d.date >= startStr &&
-        d.date <= endStr
+        d.date <= endStr &&
+        (d.endDate ?? d.date) >= startStr
     );
   }, [allDispatches, employeeId, weekStart, weekEnd]);
 
-  // Group dispatches by date
+  // Helper: is this employee active on a specific day for a dispatch?
+  function isEmployeeActiveOnDay(dispatch: (typeof allDispatches)[0], empId: string, dayStr: string): boolean {
+    const ranges = dispatch.resourceDates?.[empId];
+    if (!ranges) return true;
+    const arr = Array.isArray(ranges) ? ranges : [ranges as { start: string; end: string }];
+    if (arr.length === 0) return true;
+    return arr.some((r) => dayStr >= r.start && dayStr <= r.end);
+  }
+
+  // Group dispatches by date — only include days where the employee is actually active
   const dispatchesByDate = React.useMemo(() => {
     const map = new Map<string, typeof weekDispatches>();
     for (const dispatch of weekDispatches) {
-      const existing = map.get(dispatch.date) || [];
-      existing.push(dispatch);
-      map.set(dispatch.date, existing);
+      const dispStart = dispatch.date;
+      const dispEnd = dispatch.endDate ?? dispatch.date;
+      for (const dateObj of weekDates) {
+        const dateStr = format(dateObj, "yyyy-MM-dd");
+        if (dateStr < dispStart || dateStr > dispEnd) continue;
+        if (!isEmployeeActiveOnDay(dispatch, employeeId, dateStr)) continue;
+        const existing = map.get(dateStr) ?? [];
+        existing.push(dispatch);
+        map.set(dateStr, existing);
+      }
     }
     return map;
-  }, [weekDispatches]);
+  }, [weekDispatches, weekDates, employeeId]);
 
   // Navigation
   const goToPrevious = () => setWeekStart((w) => subWeeks(w, 1));
@@ -212,20 +228,24 @@ export function FieldDispatch() {
                       const project = projects.find(
                         (p) => p.id === dispatch.projectId
                       );
+                      // Other employees on same dispatch ACTIVE on this day
+                      const coworkers = dispatch.employeeIds
+                        .filter((id) => id !== employeeId && isEmployeeActiveOnDay(dispatch, id, dateStr))
+                        .map((id) => employees.find((e) => e.id === id))
+                        .filter(Boolean);
+
+                      // Equipment/attachments/tools active on this day
                       const dispatchEquipment = dispatch.equipmentIds
+                        .filter((id) => isEmployeeActiveOnDay(dispatch, id, dateStr))
                         .map((id) => equipment.find((e) => e.id === id))
                         .filter(Boolean);
                       const dispatchAttachments = dispatch.attachmentIds
+                        .filter((id) => isEmployeeActiveOnDay(dispatch, id, dateStr))
                         .map((id) => attachments.find((a) => a.id === id))
                         .filter(Boolean);
                       const dispatchTools = dispatch.toolIds
+                        .filter((id) => isEmployeeActiveOnDay(dispatch, id, dateStr))
                         .map((id) => tools.find((t) => t.id === id))
-                        .filter(Boolean);
-
-                      // Other employees on same dispatch
-                      const coworkers = dispatch.employeeIds
-                        .filter((id) => id !== employeeId)
-                        .map((id) => employees.find((e) => e.id === id))
                         .filter(Boolean);
 
                       return (

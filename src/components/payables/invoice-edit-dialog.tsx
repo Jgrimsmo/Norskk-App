@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 
 import { uploadFile } from "@/lib/firebase/storage";
-import { type Invoice, type BillingType, type Project, type Vendor, type CostCode } from "@/lib/types/time-tracking";
+import { type Invoice, type BillingType, type InvoiceStatus, type Project, type Vendor, type CostCode } from "@/lib/types/time-tracking";
 
 interface InvoiceEditDialogProps {
   invoice: Invoice | null;
@@ -34,6 +34,7 @@ interface InvoiceEditDialogProps {
   vendors: Vendor[];
   costCodes: CostCode[];
   onSave: (id: string, updates: Partial<Invoice>) => void;
+  onUpdateStatus?: (id: string, status: InvoiceStatus) => void;
 }
 
 export function InvoiceEditDialog({
@@ -44,7 +45,9 @@ export function InvoiceEditDialog({
   vendors,
   costCodes,
   onSave,
+  onUpdateStatus,
 }: InvoiceEditDialogProps) {
+  const [status, setStatus] = React.useState<InvoiceStatus>("needs-review");
   const [projectId, setProjectId] = React.useState("");
   const [vendorId, setVendorId] = React.useState("");
   const [amount, setAmount] = React.useState("");
@@ -56,10 +59,12 @@ export function InvoiceEditDialog({
   const [saving, setSaving] = React.useState(false);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = React.useState(false);
 
   // Populate form whenever the invoice changes
   React.useEffect(() => {
     if (invoice && open) {
+      setStatus(invoice.status);
       setProjectId(invoice.projectId);
       setVendorId(invoice.vendorId);
       setAmount(String(invoice.amount));
@@ -73,6 +78,18 @@ export function InvoiceEditDialog({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.type !== "application/pdf") {
+      toast.error("Only PDF files are supported");
+      return;
+    }
+    setNewFile(f);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files?.[0];
     if (!f) return;
     if (f.type !== "application/pdf") {
       toast.error("Only PDF files are supported");
@@ -111,6 +128,9 @@ export function InvoiceEditDialog({
       };
 
       onSave(invoice.id, updates);
+      if (onUpdateStatus && status !== invoice.status) {
+        onUpdateStatus(invoice.id, status);
+      }
       toast.success("Invoice updated");
       onOpenChange(false);
     } catch (err) {
@@ -137,6 +157,23 @@ export function InvoiceEditDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Status */}
+          {onUpdateStatus && (
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select value={status} onValueChange={(v) => setStatus(v as InvoiceStatus)}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Select status…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="needs-review">Needs Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Project */}
           <div className="space-y-1.5">
             <Label>Project</Label>
@@ -206,7 +243,7 @@ export function InvoiceEditDialog({
                 <SelectItem value="__none__">No cost code</SelectItem>
                 {filteredCodes.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.code} — {c.description}
+                    {c.code}
                   </SelectItem>
                 ))}
                 {filteredCodes.length === 0 && (
@@ -270,14 +307,20 @@ export function InvoiceEditDialog({
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2 text-sm border-dashed"
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
+                  className={`flex-1 flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-4 py-4 text-sm cursor-pointer transition-colors ${
+                    dragging
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-muted-foreground/25 text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
+                  }`}
                 >
                   <Upload className="h-4 w-4" />
-                  Choose new PDF…
-                </Button>
+                  <span className="text-xs font-medium">Drop PDF or click to browse</span>
+                </div>
                 {invoice && (
                   <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground" asChild>
                     <a href={invoice.fileUrl} target="_blank" rel="noopener noreferrer">

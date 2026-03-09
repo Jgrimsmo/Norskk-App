@@ -16,9 +16,20 @@ interface DispatchCardProps {
   dispatch: DispatchAssignment;
   onRemoveResource: OnRemoveResource;
   onRemoveDispatch: (dispatchId: string) => void;
+  dayStr?: string; // if provided, only show resources active on this day
 }
 
-export function DispatchCard({ dispatch, onRemoveResource, onRemoveDispatch }: DispatchCardProps) {
+// Returns true if a resource is active on dayStr, respecting resourceDates
+function isActiveOnDay(dispatch: DispatchAssignment, resourceId: string, dayStr?: string): boolean {
+  if (!dayStr) return true;
+  const ranges = dispatch.resourceDates?.[resourceId];
+  if (!ranges) return true;
+  const arr = Array.isArray(ranges) ? ranges : [ranges as { start: string; end: string }];
+  if (arr.length === 0) return true;
+  return arr.some((r) => dayStr >= r.start && dayStr <= r.end);
+}
+
+export function DispatchCard({ dispatch, onRemoveResource, onRemoveDispatch, dayStr }: DispatchCardProps) {
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
   const { data: equipment } = useEquipment();
@@ -56,7 +67,7 @@ export function DispatchCard({ dispatch, onRemoveResource, onRemoveDispatch }: D
         <ResourceCell
           icon={<Users className="h-3.5 w-3.5" />}
           label="Crew"
-          items={dispatch.employeeIds.map((id) => ({
+          items={dispatch.employeeIds.filter((id) => isActiveOnDay(dispatch, id, dayStr)).map((id) => ({
             id,
             name: employees.find((e) => e.id === id)?.name ?? id,
           }))}
@@ -65,7 +76,7 @@ export function DispatchCard({ dispatch, onRemoveResource, onRemoveDispatch }: D
         <ResourceCell
           icon={<Wrench className="h-3.5 w-3.5" />}
           label="Equipment"
-          items={dispatch.equipmentIds.map((id) => ({
+          items={dispatch.equipmentIds.filter((id) => isActiveOnDay(dispatch, id, dayStr)).map((id) => ({
             id,
             name: equipment.find((e) => e.id === id)?.name ?? id,
           }))}
@@ -74,7 +85,7 @@ export function DispatchCard({ dispatch, onRemoveResource, onRemoveDispatch }: D
         <ResourceCell
           icon={<Paperclip className="h-3.5 w-3.5" />}
           label="Attachments"
-          items={dispatch.attachmentIds.map((id) => ({
+          items={dispatch.attachmentIds.filter((id) => isActiveOnDay(dispatch, id, dayStr)).map((id) => ({
             id,
             name: attachments.find((a) => a.id === id)?.name ?? id,
           }))}
@@ -83,7 +94,7 @@ export function DispatchCard({ dispatch, onRemoveResource, onRemoveDispatch }: D
         <ResourceCell
           icon={<Hammer className="h-3.5 w-3.5" />}
           label="Tools"
-          items={dispatch.toolIds.map((id) => ({
+          items={dispatch.toolIds.filter((id) => isActiveOnDay(dispatch, id, dayStr)).map((id) => ({
             id,
             name: tools.find((t) => t.id === id)?.name ?? id,
           }))}

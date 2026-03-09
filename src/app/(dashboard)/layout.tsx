@@ -4,7 +4,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { TopBar } from "@/components/top-bar";
 import { AuthGuard } from "@/components/auth-guard";
 import { CompanyProfileProvider } from "@/hooks/use-company-profile";
-import { GlobalSearch } from "@/components/global-search";
 import { RolePreviewProvider } from "@/lib/role-preview-context";
 import { RoleRedirect } from "@/components/role-redirect";
 
@@ -27,7 +26,6 @@ export default function DashboardLayout({
                   {children}
                 </main>
               </SidebarInset>
-              <GlobalSearch />
             </SidebarProvider>
           </TooltipProvider>
         </RolePreviewProvider>

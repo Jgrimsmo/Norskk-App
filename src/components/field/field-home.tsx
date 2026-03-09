@@ -83,9 +83,17 @@ export function FieldHome() {
   // ── Today's dispatch assignment ──
   const todayDispatch = React.useMemo(() => {
     if (!employeeId) return null;
-    return dispatches.find(
-      (d) => d.date === today && d.employeeIds.includes(employeeId)
-    ) ?? null;
+    return dispatches.find((d) => {
+      if (!d.employeeIds.includes(employeeId)) return false;
+      // Must span today
+      if (d.date > today || (d.endDate ?? d.date) < today) return false;
+      // Respect resourceDates if present
+      const ranges = d.resourceDates?.[employeeId];
+      if (!ranges) return true;
+      const arr = Array.isArray(ranges) ? ranges : [ranges as { start: string; end: string }];
+      if (arr.length === 0) return true;
+      return arr.some((r) => today >= r.start && today <= r.end);
+    }) ?? null;
   }, [dispatches, employeeId, today]);
 
   const todayProject = React.useMemo(() => {

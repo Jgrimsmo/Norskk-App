@@ -66,6 +66,7 @@ export function InvoiceUploadDialog({
   const [uploading, setUploading] = React.useState(false);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = React.useState(false);
 
   // Reset form when dialog opens
   React.useEffect(() => {
@@ -83,6 +84,18 @@ export function InvoiceUploadDialog({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.type !== "application/pdf") {
+      toast.error("Only PDF files are supported");
+      return;
+    }
+    setFile(f);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files?.[0];
     if (!f) return;
     if (f.type !== "application/pdf") {
       toast.error("Only PDF files are supported");
@@ -209,7 +222,7 @@ export function InvoiceUploadDialog({
                   <SelectContent>
                     <SelectItem value="__none__">No cost code</SelectItem>
                     {filteredCodes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.code} — {c.description}</SelectItem>
+                      <SelectItem key={c.id} value={c.id}>{c.code}</SelectItem>
                     ))}
                     {filteredCodes.length === 0 && (
                       <div className="px-2 py-3 text-xs text-muted-foreground text-center">
@@ -273,14 +286,21 @@ export function InvoiceUploadDialog({
                 </Button>
               </div>
             ) : (
-              <Button
-                variant="outline"
-                className="w-full gap-2 text-sm border-dashed"
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
+                className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-4 py-6 text-sm cursor-pointer transition-colors ${
+                  dragging
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-muted-foreground/25 text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
+                }`}
               >
-                <Upload className="h-4 w-4" />
-                Choose PDF file…
-              </Button>
+                <Upload className="h-5 w-5" />
+                <span className="font-medium">Drag &amp; drop PDF here or click to browse</span>
+                <span className="text-xs text-muted-foreground">PDF files only</span>
+              </div>
             )}
           </div>
         </div>

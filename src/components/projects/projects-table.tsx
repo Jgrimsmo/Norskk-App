@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Check, X, Clock, FileText, ShieldCheck, ImageIcon } from "lucide-react";
+import { Plus, Pencil, Check, X, Clock, FileText, ShieldCheck, ImageIcon, FolderKanban, Receipt } from "lucide-react";
+import Link from "next/link";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
@@ -52,6 +53,7 @@ import {
   useTimeEntries,
   useDailyReports,
   useSafetyForms,
+  useInvoices,
 } from "@/hooks/use-firestore";
 
 // ────────────────────────────────────────────
@@ -70,7 +72,7 @@ const statusLabels: Record<ProjectStatus, string> = {
 const BLANK_NEW_PROJECT_FORM = {
   number: "",
   name: "",
-  developer: "",
+  developerId: "",
   address: "",
   city: "",
   province: "",
@@ -192,6 +194,7 @@ export function ProjectsTable({
   const { data: timeEntries } = useTimeEntries();
   const { data: dailyReports } = useDailyReports();
   const { data: safetyForms } = useSafetyForms();
+  const { data: invoices } = useInvoices();
 
   // ── Add form state ──
   const [adding, setAdding] = React.useState(false);
@@ -203,7 +206,7 @@ export function ProjectsTable({
       id: `proj-${crypto.randomUUID().slice(0, 8)}`,
       number: newForm.number.trim(),
       name: newForm.name.trim(),
-      developer: newForm.developer,
+      developerId: newForm.developerId,
       address: newForm.address.trim(),
       city: newForm.city.trim(),
       province: newForm.province.trim(),
@@ -246,8 +249,13 @@ export function ProjectsTable({
   const developerSelectOptions = React.useMemo(
     () => [
       { id: DEVELOPER_NONE, label: "— None —" },
-      ...developers.map((d) => ({ id: d.name, label: d.name })),
+      ...developers.map((d) => ({ id: d.id, label: d.name })),
     ],
+    [developers]
+  );
+
+  const developerMap = React.useMemo(
+    () => Object.fromEntries(developers.map((d) => [d.id, d.name])),
     [developers]
   );
 
@@ -260,9 +268,23 @@ export function ProjectsTable({
   );
 
   const developerOptions = React.useMemo(() => {
-    const devs = Array.from(new Set(projectList.map((p) => p.developer).filter(Boolean)));
-    return devs.map((d) => ({ id: d, label: d }));
+    const devIds = Array.from(new Set(projectList.map((p) => p.developerId).filter(Boolean)));
+    return devIds.map((id) => ({ id, label: developerMap[id] || id }));
   }, [projectList]);
+
+  // ── Per-project invoice stats ──
+  const invoiceStatsByProject = React.useMemo(() => {
+    const stats = new Map<string, { count: number; total: number; hasNeedsReview: boolean }>();
+    for (const inv of invoices) {
+      const s = stats.get(inv.projectId) ?? { count: 0, total: 0, hasNeedsReview: false };
+      stats.set(inv.projectId, {
+        count: s.count + 1,
+        total: s.total + (inv.amount ?? 0),
+        hasNeedsReview: s.hasNeedsReview || inv.status === "needs-review",
+      });
+    }
+    return stats;
+  }, [invoices]);
 
   // ── Per-project stats ──
   const statsByProject = React.useMemo(() => {
@@ -289,7 +311,7 @@ export function ProjectsTable({
   const filteredProjects = React.useMemo(() => {
     return projectList.filter((project) => {
       if (statusFilter.size > 0 && !statusFilter.has(project.status)) return false;
-      if (developerFilter.size > 0 && !developerFilter.has(project.developer)) return false;
+      if (developerFilter.size > 0 && !developerFilter.has(project.developerId)) return false;
       return true;
     });
   }, [projectList, statusFilter, developerFilter]);
@@ -322,7 +344,7 @@ export function ProjectsTable({
           <Plus className="h-3.5 w-3.5" />
           Add Project
         </Button>
-        <ProjectsExport projects={filteredProjects} costCodes={costCodes} />
+        <ProjectsExport projects={filteredProjects} costCodes={costCodes} developers={developers} />
       </div>
 
       {/* Add form */}
@@ -358,14 +380,14 @@ export function ProjectsTable({
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Developer</Label>
-                <Select value={newForm.developer || "__none__"} onValueChange={(v) => setNewForm((p) => ({ ...p, developer: v === "__none__" ? "" : v }))}>
+                <Select value={newForm.developerId || "__none__"} onValueChange={(v) => setNewForm((p) => ({ ...p, developerId: v === "__none__" ? "" : v }))}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="— None —" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__" className="text-xs">— None —</SelectItem>
                     {developers.map((d) => (
-                      <SelectItem key={d.id} value={d.name} className="text-xs">{d.name}</SelectItem>
+                      <SelectItem key={d.id} value={d.id} className="text-xs">{d.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -459,6 +481,9 @@ export function ProjectsTable({
                 <TableHead className="w-[75px] text-xs font-semibold px-3 text-center">
                   <div className="flex items-center justify-center gap-1"><ShieldCheck className="h-3 w-3" />Safety</div>
                 </TableHead>
+                <TableHead className="w-[130px] text-xs font-semibold px-3 text-center">
+                  <div className="flex items-center justify-center gap-1"><Receipt className="h-3 w-3" />Payables</div>
+                </TableHead>
                 <TableHead className="w-[110px] text-xs font-semibold px-3">
                   <ColumnFilter title="Status" options={statusOptions} selected={statusFilter} onChange={setStatusFilter} />
                 </TableHead>
@@ -468,8 +493,24 @@ export function ProjectsTable({
             <TableBody>
               {filteredProjects.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
-                    No projects match the current filters.
+                  <TableCell colSpan={11} className="h-40 text-center">
+                    {projectList.length === 0 ? (
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <FolderKanban className="h-8 w-8 opacity-30" />
+                        <p className="text-sm font-medium">No projects yet</p>
+                        <p className="text-xs">Create your first project to track time, reports and safety.</p>
+                        <button
+                          onClick={() => setAdding(true)}
+                          className="mt-1 text-xs text-primary hover:underline cursor-pointer"
+                        >
+                          + Add Project
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        No projects match the current filters.
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               )}
@@ -477,11 +518,12 @@ export function ProjectsTable({
                 const isEditing = editingIds.has(project.id);
                 const stats = statsByProject.get(project.id) ?? { timeCount: 0, totalHours: 0, photoCount: 0, reportCount: 0, safetyCount: 0 };
                 const hoursLabel = stats.totalHours > 0 ? `${stats.totalHours.toFixed(1)}h` : undefined;
+                const invStats = invoiceStatsByProject.get(project.id);
 
                 return (
                   <TableRow
                     key={project.id}
-                    className={`group h-[40px] transition-colors ${
+                    className={`group h-[36px] transition-colors ${
                       isEditing ? "bg-amber-50/40 dark:bg-amber-900/10" : "hover:bg-muted/30 cursor-pointer"
                     }`}
                     onClick={() => { if (!isEditing) router.push(`/projects/${project.id}`); }}
@@ -513,8 +555,8 @@ export function ProjectsTable({
                       {isEditing ? (
                         <div onClick={(e) => e.stopPropagation()}>
                           <CellSelect
-                            value={project.developer || DEVELOPER_NONE}
-                            onChange={(v) => updateProject(project.id, "developer", v === DEVELOPER_NONE ? "" : v)}
+                            value={project.developerId || DEVELOPER_NONE}
+                            onChange={(v) => updateProject(project.id, "developerId", v === DEVELOPER_NONE ? "" : v)}
                             options={developerSelectOptions}
                             placeholder="Select developer"
                             footer={
@@ -530,7 +572,7 @@ export function ProjectsTable({
                           />
                         </div>
                       ) : (
-                        <span className="px-2 text-xs text-muted-foreground">{project.developer || "—"}</span>
+                        <span className="px-2 text-xs text-muted-foreground">{developerMap[project.developerId] || "—"}</span>
                       )}
                     </TableCell>
 
@@ -567,6 +609,28 @@ export function ProjectsTable({
                     <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
                       <StatCell icon={ShieldCheck} count={stats.safetyCount}
                         tooltip={`${stats.safetyCount} safety form${stats.safetyCount !== 1 ? "s" : ""}`} />
+                    </TableCell>
+
+                    {/* Payables */}
+                    <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      {invStats ? (
+                        <Link href={`/payables?project=${project.id}`}>
+                          <div className="inline-flex flex-col items-center leading-tight group/pay cursor-pointer">
+                            <span className={`text-xs font-semibold group-hover/pay:underline ${
+                              invStats.hasNeedsReview ? "text-amber-600" : "text-foreground"
+                            }`}>
+                              ${invStats.total.toLocaleString("en-CA", { maximumFractionDigits: 0 })}
+                            </span>
+                            <span className={`text-[10px] ${
+                              invStats.hasNeedsReview ? "text-amber-500" : "text-muted-foreground"
+                            }`}>
+                              {invStats.count} invoice{invStats.count !== 1 ? "s" : ""}{invStats.hasNeedsReview ? " ·  review" : ""}
+                            </span>
+                          </div>
+                        </Link>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/40">—</span>
+                      )}
                     </TableCell>
 
                     {/* Status */}
@@ -651,7 +715,7 @@ const PROJECT_GROUP_OPTIONS = [
   { value: "developer", label: "Developer" },
 ];
 
-function ProjectsExport({ projects, costCodes }: { projects: Project[]; costCodes: CostCode[] }) {
+function ProjectsExport({ projects, costCodes, developers }: { projects: Project[]; costCodes: CostCode[]; developers: import("@/lib/types/time-tracking").Developer[] }) {
   const { profile } = useCompanyProfile();
 
   const handleExport = (config: ExportConfig) => {
@@ -659,16 +723,16 @@ function ProjectsExport({ projects, costCodes }: { projects: Project[]; costCode
     const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
 
     if (config.format === "excel") {
-      exportToExcel(projects, projectCSVColumns(costCodes), filename, config.selectedColumns);
+      exportToExcel(projects, projectCSVColumns(costCodes, developers), filename, config.selectedColumns);
     } else if (config.format === "csv") {
-      exportToCSV(projects, projectCSVColumns(costCodes), filename, config.selectedColumns);
+      exportToCSV(projects, projectCSVColumns(costCodes, developers), filename, config.selectedColumns);
     } else {
       generatePDF({
         title: config.title,
         filename,
         company: profile,
         columns: projectPDFColumns,
-        rows: projectPDFRows(projects, costCodes),
+        rows: projectPDFRows(projects, costCodes, developers),
         orientation: config.orientation,
         selectedColumns: config.selectedColumns,
         groupBy: config.groupBy,
@@ -682,7 +746,7 @@ function ProjectsExport({ projects, costCodes }: { projects: Project[]; costCode
       filename: "preview",
       company: profile,
       columns: projectPDFColumns,
-      rows: projectPDFRows(projects, costCodes),
+      rows: projectPDFRows(projects, costCodes, developers),
       orientation: config.orientation,
       selectedColumns: config.selectedColumns,
       groupBy: config.groupBy,

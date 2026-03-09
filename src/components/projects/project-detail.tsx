@@ -20,8 +20,6 @@ import {
   Search,
   Receipt,
   Plus,
-  CheckCircle2,
-  XCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -56,6 +54,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ColumnFilter } from "@/components/time-tracking/column-filter";
 import { DateColumnFilter } from "@/components/time-tracking/date-column-filter";
 import DailyReportFormDialog from "@/components/daily-reports/daily-report-form-dialog";
 
@@ -66,8 +65,10 @@ import {
   useSafetyForms,
   useInvoices,
   useVendors,
+  useDevelopers,
 } from "@/hooks/use-firestore";
 import { InvoiceUploadDialog } from "@/components/payables/invoice-upload-dialog";
+import { PayablesTable } from "@/components/payables/payables-table";
 import { Collections } from "@/lib/firebase/collections";
 import { useAuth } from "@/lib/firebase/auth-context";
 import {
@@ -366,166 +367,6 @@ function CostCodesTab({
 }
 
 // ────────────────────────────────────────────
-// Invoices Tab
-// ────────────────────────────────────────────
-
-const invoiceStatusColors: Record<InvoiceStatus, string> = {
-  "needs-review": "bg-yellow-100 text-yellow-800 border-yellow-200",
-  approved: "bg-green-100 text-green-800 border-green-200",
-  rejected: "bg-red-100 text-red-800 border-red-200",
-};
-
-const invoiceStatusLabels: Record<InvoiceStatus, string> = {
-  "needs-review": "Needs Review",
-  approved: "Approved",
-  rejected: "Rejected",
-};
-
-function InvoicesTab({ projectId }: { projectId: string }) {
-  const { user } = useAuth();
-  const { data: allInvoices, update: updateInvoice } = useInvoices();
-  const { data: vendors } = useVendors();
-  const { data: costCodes } = useCostCodes();
-  const [uploadOpen, setUploadOpen] = React.useState(false);
-  const [allProjects] = useFirestoreState<Project>(Collections.PROJECTS);
-
-  const projectInvoices = React.useMemo(
-    () => [...allInvoices]
-      .filter((inv) => inv.projectId === projectId)
-      .sort((a, b) => b.date.localeCompare(a.date)),
-    [allInvoices, projectId]
-  );
-
-  const vendorMap = React.useMemo(
-    () => Object.fromEntries(vendors.map((v) => [v.id, v.name])),
-    [vendors]
-  );
-
-  const costCodeMap = React.useMemo(
-    () => Object.fromEntries(costCodes.map((c) => [c.id, c.code])),
-    [costCodes]
-  );
-
-  const handleApprove = (inv: Invoice) => {
-    const actor = user?.displayName || user?.email || "Unknown";
-    updateInvoice(inv.id, { status: "approved", approvedAt: new Date().toISOString(), approvedBy: actor, rejectedAt: undefined, rejectedBy: undefined } as Partial<Invoice>);
-  };
-
-  const handleReject = (inv: Invoice) => {
-    const actor = user?.displayName || user?.email || "Unknown";
-    updateInvoice(inv.id, { status: "rejected", rejectedAt: new Date().toISOString(), rejectedBy: actor, approvedAt: undefined, approvedBy: undefined } as Partial<Invoice>);
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {projectInvoices.length} invoice{projectInvoices.length !== 1 ? "s" : ""} for this project
-        </p>
-        <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setUploadOpen(true)}>
-          <Plus className="h-3.5 w-3.5" />
-          Upload Invoice
-        </Button>
-      </div>
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[110px] text-xs font-semibold px-3">Date</TableHead>
-                <TableHead className="w-[170px] text-xs font-semibold px-3">Vendor</TableHead>
-                <TableHead className="w-[110px] text-xs font-semibold px-3">Amount</TableHead>
-                <TableHead className="w-[120px] text-xs font-semibold px-3">Cost Code</TableHead>
-                <TableHead className="w-[90px] text-xs font-semibold px-3">Status</TableHead>
-                <TableHead className="w-[60px] text-xs font-semibold px-3">PDF</TableHead>
-                <TableHead className="w-[100px] text-xs font-semibold px-3">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {projectInvoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground text-sm">
-                    No invoices yet. Upload the first one.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                projectInvoices.map((inv) => (
-                  <TableRow key={inv.id} className="h-[36px] group">
-                    <TableCell className="text-xs px-3">{inv.date}</TableCell>
-                    <TableCell className="text-xs px-3">{vendorMap[inv.vendorId] ?? "—"}</TableCell>
-                    <TableCell className="text-xs px-3 font-medium">
-                      ${inv.amount.toLocaleString("en-CA", { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-xs px-3 text-muted-foreground">
-                      {inv.costCodeId ? costCodeMap[inv.costCodeId] ?? "—" : "—"}
-                    </TableCell>
-                    <TableCell className="px-3">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] font-medium ${invoiceStatusColors[inv.status]}`}
-                      >
-                        {invoiceStatusLabels[inv.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-3">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" asChild>
-                        <a href={inv.fileUrl} target="_blank" rel="noopener noreferrer">
-                          <FileText className="h-3.5 w-3.5" />
-                        </a>
-                      </Button>
-                    </TableCell>
-                    <TableCell className="px-3">
-                      <div className="flex items-center gap-0.5">
-                        {inv.status !== "approved" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-green-600 hover:bg-green-50"
-                            onClick={() => handleApprove(inv)}
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {inv.status !== "rejected" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-500 hover:bg-red-50"
-                            onClick={() => handleReject(inv)}
-                          >
-                            <XCircle className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        {projectInvoices.length > 0 && (
-          <div className="border-t px-3 py-2 text-xs text-muted-foreground flex justify-between">
-            <span>{projectInvoices.length} invoices</span>
-            <span className="font-medium text-foreground">
-              Total: ${projectInvoices.reduce((s, i) => s + i.amount, 0).toLocaleString("en-CA", { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-        )}
-      </div>
-      <InvoiceUploadDialog
-        open={uploadOpen}
-        onOpenChange={setUploadOpen}
-        projects={allProjects}
-        vendors={vendors}
-        costCodes={costCodes}
-        defaultProjectId={projectId}
-      />
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────
 // Main component
 // ────────────────────────────────────────────
 
@@ -539,6 +380,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const { data: employees } = useEmployees();
   const { data: costCodes } = useCostCodes();
   const { data: safetyForms, loading: loadingSafety } = useSafetyForms();
+  const { data: developers } = useDevelopers();
+  const { data: allInvoices, update: updateInvoice, remove: removeInvoice } = useInvoices();
+  const { data: vendors } = useVendors();
+  const { user } = useAuth();
 
   // Editable collections
   const [allTimeEntries, setAllTimeEntries, loadingTime, savingTime] =
@@ -558,17 +403,30 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const [reportDateRange, setReportDateRange] = React.useState<DateRange | undefined>(undefined);
   const [safetyDateRange, setSafetyDateRange] = React.useState<DateRange | undefined>(undefined);
 
+  // ── Time entries column filters ──
+  const [timeEmployeeFilter, setTimeEmployeeFilter] = React.useState<Set<string>>(new Set());
+  const [timeCostCodeFilter, setTimeCostCodeFilter] = React.useState<Set<string>>(new Set());
+
   // ── Daily report dialog state ──
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [activeReport, setActiveReport] = React.useState<DailyReport | null>(null);
+
+  // ── Invoice upload dialog state ──
+  const [invoiceUploadOpen, setInvoiceUploadOpen] = React.useState(false);
 
   // ── Filtered data ──
   const projectTimeEntries = React.useMemo(
     () =>
       allTimeEntries
-        .filter((te) => te.projectId === projectId && matchesDateRange(te.date, timeDateRange))
+        .filter((te) => {
+          if (te.projectId !== projectId) return false;
+          if (!matchesDateRange(te.date, timeDateRange)) return false;
+          if (timeEmployeeFilter.size > 0 && !timeEmployeeFilter.has(te.employeeId)) return false;
+          if (timeCostCodeFilter.size > 0 && !timeCostCodeFilter.has(te.costCodeId)) return false;
+          return true;
+        })
         .sort((a, b) => b.date.localeCompare(a.date)),
-    [allTimeEntries, projectId, timeDateRange]
+    [allTimeEntries, projectId, timeDateRange, timeEmployeeFilter, timeCostCodeFilter]
   );
 
   const projectDailyReports = React.useMemo(
@@ -617,7 +475,42 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     employees.find((e) => e.id === id)?.name ?? "—";
 
   const employeeOptions = employees.map((e) => ({ id: e.id, label: e.name }));
-  const costCodeOptions = costCodes.map((c) => ({ id: c.id, label: c.description }));
+  const costCodeOptions = costCodes.map((c) => ({ id: c.id, label: c.code }));
+
+  const developerName = React.useMemo(
+    () => developers.find((d) => d.id === project?.developerId)?.name ?? "",
+    [developers, project?.developerId]
+  );
+
+  // ── Payables summary (unfiltered for summary card) ──
+  const projectInvoiceStats = React.useMemo(() => {
+    const invs = allInvoices.filter((i) => i.projectId === projectId);
+    const approved = invs.filter((i) => i.status === "approved").reduce((s, i) => s + i.amount, 0);
+    const pending = invs.filter((i) => i.status === "needs-review").reduce((s, i) => s + i.amount, 0);
+    const total = invs.reduce((s, i) => s + i.amount, 0);
+    return { count: invs.length, approved, pending, total };
+  }, [allInvoices, projectId]);
+
+  // ── Invoices for this project ──
+  const projectInvoices = React.useMemo(
+    () => [...allInvoices]
+      .filter((inv) => inv.projectId === projectId)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+    [allInvoices, projectId]
+  );
+
+  const handleInvoiceUpdateStatus = React.useCallback((id: string, status: InvoiceStatus) => {
+    const actor = user?.displayName || user?.email || "Unknown";
+    const now = new Date().toISOString();
+    updateInvoice(id, {
+      status,
+      ...(status === "approved"
+        ? { approvedAt: now, approvedBy: actor, rejectedAt: undefined, rejectedBy: undefined }
+        : status === "rejected"
+        ? { rejectedAt: now, rejectedBy: actor, approvedAt: undefined, approvedBy: undefined }
+        : { approvedAt: undefined, approvedBy: undefined, rejectedAt: undefined, rejectedBy: undefined }),
+    } as Partial<Invoice>);
+  }, [user, updateInvoice]);
 
   // ── Total hours (unfiltered for summary card) ──
   const allProjectTimeEntries = React.useMemo(
@@ -729,10 +622,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                 {project.number}
               </span>
             )}
-            {project.developer && (
+            {developerName && (
               <span className="flex items-center gap-1">
                 <User className="h-3.5 w-3.5" />
-                {project.developer}
+                {developerName}
               </span>
             )}
             {(project.address || project.city || project.province) && (
@@ -746,7 +639,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
       </div>
 
       {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-5">
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Clock className="h-4 w-4" />
@@ -780,6 +673,21 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           </div>
           <div className="mt-1 text-2xl font-bold">{allPhotos.length}</div>
         </div>
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Receipt className="h-4 w-4" />
+            Payables
+          </div>
+          <div className="mt-1 text-2xl font-bold">
+            ${projectInvoiceStats.total.toLocaleString("en-CA", { maximumFractionDigits: 0 })}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+            <span className="text-green-600">${projectInvoiceStats.approved.toLocaleString("en-CA", { maximumFractionDigits: 0 })} approved</span>
+            {projectInvoiceStats.pending > 0 && (
+              <span className="text-amber-600">${projectInvoiceStats.pending.toLocaleString("en-CA", { maximumFractionDigits: 0 })} pending</span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -801,13 +709,13 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             <ImageIcon className="h-3.5 w-3.5" />
             Photos
           </TabsTrigger>
+          <TabsTrigger value="invoices" className="gap-1.5">
+            <Receipt className="h-3.5 w-3.5" />
+            Payables
+          </TabsTrigger>
           <TabsTrigger value="cost-codes" className="gap-1.5">
             <Hash className="h-3.5 w-3.5" />
             Cost Codes
-          </TabsTrigger>
-          <TabsTrigger value="invoices" className="gap-1.5">
-            <Receipt className="h-3.5 w-3.5" />
-            Invoices
           </TabsTrigger>
         </TabsList>
 
@@ -824,8 +732,22 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                         onDateRangeChange={setTimeDateRange}
                       />
                     </TableHead>
-                    <TableHead className="w-[160px] text-xs font-semibold px-3">Employee</TableHead>
-                    <TableHead className="w-[180px] text-xs font-semibold px-3">Cost Code</TableHead>
+                    <TableHead className="w-[160px] px-3">
+                      <ColumnFilter
+                        title="Employee"
+                        options={employeeOptions}
+                        selected={timeEmployeeFilter}
+                        onChange={setTimeEmployeeFilter}
+                      />
+                    </TableHead>
+                    <TableHead className="w-[180px] px-3">
+                      <ColumnFilter
+                        title="Cost Code"
+                        options={costCodeOptions}
+                        selected={timeCostCodeFilter}
+                        onChange={setTimeCostCodeFilter}
+                      />
+                    </TableHead>
                     <TableHead className="w-[110px] text-xs font-semibold px-3">Work Type</TableHead>
                     <TableHead className="w-[80px] text-xs font-semibold px-3">Hours</TableHead>
                     <TableHead className="w-[110px] text-xs font-semibold px-3">Approval</TableHead>
@@ -1118,9 +1040,33 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           <PhotoGallery photos={allPhotos} />
         </TabsContent>
 
-        {/* ── Invoices ── */}
+        {/* ── Payables ── */}
         <TabsContent value="invoices" className="mt-4">
-          <InvoicesTab projectId={projectId} />
+          <div className="space-y-3">
+            <div className="flex items-center justify-end">
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setInvoiceUploadOpen(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                Upload Invoice
+              </Button>
+            </div>
+            <PayablesTable
+              invoices={projectInvoices}
+              projects={projects}
+              vendors={vendors}
+              costCodes={costCodes}
+              onUpdateStatus={handleInvoiceUpdateStatus}
+              onUpdate={(id, updates) => updateInvoice(id, updates as Partial<Invoice>)}
+              onDelete={(id) => removeInvoice(id)}
+            />
+          </div>
+          <InvoiceUploadDialog
+            open={invoiceUploadOpen}
+            onOpenChange={setInvoiceUploadOpen}
+            projects={projects}
+            vendors={vendors}
+            costCodes={costCodes}
+            defaultProjectId={projectId}
+          />
         </TabsContent>
 
         {/* ── Cost Codes ── */}

@@ -17,6 +17,7 @@ import type {
   CostCode,
   SafetyForm,
   DailyReport,
+  Developer,
 } from "@/lib/types/time-tracking";
 import type { Column } from "./csv";
 import type { PDFColumn } from "./pdf";
@@ -55,7 +56,7 @@ export function timeEntryColumns(
       header: "Cost Code",
       accessor: (r) => {
         const cc = costCodes.find((x) => x.id === r.costCodeId);
-        return cc?.description || r.costCodeId;
+        return cc?.code || r.costCodeId;
       },
     },
     {
@@ -127,7 +128,7 @@ export function timeEntryPDFRows(
     })(),
     costCode: (() => {
       const cc = costCodes.find((x) => x.id === r.costCodeId);
-      return cc?.description || r.costCodeId;
+      return cc?.code || r.costCodeId;
     })(),
     workType: r.workType === "lump-sum" ? "Lump Sum" : "T&M",
     hours: r.hours,
@@ -164,11 +165,12 @@ export function employeePDFRows(data: Employee[]): Record<string, string | numbe
 }
 
 // ── Projects ──
-export function projectCSVColumns(costCodes: CostCode[]): Column<Project>[] {
+export function projectCSVColumns(costCodes: CostCode[], developers: Developer[] = []): Column<Project>[] {
+  const devMap = Object.fromEntries(developers.map((d) => [d.id, d.name]));
   return [
     { id: "number", header: "Number", accessor: (r) => r.number },
     { id: "name", header: "Name", accessor: (r) => r.name },
-    { id: "developer", header: "Developer", accessor: (r) => r.developer || "" },
+    { id: "developer", header: "Developer", accessor: (r) => devMap[r.developerId] || "" },
     { id: "address", header: "Address", accessor: (r) => r.address || "" },
     { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
     {
@@ -192,11 +194,12 @@ export const projectPDFColumns: PDFColumn[] = [
   { header: "Cost Codes", dataKey: "costCodes" },
 ];
 
-export function projectPDFRows(data: Project[], costCodes: CostCode[]): Record<string, string | number>[] {
+export function projectPDFRows(data: Project[], costCodes: CostCode[], developers: Developer[] = []): Record<string, string | number>[] {
+  const devMap = Object.fromEntries(developers.map((d) => [d.id, d.name]));
   return data.map((r) => ({
     number: r.number,
     name: r.name,
-    developer: r.developer || "",
+    developer: devMap[r.developerId] || "",
     address: r.address || "",
     status: capitalize(r.status),
     costCodes: r.costCodeIds

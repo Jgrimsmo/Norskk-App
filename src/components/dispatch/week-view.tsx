@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { DispatchAssignment } from "@/lib/types/time-tracking";
 import type { OnRemoveResource, ResourceType } from "./dispatch-helpers";
 import { getProjectColor } from "./dispatch-helpers";
+import { WeekDayAvailability } from "./available-resources";
 import {
   useEmployees,
   useProjects,
@@ -22,12 +23,13 @@ interface WeekViewProps {
   onRemoveResource: OnRemoveResource;
   onRemoveDispatch: (dispatchId: string) => void;
   onResizeDispatch: (dispatchId: string, newEndDate: string) => void;
-  onUpdateResourceDates: (dispatchId: string, resourceId: string, start: string, end: string) => void;
+  onUpdateResourceDates: (dispatchId: string, resourceId: string, rangeIndex: number, start: string, end: string) => void;
   onAddResource: (dispatchId: string, type: ResourceType, resourceId: string) => void;
   onAddResourceToDay: (dispatchId: string, type: ResourceType, resourceId: string, dayStr: string) => void;
   onAssignProjectToDay: (projectId: string, day: Date) => void;
   hasSelection: boolean;
   onExpandDay: (day: Date) => void;
+  getDispatchesForDay: (day: Date) => import("@/lib/types/time-tracking").DispatchAssignment[];
 }
 
 // ── Row-packing for multi-day spanning cards ──
@@ -75,6 +77,7 @@ export function WeekView({
   onAssignProjectToDay,
   hasSelection,
   onExpandDay,
+  getDispatchesForDay,
 }: WeekViewProps) {
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
@@ -89,7 +92,7 @@ export function WeekView({
   const resizeMinColRef = React.useRef(0);
 
   type ChipResize = {
-    dispatchId: string; resourceId: string; edge: "start" | "end";
+    dispatchId: string; resourceId: string; rangeIndex: number; edge: "start" | "end";
     barStartCol: number; barEndCol: number; cardStartCol: number; cardEndCol: number;
   };
   const [chipResizing, setChipResizing] = React.useState<ChipResize | null>(null);
@@ -124,7 +127,7 @@ export function WeekView({
       if (chipResizing) {
         const s = dayStrs[chipResizing.cardStartCol + chipResizing.barStartCol];
         const e = dayStrs[chipResizing.cardStartCol + chipResizing.barEndCol];
-        onUpdateResourceDates(chipResizing.dispatchId, chipResizing.resourceId, s, e);
+        onUpdateResourceDates(chipResizing.dispatchId, chipResizing.resourceId, chipResizing.rangeIndex, s, e);
         setChipResizing(null);
       }
     };
@@ -353,61 +356,81 @@ export function WeekView({
                                   {label}
                                 </div>
                                 {items.map(({ id, type, name }) => {
-                              const rd = dispatch.resourceDates?.[id];
-                              const rdStart = rd?.start ?? dispatch.date;
-                              const rdEnd = rd?.end ?? (dispatch.endDate ?? dispatch.date);
-                              const defaultBarStart = Math.max(0, dayStrs.indexOf(rdStart) - startCol);
-                              const defaultBarEnd = Math.min(spanDays - 1, Math.max(defaultBarStart, dayStrs.indexOf(rdEnd) - startCol));
+                              // Build ranges: normalize to array (handles legacy single-object format), fall back to full dispatch span
+                              const rawRanges = dispatch.resourceDates?.[id];
+                              const storedRanges: { start: string; end: string }[] = !rawRanges
+                                ? []
+                                : Array.isArray(rawRanges)
+                                  ? rawRanges
+                                  : (rawRanges as { start?: string; end?: string }).start
+                                    ? [{ start: (rawRanges as { start: string; end: string }).start, end: (rawRanges as { start: string; end: string }).end }]
+                                    : [];
+                              const ranges = storedRanges.length > 0
+                                ? storedRanges
+                                : [{ start: dispatch.date, end: dispatch.endDate ?? dispatch.date }];
 
-                              const isChipResizing = chipResizing?.dispatchId === dispatch.id && chipResizing.resourceId === id;
-                              const barStart = isChipResizing ? chipResizing!.barStartCol : defaultBarStart;
-                              const barEnd = isChipResizing ? chipResizing!.barEndCol : defaultBarEnd;
-                              const barSpan = barEnd - barStart + 1;
+                              // Compute bar positions for all ranges
+                              const bars = ranges.map((range, rangeIndex) => {
+                                const isChipResizingThis = chipResizing?.dispatchId === dispatch.id && chipResizing.resourceId === id && chipResizing.rangeIndex === rangeIndex;
+                                const defaultBarStart = Math.max(0, dayStrs.indexOf(range.start) - startCol);
+                                const defaultBarEnd = Math.min(spanDays - 1, Math.max(defaultBarStart, dayStrs.indexOf(range.end) - startCol));
+                                const barStart = isChipResizingThis ? chipResizing!.barStartCol : defaultBarStart;
+                                const barEnd = isChipResizingThis ? chipResizing!.barEndCol : defaultBarEnd;
+                                return { rangeIndex, barStart, barEnd, defaultBarStart, defaultBarEnd };
+                              }).filter(({ defaultBarStart, defaultBarEnd }) => defaultBarStart <= spanDays - 1 && defaultBarEnd >= 0);
+
+                              if (bars.length === 0) return null;
+
+                              const handleRemove = (rangeIndex: number) => {
+                                if (ranges.length <= 1) {
+                                  onRemoveResource(dispatch.id, type, id);
+                                } else {
+                                  onUpdateResourceDates(dispatch.id, id, rangeIndex, "", "");
+                                }
+                              };
 
                               return (
+                                // One row per resource — all ranges rendered as bars inside the same grid
                                 <div
                                   key={id}
                                   className="grid items-center"
                                   style={{ gridTemplateColumns: `repeat(${spanDays}, 1fr)`, minHeight: "1.5rem" }}
                                 >
-                                  {/* Empty cells to left of bar — show column dividers */}
-                                  {Array.from({ length: barStart }).map((_, i) => (
-                                    <div key={i} className={i < spanDays - 1 ? "border-r border-black/15 h-full" : "h-full"} />
-                                  ))}
-                                  {/* The bar itself — mx-1 keeps it inset from column dividers */}
-                                  <div
-                                    className="relative flex items-center bg-white/20 border border-white/30 mx-1"
-                                    style={{ gridColumn: `${barStart + 1} / span ${barSpan}` }}
-                                  >
-                                    {/* Left resize handle — visible slim strip */}
-                                    <div
-                                      className="shrink-0 self-stretch w-2 cursor-col-resize hover:bg-white/20 transition-colors"
-                                      onMouseDown={(e) => {
-                                        e.preventDefault(); e.stopPropagation();
-                                        setChipResizing({ dispatchId: dispatch.id, resourceId: id, edge: "start", barStartCol: barStart, barEndCol: barEnd, cardStartCol: startCol, cardEndCol: displayEndCol });
-                                      }}
-                                    />
-                                    {/* X delete */}
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); onRemoveResource(dispatch.id, type, id); }}
-                                      className="shrink-0 text-white/50 hover:text-white cursor-pointer"
-                                    >
-                                      <X className="h-2.5 w-2.5" />
-                                    </button>
-                                    <span className="text-xs text-white truncate px-1.5 leading-snug flex-1">{name}</span>
-                                    {/* GripVertical IS the right resize handle */}
-                                    <GripVertical
-                                      className="h-3 w-3 text-white/40 shrink-0 cursor-col-resize hover:text-white/80 transition-colors"
-                                      onMouseDown={(e) => {
-                                        e.preventDefault(); e.stopPropagation();
-                                        setChipResizing({ dispatchId: dispatch.id, resourceId: id, edge: "end", barStartCol: barStart, barEndCol: barEnd, cardStartCol: startCol, cardEndCol: displayEndCol });
-                                      }}
-                                    />
-                                  </div>
-                                  {/* Empty cells to right of bar */}
-                                  {Array.from({ length: spanDays - barEnd - 1 }).map((_, i) => (
-                                    <div key={i} className={i > 0 ? "border-l border-black/15 h-full" : "h-full"} />
-                                  ))}
+                                  {bars.map(({ rangeIndex, barStart, barEnd }) => {
+                                    const barSpan = barEnd - barStart + 1;
+                                    return (
+                                      <div
+                                        key={rangeIndex}
+                                        className="relative flex items-center bg-white/20 border border-white/30 mx-1"
+                                        style={{ gridColumn: `${barStart + 1} / span ${barSpan}`, gridRow: 1 }}
+                                      >
+                                        {/* Left resize handle */}
+                                        <div
+                                          className="shrink-0 self-stretch w-2 cursor-col-resize hover:bg-white/20 transition-colors"
+                                          onMouseDown={(e) => {
+                                            e.preventDefault(); e.stopPropagation();
+                                            setChipResizing({ dispatchId: dispatch.id, resourceId: id, rangeIndex, edge: "start", barStartCol: barStart, barEndCol: barEnd, cardStartCol: startCol, cardEndCol: displayEndCol });
+                                          }}
+                                        />
+                                        {/* X delete */}
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleRemove(rangeIndex); }}
+                                          className="shrink-0 text-white/50 hover:text-white cursor-pointer"
+                                        >
+                                          <X className="h-2.5 w-2.5" />
+                                        </button>
+                                        <span className="text-xs text-white truncate px-1.5 leading-snug flex-1">{name}</span>
+                                        {/* Right resize handle */}
+                                        <GripVertical
+                                          className="h-3 w-3 text-white/40 shrink-0 cursor-col-resize hover:text-white/80 transition-colors"
+                                          onMouseDown={(e) => {
+                                            e.preventDefault(); e.stopPropagation();
+                                            setChipResizing({ dispatchId: dispatch.id, resourceId: id, rangeIndex, edge: "end", barStartCol: barStart, barEndCol: barEnd, cardStartCol: startCol, cardEndCol: displayEndCol });
+                                          }}
+                                        />
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               );
                             })}
@@ -447,6 +470,15 @@ export function WeekView({
                   : "Select a project and resources to begin dispatching"}
               </div>
             )}
+          </div>
+
+          {/* ── Per-day availability row ── */}
+          <div className="grid grid-cols-7 gap-0 border-t border-border/40 mt-2 pt-2">
+            {days.map((day) => (
+              <div key={day.toISOString()} className="px-1 border-r last:border-r-0 border-border/30">
+                <WeekDayAvailability dispatches={getDispatchesForDay(day)} isDraggable={true} dayStr={format(day, "yyyy-MM-dd")} />
+              </div>
+            ))}
           </div>
         </div>
       </ScrollArea>

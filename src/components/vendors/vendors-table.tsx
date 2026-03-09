@@ -118,7 +118,7 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
                 <TableHead className="w-[160px] text-xs font-semibold px-3">Contact</TableHead>
                 <TableHead className="w-[150px] text-xs font-semibold px-3">Phone</TableHead>
                 <TableHead className="text-xs font-semibold px-3">Email</TableHead>
-                <TableHead className="w-[60px] text-xs font-semibold px-3">Actions</TableHead>
+                <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,7 +134,13 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
                 return (
                   <TableRow
                     key={vendor.id}
-                    className={`group h-[36px] ${isLocked ? "" : "bg-amber-50/40 dark:bg-amber-900/10"}`}
+                    className={`group h-[36px] ${
+                      isLocked
+                        ? "cursor-pointer hover:bg-muted/20"
+                        : "bg-amber-50/40 dark:bg-amber-900/10"
+                    }`}
+                    onClick={isLocked ? (e) => unlockRow(vendor.id, e) : undefined}
+                    title={isLocked ? "Click to edit" : undefined}
                   >
                     {/* Name */}
                     <TableCell className="p-0 px-1">
@@ -155,7 +161,7 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
                         vendor.type ? (
                           <Badge
                             variant="outline"
-                            className={`text-[10px] capitalize ${typeColors[vendor.type]}`}
+                            className={`text-[10px] font-medium capitalize ${typeColors[vendor.type]}`}
                           >
                             {vendor.type}
                           </Badge>
@@ -213,14 +219,14 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5">
                         {isLocked ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-amber-500 hover:text-amber-700 hover:bg-amber-50"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
                                 onClick={(e) => unlockRow(vendor.id, e)}
                               >
                                 <Pencil className="h-3.5 w-3.5" />

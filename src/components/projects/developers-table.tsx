@@ -242,22 +242,22 @@ export function DevelopersTable() {
       )}
 
       {/* Table */}
-      <div className="rounded-lg border">
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">Company Name</TableHead>
-              <TableHead className="text-xs">Contact</TableHead>
-              <TableHead className="text-xs">Phone</TableHead>
-              <TableHead className="text-xs">Email</TableHead>
-              <TableHead className="text-xs w-[100px]">Actions</TableHead>
+            <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
+              <TableHead className="text-xs font-semibold px-3">Company Name</TableHead>
+              <TableHead className="text-xs font-semibold px-3">Contact</TableHead>
+              <TableHead className="text-xs font-semibold px-3">Phone</TableHead>
+              <TableHead className="text-xs font-semibold px-3">Email</TableHead>
+              <TableHead className="text-xs font-semibold px-3 w-[80px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sorted.map((d) => {
               const isEditing = editingId === d.id;
               return (
-                <TableRow key={d.id}>
+                <TableRow key={d.id} className="group h-[36px] hover:bg-muted/30">
                   <TableCell className="text-xs font-medium">
                     {isEditing ? (
                       <Input
@@ -311,7 +311,7 @@ export function DevelopersTable() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5">
                       {isEditing ? (
                         <>
                           <Button
@@ -353,7 +353,7 @@ export function DevelopersTable() {
               <TableRow>
                 <TableCell
                   colSpan={5}
-                  className="text-center text-sm text-muted-foreground py-8"
+                  className="h-32 text-center text-muted-foreground"
                 >
                   {searchQuery
                     ? "No developers match your search."

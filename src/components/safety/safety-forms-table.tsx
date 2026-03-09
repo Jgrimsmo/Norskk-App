@@ -3,7 +3,7 @@
 import * as React from "react";
 import { format, parseISO, isWithinInterval } from "date-fns";
 import { DateRange } from "react-day-picker";
-import { Plus, ExternalLink } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
@@ -263,7 +263,7 @@ export function SafetyFormsTable({
                     onChange={setStatusFilter}
                   />
                 </TableHead>
-                <TableHead className="w-[70px] text-xs font-semibold px-3">Actions</TableHead>
+                <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -280,7 +280,7 @@ export function SafetyFormsTable({
               {filteredForms.map((form) => (
                 <TableRow
                   key={form.id}
-                  className="group h-[40px] cursor-pointer hover:bg-muted/30 transition-colors"
+                  className="group h-[36px] cursor-pointer hover:bg-muted/30 transition-colors"
                   onClick={() => openFormDialog(form)}
                 >
                   {/* Date */}
@@ -331,32 +331,23 @@ export function SafetyFormsTable({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-primary cursor-pointer"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
                             onClick={(e) => {
                               e.stopPropagation();
                               openFormDialog(form);
                             }}
                           >
-                            <ExternalLink className="h-3.5 w-3.5" />
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="left">
-                          <p className="text-xs">Open form</p>
+                          <p className="text-xs">Edit form</p>
                         </TooltipContent>
                       </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div>
-                            <DeleteConfirmButton
-                              onConfirm={() => deleteRow(form.id)}
-                              itemLabel="this safety form"
-                            />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="left">
-                          <p className="text-xs">Delete form</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <DeleteConfirmButton
+                        onConfirm={() => deleteRow(form.id)}
+                        itemLabel="this safety form"
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

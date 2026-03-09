@@ -91,7 +91,13 @@ export function MonthView({
                         {project?.name}
                         <span className="ml-auto flex items-center gap-0.5 text-muted-foreground">
                           <Users className="h-2.5 w-2.5" />
-                          {dispatch.employeeIds.length}
+                          {dispatch.employeeIds.filter((id) => {
+                            const dayStr = format(day, "yyyy-MM-dd");
+                            const ranges = dispatch.resourceDates?.[id];
+                            if (!ranges) return true;
+                            const arr = Array.isArray(ranges) ? ranges : [ranges as { start: string; end: string }];
+                            return arr.some((r) => dayStr >= r.start && dayStr <= r.end);
+                          }).length}
                         </span>
                       </span>
                     </div>

@@ -233,7 +233,7 @@ export default function DailyReportsTable() {
             className="text-xs cursor-pointer gap-1"
             onClick={handleNewReport}
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3.5 w-3.5" />
             New Daily Report
           </Button>
         </div>
@@ -243,15 +243,15 @@ export default function DailyReportsTable() {
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="w-[100px]">
+            <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
+              <TableHead className="w-[100px] text-xs font-semibold px-3">
                 <DateColumnFilter
                   dateRange={dateRange}
                   onDateRangeChange={setDateRange}
                 />
               </TableHead>
-              <TableHead className="w-[70px]">Time</TableHead>
-              <TableHead>
+              <TableHead className="w-[70px] text-xs font-semibold px-3">Time</TableHead>
+              <TableHead className="text-xs font-semibold px-3">
                 <ColumnFilter
                   title="Project"
                   options={projectOptions}
@@ -259,7 +259,7 @@ export default function DailyReportsTable() {
                   onChange={setProjectFilter}
                 />
               </TableHead>
-              <TableHead>
+              <TableHead className="text-xs font-semibold px-3">
                 <ColumnFilter
                   title="Author"
                   options={authorOptions}
@@ -267,21 +267,18 @@ export default function DailyReportsTable() {
                   onChange={setAuthorFilter}
                 />
               </TableHead>
-              <TableHead className="w-[120px]">Weather</TableHead>
-              <TableHead className="w-[70px]">Staff</TableHead>
-              <TableHead className="w-[60px]">Photos</TableHead>
+              <TableHead className="w-[120px] text-xs font-semibold px-3">Weather</TableHead>
+              <TableHead className="w-[70px] text-xs font-semibold px-3">Staff</TableHead>
+              <TableHead className="w-[60px] text-xs font-semibold px-3">Photos</TableHead>
 
-              <TableHead className="w-[60px]" />
+              <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredReports.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
-                  <FileText className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    No reports found
-                  </p>
+                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                  No reports found.
                 </TableCell>
               </TableRow>
             ) : (
@@ -300,7 +297,7 @@ export default function DailyReportsTable() {
                 return (
                   <TableRow
                     key={report.id}
-                    className="cursor-pointer hover:bg-muted/30 transition-colors"
+                    className="group h-[36px] cursor-pointer hover:bg-muted/30 transition-colors"
                     onClick={() => openReport(report)}
                   >
                     <TableCell className="text-xs font-medium">

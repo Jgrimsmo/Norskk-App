@@ -35,8 +35,10 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAuth } from "@/lib/firebase/auth-context";
 import type { LucideIcon } from "lucide-react";
 
 interface NavItem {
@@ -102,6 +104,16 @@ export function AppSidebar() {
   const { toggleSidebar, open } = useSidebar();
   const { profile } = useCompanyProfile();
   const { can } = usePermissions();
+  const { user } = useAuth();
+
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "User";
+  const userEmail = user?.email || "";
+  const userInitials = displayName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   const companyName = profile?.name || "Norskk";
   const companyInitial = companyName.charAt(0).toUpperCase();
@@ -175,12 +187,25 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
 
-      <SidebarFooter className="p-2">
+      <SidebarFooter className="p-2 space-y-1">
+        {/* User info — visible when expanded */}
+        <div className="flex items-center gap-2 px-1 py-1.5 rounded-md group-data-[collapsible=icon]:justify-center overflow-hidden">
+          <Avatar className="h-7 w-7 shrink-0">
+            <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-semibold">
+              {userInitials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
+            <span className="text-xs font-medium text-sidebar-foreground truncate leading-tight">{displayName}</span>
+            <span className="text-[10px] text-sidebar-foreground/50 truncate leading-tight">{userEmail}</span>
+          </div>
+        </div>
+        <Separator className="bg-sidebar-border/60" />
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
-          className="w-full h-8 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          className="w-full h-7 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
         >
           {open ? (
             <ChevronLeft className="h-4 w-4" />

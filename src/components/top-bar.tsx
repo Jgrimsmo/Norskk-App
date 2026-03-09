@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Search, Eye, X } from "lucide-react";
+import { Bell, Eye, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { useRolePreview } from "@/lib/role-preview-context";
@@ -9,7 +9,6 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { DEFAULT_ROLE_TEMPLATES } from "@/lib/constants/permissions";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -30,6 +29,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { GlobalSearch } from "@/components/global-search";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -40,6 +40,16 @@ const pageTitles: Record<string, string> = {
   "/safety": "Safety",
   "/employees": "Employees",
   "/equipment": "Equipment",
+  "/vendors": "Vendors",
+  "/payables": "Payables",
+  "/settings": "Settings",
+};
+
+// Sub-page second-level crumb labels keyed by parent path
+const subPageLabels: Record<string, string> = {
+  "/projects": "Project Detail",
+  "/equipment": "Equipment Detail",
+  "/employees": "Employee Detail",
   "/settings": "Settings",
 };
 
@@ -71,6 +81,13 @@ export function TopBar() {
     }
     return "Dashboard";
   };
+
+  // Determine if we're on a sub-page (e.g. /projects/abc123)
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const isSubPage = pathSegments.length >= 2;
+  const parentPath = isSubPage ? `/${pathSegments[0]}` : null;
+  const parentTitle = parentPath ? pageTitles[parentPath] ?? null : null;
+  const subPageLabel = parentPath ? subPageLabels[parentPath] ?? "Detail" : null;
 
   const pageTitle = getPageTitle();
 
@@ -107,14 +124,29 @@ export function TopBar() {
               </BreadcrumbLink>
             </BreadcrumbItem>
             {pathname !== "/" && (
-              <>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage className="font-medium">
-                    {pageTitle}
-                  </BreadcrumbPage>
-                </BreadcrumbItem>
-              </>
+              isSubPage && parentTitle ? (
+                <>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbLink href={parentPath!} className="text-muted-foreground hover:text-foreground">
+                      {parentTitle}
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage className="font-medium">{subPageLabel}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </>
+              ) : (
+                <>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage className="font-medium">
+                      {pageTitle}
+                    </BreadcrumbPage>
+                  </BreadcrumbItem>
+                </>
+              )
             )}
           </BreadcrumbList>
         </Breadcrumb>
@@ -122,38 +154,8 @@ export function TopBar() {
 
       {/* Right section: search, notifications, user menu */}
       <div className="ml-auto flex items-center gap-2">
-        {/* Search (desktop) */}
-        <div className="relative hidden md:block">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search... ⌘K"
-            aria-label="Search"
-            className="w-64 pl-9 h-9 bg-white dark:bg-muted/50 border border-input cursor-pointer"
-            readOnly
-            onClick={() => {
-              document.dispatchEvent(
-                new KeyboardEvent("keydown", { key: "k", metaKey: true })
-              );
-            }}
-            onFocus={(e) => e.currentTarget.blur()}
-          />
-        </div>
-
-        {/* Search (mobile) */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden h-9 w-9 text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            document.dispatchEvent(
-              new KeyboardEvent("keydown", { key: "k", metaKey: true })
-            );
-          }}
-        >
-          <Search className="h-5 w-5" />
-          <span className="sr-only">Search</span>
-        </Button>
+        {/* Search */}
+        <GlobalSearch />
 
         {/* Theme Toggle */}
         <ThemeToggle />
@@ -241,7 +243,7 @@ export function TopBar() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => toast.info("Profile settings coming soon")}>Profile</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings?section=profile")}>Profile</DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/settings")}>Settings</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={async () => { await signOut(); router.push("/login"); }}>Log out</DropdownMenuItem>

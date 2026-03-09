@@ -118,7 +118,7 @@ export function TimeTrackingTable({
   }));
   const costCodeOptions = costCodes.map((c) => ({
     id: c.id,
-    label: c.description,
+    label: c.code,
   }));
   const equipmentOptions = [
     { id: EQUIPMENT_NONE_ID, label: "None" },

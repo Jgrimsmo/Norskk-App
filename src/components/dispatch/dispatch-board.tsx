@@ -104,6 +104,33 @@ export default function DispatchBoard() {
     });
   }, [dispatches, calendarDays, view]);
 
+  // ── Normalize a raw resourceDates value to an array (handles legacy single-object format) ──
+  const normalizeRanges = (raw: unknown): { start: string; end: string }[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as { start: string; end: string }[];
+    // Legacy single object: { start, end }
+    const obj = raw as { start?: string; end?: string };
+    if (obj.start && obj.end) return [{ start: obj.start, end: obj.end }];
+    return [];
+  };
+
+  // ── Merge overlapping ranges (sort by start, collapse overlaps) ──
+  const mergeRanges = (ranges: { start: string; end: string }[]): { start: string; end: string }[] => {
+    if (ranges.length === 0) return ranges;
+    const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
+    const result = [{ ...sorted[0] }];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = result[result.length - 1];
+      const curr = sorted[i];
+      if (curr.start <= prev.end) {
+        if (curr.end > prev.end) prev.end = curr.end;
+      } else {
+        result.push({ ...curr });
+      }
+    }
+    return result;
+  };
+
   // ── Check if a resource is already dispatched on a day ──
   const isResourceOnDay = React.useCallback(
     (
@@ -121,9 +148,9 @@ export default function DispatchBoard() {
         else if (type === "tool") ids = d.toolIds;
         else return false;
         if (!ids.includes(resourceId)) return false;
-        // If the resource has a pinned date range, only count it for that range
-        const rd = d.resourceDates?.[resourceId];
-        if (rd) return dayStr >= rd.start && dayStr <= rd.end;
+        // If the resource has pinned ranges, check any of them cover this day
+        const ranges = normalizeRanges(d.resourceDates?.[resourceId]);
+        if (ranges.length > 0) return ranges.some((r) => dayStr >= r.start && dayStr <= r.end);
         return true;
       });
     },
@@ -223,17 +250,22 @@ export default function DispatchBoard() {
     [setDispatches]
   );
 
-  // ── Update per-resource date range within a dispatch ──
+  // ── Update a specific range for a resource (by index) within a dispatch ──
   const updateResourceDates = React.useCallback(
-    (dispatchId: string, resourceId: string, start: string, end: string) => {
+    (dispatchId: string, resourceId: string, rangeIndex: number, start: string, end: string) => {
       setDispatches((prev) =>
         prev.map((d) => {
           if (d.id !== dispatchId) return d;
+          const existing = normalizeRanges(d.resourceDates?.[resourceId]);
+          // Empty start/end signals "remove this range"
+          const updated = start === "" && end === ""
+            ? existing.filter((_, i) => i !== rangeIndex)
+            : mergeRanges(existing.map((r, i) => i === rangeIndex ? { start, end } : r));
           return {
             ...d,
             resourceDates: {
               ...(d.resourceDates ?? {}),
-              [resourceId]: { start, end },
+              [resourceId]: updated,
             },
           };
         })
@@ -300,9 +332,12 @@ export default function DispatchBoard() {
           if (type === "tool" && !copy.toolIds.includes(resourceId))
             copy.toolIds = [...copy.toolIds, resourceId];
           if (targetDate) {
+            const existing = normalizeRanges(copy.resourceDates?.[resourceId]);
+            // Add a new single-day range, then merge any overlaps
+            const merged = mergeRanges([...existing, { start: targetDate, end: targetDate }]);
             copy.resourceDates = {
               ...(copy.resourceDates ?? {}),
-              [resourceId]: { start: targetDate, end: targetDate },
+              [resourceId]: merged,
             };
           }
           return copy;
@@ -458,6 +493,7 @@ export default function DispatchBoard() {
               onAddResource={(id, type, rid) => addResourceToDispatch(id, type, rid)}
               onAddResourceToDay={(id, type, rid, day) => addResourceToDispatch(id, type, rid, day)}
               hasSelection={hasSelection}
+              getDispatchesForDay={getDispatchesForDay}
               onExpandDay={(d) => {
                 setCurrentDate(d);
                 setView("day");

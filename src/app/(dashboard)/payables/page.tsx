@@ -93,8 +93,8 @@ export default function PayablesPage() {
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Payables</h1>
             <p className="text-muted-foreground">Upload and approve vendor invoices.</p>
           </div>
-          <Button className="gap-1.5" onClick={() => setUploadOpen(true)}>
-            <Plus className="h-4 w-4" />
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setUploadOpen(true)}>
+            <Plus className="h-3.5 w-3.5" />
             Upload Invoice
           </Button>
         </div>
@@ -156,7 +156,11 @@ export default function PayablesPage() {
 
         {/* Table */}
         {loading ? (
-          <Skeleton className="h-64 w-full rounded-xl" />
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-lg" />
+            ))}
+          </div>
         ) : (
           <PayablesTable
             invoices={visibleInvoices}

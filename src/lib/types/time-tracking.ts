@@ -36,7 +36,7 @@ export interface Project {
   id: string;
   name: string;
   number: string;
-  developer: string;
+  developerId: string;
   address: string;     // street address
   city?: string;
   province?: string;
@@ -99,8 +99,9 @@ export interface DispatchAssignment {
   equipmentIds: string[];
   attachmentIds: string[];
   toolIds: string[];
-  // Per-resource date overrides — if absent the resource covers the full dispatch span
-  resourceDates?: Record<string, { start: string; end: string }>;
+  // Per-resource date overrides — if absent the resource covers the full dispatch span.
+  // Each resource can have multiple non-contiguous ranges (e.g. Mon–Tue + Thu).
+  resourceDates?: Record<string, { start: string; end: string }[]>;
 }
 
 export type DispatchView = "day" | "week" | "month";

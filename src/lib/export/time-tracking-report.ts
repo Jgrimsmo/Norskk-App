@@ -152,7 +152,7 @@ export async function buildTimeTrackingReportDoc(opts: TimeReportOptions): Promi
       date: e.date,
       employee: emp?.name || e.employeeId,
       project: proj?.name || e.projectId,
-      costCode: cc?.description || e.costCodeId,
+      costCode: cc?.code || e.costCodeId,
       workType: e.workType === "lump-sum" ? "Lump Sum" : "T&M",
       hours: e.hours.toFixed(1),
       approval: capitalize(e.approval),

@@ -38,9 +38,11 @@ function useActiveResources() {
 export function WeekDayAvailability({
   dispatches,
   isDraggable = false,
+  dayStr,
 }: {
   dispatches: DispatchAssignment[];
   isDraggable?: boolean;
+  dayStr?: string;
 }) {
   const { activeEmployees, availableEquipment, availableAttachments, availableTools } =
     useActiveResources();
@@ -50,7 +52,8 @@ export function WeekDayAvailability({
     activeEmployees,
     availableEquipment,
     availableAttachments,
-    availableTools
+    availableTools,
+    dayStr
   );
   const hasAny =
     avail.employees.length > 0 ||
@@ -58,10 +61,10 @@ export function WeekDayAvailability({
     avail.attachments.length > 0 ||
     avail.tools.length > 0;
 
-  const [empOpen, setEmpOpen] = React.useState(true);
-  const [eqOpen, setEqOpen] = React.useState(true);
-  const [attOpen, setAttOpen] = React.useState(true);
-  const [tlOpen, setTlOpen] = React.useState(true);
+  const [empOpen, setEmpOpen] = React.useState(false);
+  const [eqOpen, setEqOpen] = React.useState(false);
+  const [attOpen, setAttOpen] = React.useState(false);
+  const [tlOpen, setTlOpen] = React.useState(false);
 
   if (!hasAny) return null;
 
@@ -193,8 +196,10 @@ export function WeekDayAvailability({
 // ────────────────────────────────────────────────────────
 export function AvailableResourcesPanel({
   dispatches,
+  dayStr,
 }: {
   dispatches: DispatchAssignment[];
+  dayStr?: string;
 }) {
   const { activeEmployees, availableEquipment, availableAttachments, availableTools } =
     useActiveResources();
@@ -204,7 +209,8 @@ export function AvailableResourcesPanel({
     activeEmployees,
     availableEquipment,
     availableAttachments,
-    availableTools
+    availableTools,
+    dayStr
   );
   const hasAny =
     avail.employees.length > 0 ||

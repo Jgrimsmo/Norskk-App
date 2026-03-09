@@ -298,7 +298,7 @@ export function FieldTimeEntry() {
             <SelectContent>
               {projectCostCodes.map((cc) => (
                 <SelectItem key={cc.id} value={cc.id} className="text-sm">
-                  {cc.description}
+                  {cc.code}
                 </SelectItem>
               ))}
             </SelectContent>

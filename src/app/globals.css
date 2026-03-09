@@ -123,4 +123,41 @@
   body {
     @apply bg-background text-foreground;
   }
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="menuitemcheckbox"],
+  [role="option"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="radio"],
+  [role="link"],
+  [role="treeitem"],
+  [role="combobox"],
+  a[href],
+  label[for],
+  select,
+  summary,
+  [data-slot="sidebar-menu-button"],
+  [data-slot="command-item"],
+  [cmdk-item] {
+    cursor: pointer;
+  }
+  input,
+  textarea,
+  [contenteditable="true"] {
+    cursor: text;
+  }
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"] {
+    cursor: pointer;
+  }
+  :disabled,
+  [data-disabled="true"],
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
 }
