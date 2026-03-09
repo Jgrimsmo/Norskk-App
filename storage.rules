@@ -35,6 +35,24 @@ service firebase.storage {
       allow write: if isImageUnder10Mb() && (isOpsManager() || isReportAuthor(reportId));
     }
 
+    // Invoice PDF uploads (any file under 20 MB)
+    match /invoices/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && request.resource != null
+        && request.resource.size < 20 * 1024 * 1024
+        && isOpsManager();
+    }
+
+    // Safety form signatures (images under 5 MB)
+    match /safety/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && request.resource != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

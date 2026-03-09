@@ -31,6 +31,7 @@ import {
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
 
 import { type Tool, type ToolStatus } from "@/lib/types/time-tracking";
+import { useRelockOnClickOutside } from "@/hooks/use-relock-on-click-outside";
 
 // ────────────────────────────────────────────
 // Helpers
@@ -124,10 +125,7 @@ export function ToolsTable({
     onToolsChange((prev) => [...prev, newBlankTool()]);
   }, [onToolsChange]);
 
-  const unlockRow = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setUnlockedIds((prev) => new Set(prev).add(id));
-  };
+  const { unlockRow } = useRelockOnClickOutside(toolList, unlockedIds, setUnlockedIds);
 
   return (
     <div className="space-y-3">
@@ -194,6 +192,7 @@ export function ToolsTable({
                 return (
                   <TableRow
                     key={tool.id}
+                    data-row-id={tool.id}
                     className={`group h-[36px] ${
                       isRetired ? "bg-gray-50/30" : "hover:bg-muted/20"
                     }`}

@@ -37,6 +37,7 @@ import {
   type ApprovalStatus,
   type WorkType,
 } from "@/lib/types/time-tracking";
+import { useRelockOnClickOutside } from "@/hooks/use-relock-on-click-outside";
 import {
   useEmployees,
   useProjects,
@@ -185,11 +186,7 @@ export function TimeTrackingTable({
     [onEntriesChange]
   );
 
-  // ── Unlock an approved row for editing ──
-  const unlockRow = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setUnlockedIds((prev) => new Set(prev).add(id));
-  };
+  const { unlockRow } = useRelockOnClickOutside(entries, unlockedIds, setUnlockedIds);
 
   // ── Delete row ──
   const deleteRow = React.useCallback(
@@ -279,6 +276,7 @@ export function TimeTrackingTable({
                 return (
                   <TableRow
                     key={entry.id}
+                    data-row-id={entry.id}
                     className={`group h-[36px] ${isApproved ? "bg-green-50/30" : "hover:bg-muted/20"}`}
                   >
                     {/* Date */}

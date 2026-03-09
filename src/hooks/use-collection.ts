@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import {
   getAll,
   create,
@@ -43,8 +44,14 @@ export function useCollection<T extends { id: string }>(
       (items) => {
         setData(items);
         setLoading(false);
+        setError(null);
       },
-      ...constraints
+      ...constraints,
+      (err: Error) => {
+        setError(err);
+        setLoading(false);
+        toast.error(`Failed to load data from "${path}".`);
+      },
     );
     return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,6 +63,7 @@ export function useCollection<T extends { id: string }>(
         await create<T>(path, item);
       } catch (e) {
         setError(e as Error);
+        toast.error("Failed to save. Please try again.");
         throw e;
       }
     },
@@ -68,6 +76,7 @@ export function useCollection<T extends { id: string }>(
         await update<T>(path, id, partial);
       } catch (e) {
         setError(e as Error);
+        toast.error("Failed to save changes. Please try again.");
         throw e;
       }
     },
@@ -80,6 +89,7 @@ export function useCollection<T extends { id: string }>(
         await remove(path, id);
       } catch (e) {
         setError(e as Error);
+        toast.error("Failed to delete. Please try again.");
         throw e;
       }
     },

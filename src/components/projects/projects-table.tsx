@@ -244,6 +244,37 @@ export function ProjectsTable({
     setEditingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
   };
 
+  // ── Click outside to cancel unchanged edits ──
+  React.useEffect(() => {
+    if (editingIds.size === 0) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.closest("[data-radix-popper-content-wrapper]") ||
+        target.closest("[role='dialog']") ||
+        target.closest("[data-radix-menu-content]")
+      ) return;
+      const clickedRowId = target.closest<HTMLElement>("[data-row-id]")?.dataset.rowId ?? null;
+      setEditingIds((prev) => {
+        const next = new Set(prev);
+        let changed = false;
+        for (const id of prev) {
+          if (id === clickedRowId) continue;
+          const snap = snapshots.current.get(id);
+          const current = projectList.find((p) => p.id === id);
+          if (snap && current && JSON.stringify(snap) === JSON.stringify(current)) {
+            next.delete(id);
+            snapshots.current.delete(id);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [editingIds, projectList]);
+
   // ── Developer select options ──
   const DEVELOPER_NONE = "__none__";
   const developerSelectOptions = React.useMemo(
@@ -523,6 +554,7 @@ export function ProjectsTable({
                 return (
                   <TableRow
                     key={project.id}
+                    data-row-id={project.id}
                     className={`group h-[36px] transition-colors ${
                       isEditing ? "bg-amber-50/40 dark:bg-amber-900/10" : "hover:bg-muted/30 cursor-pointer"
                     }`}

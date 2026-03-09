@@ -84,6 +84,7 @@ import type {
   Invoice,
   InvoiceStatus,
 } from "@/lib/types/time-tracking";
+import { useRelockOnClickOutside } from "@/hooks/use-relock-on-click-outside";
 
 // ────────────────────────────────────────────
 // Labels
@@ -544,10 +545,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     [setAllTimeEntries]
   );
 
-  const unlockRow = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setUnlockedIds((prev) => new Set(prev).add(id));
-  };
+  const { unlockRow } = useRelockOnClickOutside(allTimeEntries, unlockedIds, setUnlockedIds);
 
   // ── Daily report handlers ──
   const openReport = (report: DailyReport) => {
@@ -770,6 +768,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                       return (
                         <TableRow
                           key={te.id}
+                          data-row-id={te.id}
                           className={`group h-[36px] ${isLocked ? "bg-green-50/30" : "hover:bg-muted/20"}`}
                         >
                           <TableCell className="text-xs p-0 px-1">

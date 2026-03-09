@@ -34,6 +34,7 @@ import {
   type Attachment,
   type AttachmentStatus,
 } from "@/lib/types/time-tracking";
+import { useRelockOnClickOutside } from "@/hooks/use-relock-on-click-outside";
 
 // ────────────────────────────────────────────
 // Helpers
@@ -125,10 +126,7 @@ export function AttachmentsTable({
     onAttachmentsChange((prev) => [...prev, newBlankAttachment()]);
   }, [onAttachmentsChange]);
 
-  const unlockRow = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setUnlockedIds((prev) => new Set(prev).add(id));
-  };
+  const { unlockRow } = useRelockOnClickOutside(attachmentList, unlockedIds, setUnlockedIds);
 
   return (
     <div className="space-y-3">
@@ -195,6 +193,7 @@ export function AttachmentsTable({
                 return (
                   <TableRow
                     key={att.id}
+                    data-row-id={att.id}
                     className={`group h-[36px] ${
                       isRetired ? "bg-gray-50/30" : "hover:bg-muted/20"
                     }`}

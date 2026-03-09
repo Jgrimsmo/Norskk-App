@@ -35,6 +35,7 @@ import {
   type Equipment,
   type EquipmentStatus,
 } from "@/lib/types/time-tracking";
+import { useRelockOnClickOutside } from "@/hooks/use-relock-on-click-outside";
 
 // ────────────────────────────────────────────
 // Helpers
@@ -132,10 +133,7 @@ export function EquipmentTable({
     onEquipmentChange((prev) => [...prev, newBlankEquipment()]);
   }, [onEquipmentChange]);
 
-  const unlockRow = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setUnlockedIds((prev) => new Set(prev).add(id));
-  };
+  const { unlockRow } = useRelockOnClickOutside(equipmentList, unlockedIds, setUnlockedIds);
 
   return (
     <div className="space-y-3">
@@ -202,6 +200,7 @@ export function EquipmentTable({
                 return (
                   <TableRow
                     key={eq.id}
+                    data-row-id={eq.id}
                     className={`group h-[36px] ${
                       isRetired ? "bg-gray-50/30" : "hover:bg-muted/20"
                     }`}

@@ -100,15 +100,29 @@ export async function remove(path: string, id: string): Promise<void> {
 export function subscribe<T extends { id: string }>(
   path: string,
   callback: (items: T[]) => void,
-  ...constraints: QueryConstraint[]
+  ...constraintsOrOnError: (QueryConstraint | ((error: Error) => void))[]
 ): Unsubscribe {
+  const constraints = constraintsOrOnError.filter(
+    (c): c is QueryConstraint => typeof c !== "function"
+  );
+  const onError = constraintsOrOnError.find(
+    (c): c is (error: Error) => void => typeof c === "function"
+  );
+
   const q = constraints.length
     ? query(colRef(path), ...constraints)
     : query(colRef(path));
-  return onSnapshot(q, (snap) => {
-    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as T));
-    callback(items);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as T));
+      callback(items);
+    },
+    (error) => {
+      console.error(`Firestore subscription error on "${path}":`, error);
+      onError?.(error);
+    },
+  );
 }
 
 /**
@@ -120,13 +134,19 @@ export function subscribeDoc<T extends { id: string }>(
   id: string,
   callback: (item: T | null) => void
 ): Unsubscribe {
-  return onSnapshot(docRef(path, id), (snap) => {
-    if (!snap.exists()) {
-      callback(null);
-      return;
-    }
-    callback({ id: snap.id, ...snap.data() } as T);
-  });
+  return onSnapshot(
+    docRef(path, id),
+    (snap) => {
+      if (!snap.exists()) {
+        callback(null);
+        return;
+      }
+      callback({ id: snap.id, ...snap.data() } as T);
+    },
+    (error) => {
+      console.error(`Firestore doc subscription error on "${path}/${id}":`, error);
+    },
+  );
 }
 
 // Re-export query helpers for convenience

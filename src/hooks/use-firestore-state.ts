@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useCollection } from "@/hooks/use-collection";
 
 /**
@@ -84,6 +85,9 @@ export function useFirestoreState<T extends { id: string }>(path: string) {
     setSaving(true);
     try {
       await Promise.all(ops);
+    } catch (e) {
+      console.error("Firestore flush error:", e);
+      toast.error("Failed to save changes. Please try again.");
     } finally {
       // Clear overrides for items that have been written
       setLocalOverrides((prev) => {
@@ -166,6 +170,9 @@ export function useFirestoreState<T extends { id: string }>(path: string) {
         setSaving(true);
         try {
           await Promise.all([...immediateOps, ...flushOps]);
+        } catch (e) {
+          console.error("Firestore immediate write error:", e);
+          toast.error("Failed to save changes. Please try again.");
         } finally {
           // Clear local optimistic state for completed writes
           setLocalAdds((prev) => {
@@ -203,6 +210,18 @@ export function useFirestoreState<T extends { id: string }>(path: string) {
     },
     [flushUpdates]
   );
+
+  // Flush pending writes and clear timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      // Fire-and-forget flush of any pending updates
+      flushUpdates();
+    };
+  }, [flushUpdates]);
 
   return [data, setData, loading, saving, error] as const;
 }

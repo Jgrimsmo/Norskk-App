@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/tooltip";
 
 import { type Vendor, type VendorType } from "@/lib/types/time-tracking";
+import { useRelockOnClickOutside } from "@/hooks/use-relock-on-click-outside";
 
 // ────────────────────────────────────────────
 // Helpers
@@ -81,16 +82,13 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
     [onVendorsChange]
   );
 
+  const { unlockRow } = useRelockOnClickOutside(vendors, unlockedIds, setUnlockedIds);
+
   const addVendor = React.useCallback(() => {
     const blank = newBlankVendor();
     onVendorsChange((prev) => [...prev, blank]);
     setUnlockedIds((prev) => new Set(prev).add(blank.id));
   }, [onVendorsChange]);
-
-  const unlockRow = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setUnlockedIds((prev) => new Set(prev).add(id));
-  };
 
   return (
     <div className="space-y-3">
@@ -134,6 +132,7 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
                 return (
                   <TableRow
                     key={vendor.id}
+                    data-row-id={vendor.id}
                     className={`group h-[36px] ${
                       isLocked
                         ? "cursor-pointer hover:bg-muted/20"
