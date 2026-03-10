@@ -22,8 +22,8 @@ messaging.onBackgroundMessage((payload) => {
   const title = payload.notification?.title ?? "Norskk";
   const options = {
     body: payload.notification?.body ?? "",
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
+    icon: "/icon-192",
+    badge: "/icon-192",
     data: payload.data,
   };
 

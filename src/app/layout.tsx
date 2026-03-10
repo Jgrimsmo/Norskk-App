@@ -24,6 +24,12 @@ const volkhov = Volkhov({
 export const metadata: Metadata = {
   title: "Norskk — Construction Management",
   description: "Cloud construction management platform",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Norskk",
+  },
 };
 
 export default function RootLayout({
