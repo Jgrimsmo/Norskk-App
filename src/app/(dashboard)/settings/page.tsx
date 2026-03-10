@@ -21,6 +21,7 @@ import { UserManagementSettings } from "@/components/settings/user-management";
 import { CostCodesSettings } from "@/components/settings/cost-codes";
 import { RolePermissionsSettings } from "@/components/settings/role-permissions";
 import { ProfileSettings } from "@/components/settings/profile-settings";
+import { NotificationSettings } from "@/components/settings/notification-settings";
 import { RequirePermission } from "@/components/require-permission";
 
 // ── Section registry ──
@@ -57,8 +58,8 @@ const sections = [
     id: "notifications",
     title: "Notifications",
     icon: BellRing,
-    component: null,
-    ready: false,
+    component: NotificationSettings,
+    ready: true,
   },
   {
     id: "security",

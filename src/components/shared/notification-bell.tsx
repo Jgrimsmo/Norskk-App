@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Bell, Truck, X, Check, Trash2 } from "lucide-react";
+import { Bell, BellRing, Truck, X, Check, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNotifications, useEmployees } from "@/hooks/use-firestore";
 import { useAuth } from "@/lib/firebase/auth-context";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 import type { AppNotification } from "@/lib/types/time-tracking";
 
 const typeIcons: Record<AppNotification["type"], typeof Truck> = {
@@ -27,6 +28,7 @@ export function NotificationBell() {
   const { user } = useAuth();
   const { data: employees } = useEmployees();
   const { data: allNotifications, update: updateNotification, remove: removeNotification } = useNotifications();
+  const { enabled: pushEnabled, loading: pushLoading, enablePush } = usePushNotifications();
 
   // Match current user to employee
   const currentEmployee = React.useMemo(() => {
@@ -131,6 +133,23 @@ export function NotificationBell() {
               </Button>
             </div>
           </div>
+
+          {/* Push notification enable prompt */}
+          {!pushEnabled && (
+            <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/30">
+              <BellRing className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <p className="text-[10px] text-muted-foreground flex-1">Get push notifications</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-[10px] px-2 cursor-pointer"
+                disabled={pushLoading}
+                onClick={enablePush}
+              >
+                {pushLoading ? "…" : "Enable"}
+              </Button>
+            </div>
+          )}
 
           {/* List */}
           <div className="max-h-80 overflow-y-auto">

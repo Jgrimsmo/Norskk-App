@@ -1,9 +1,10 @@
 "use client";
 
-import { create } from "@/lib/firebase/firestore";
+import { create, getAll } from "@/lib/firebase/firestore";
 import { Collections } from "@/lib/firebase/collections";
 import { format } from "date-fns";
-import type { DispatchAssignment, AppNotification } from "@/lib/types/time-tracking";
+import { auth } from "@/lib/firebase/config";
+import type { DispatchAssignment, AppNotification, Employee } from "@/lib/types/time-tracking";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -205,5 +206,80 @@ export async function createDispatchNotifications(
   const failed = results.filter((r) => r.status === "rejected");
   if (failed.length > 0) {
     console.error("[Notifications] Failed to write notifications:", failed);
+  }
+
+  // Send push notifications via FCM
+  await sendPushForNotifications(notifications);
+}
+
+/**
+ * Look up FCM tokens for notification recipients and send push via the API route.
+ */
+async function sendPushForNotifications(
+  notifications: Omit<AppNotification, "id">[],
+) {
+  try {
+    // Get the current user's auth token to call our API
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+    const idToken = await currentUser.getIdToken();
+
+    // Get all employees to look up FCM tokens
+    const employees = await getAll<Employee>(Collections.EMPLOYEES);
+    const tokenMap = new Map<string, string>();
+    for (const emp of employees) {
+      if (emp.fcmToken) tokenMap.set(emp.id, emp.fcmToken);
+    }
+
+    // Group notifications by recipient to batch messages
+    const byRecipient = new Map<string, Omit<AppNotification, "id">[]>();
+    for (const n of notifications) {
+      const existing = byRecipient.get(n.recipientId) ?? [];
+      existing.push(n);
+      byRecipient.set(n.recipientId, existing);
+    }
+
+    // Send push for each recipient that has a token
+    const pushPromises: Promise<Response>[] = [];
+    for (const [recipientId, notifs] of byRecipient) {
+      const token = tokenMap.get(recipientId);
+      if (!token) continue;
+
+      // Send the first notification as the push (or combine if multiple)
+      const first = notifs[0];
+      const title = notifs.length === 1
+        ? first.title
+        : `${notifs.length} dispatch updates`;
+      const body = notifs.length === 1
+        ? first.body
+        : notifs.map((n) => n.body).join("\n");
+
+      pushPromises.push(
+        fetch("/api/admin/send-push", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            tokens: [token],
+            title,
+            body,
+            data: { type: first.type },
+          }),
+        })
+      );
+    }
+
+    if (pushPromises.length > 0) {
+      const pushResults = await Promise.allSettled(pushPromises);
+      const pushFailed = pushResults.filter((r) => r.status === "rejected");
+      if (pushFailed.length > 0) {
+        console.error("[Push] Some push notifications failed:", pushFailed);
+      }
+    }
+  } catch (err) {
+    // Push failure should never block the main notification flow
+    console.error("[Push] Failed to send push notifications:", err);
   }
 }

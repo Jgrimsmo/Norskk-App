@@ -30,6 +30,7 @@ export interface Employee {
   status: EmployeeStatus;
   uid?: string;        // Firebase Auth UID — links auth account to employee
   createdAt?: string;  // ISO timestamp of account creation
+  fcmToken?: string;   // Firebase Cloud Messaging token for push notifications
 }
 
 export interface Project {

@@ -73,25 +73,18 @@ export default function DispatchBoard() {
     return JSON.stringify(localDispatches) !== JSON.stringify(savedDispatches);
   }, [localDispatches, savedDispatches, initialized]);
 
-  // After save, suppress dirty bar until Firestore catches up or user edits again
+  // After save, suppress dirty bar until Firestore catches up
   const showDirtyBar = isDirty && !justSaved;
 
-  // Clear justSaved when Firestore delivers the post-save data
+  // When Firestore delivers post-save data, force-sync local to match
+  // so isDirty becomes genuinely false (avoids JSON serialization mismatches)
   React.useEffect(() => {
-    if (justSaved) setJustSaved(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedDispatches]);
-
-  // Clear justSaved if user edits again after saving
-  React.useEffect(() => {
-    if (justSaved && isDirty) setJustSaved(false);
-  }, [justSaved, isDirty]);
-
-  React.useEffect(() => {
-    if (initialized && !isDirty) {
+    if (justSaved) {
+      setLocalDispatches(savedDispatches);
+      setJustSaved(false);
+    } else if (initialized && !isDirty) {
       setLocalDispatches(savedDispatches);
     }
-    // Only re-sync when savedDispatches changes and we're not dirty
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedDispatches]);
 
