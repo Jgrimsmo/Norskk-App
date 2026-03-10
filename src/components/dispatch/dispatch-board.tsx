@@ -412,6 +412,26 @@ export default function DispatchBoard() {
     [setDispatches]
   );
 
+  // ── Resize a dispatch's start date (drag left edge) ──
+  const resizeDispatchStart = React.useCallback(
+    (dispatchId: string, newStartDate: string) => {
+      setDispatches((prev) =>
+        prev.map((d) => {
+          if (d.id !== dispatchId) return d;
+          const endDate = d.endDate ?? d.date;
+          if (newStartDate === endDate) {
+            // collapsed to single day — strip endDate
+            const { endDate: _drop, ...rest } = d;
+            void _drop;
+            return { ...rest, date: newStartDate };
+          }
+          return { ...d, date: newStartDate, endDate: endDate };
+        })
+      );
+    },
+    [setDispatches]
+  );
+
   // ── Add a single resource to an existing dispatch ──
   const addResourceToDispatch = React.useCallback(
     (
@@ -613,6 +633,7 @@ export default function DispatchBoard() {
               onRemoveResource={removeResource}
               onRemoveDispatch={removeDispatch}
               onResizeDispatch={resizeDispatch}
+              onResizeDispatchStart={resizeDispatchStart}
               onUpdateResourceDates={updateResourceDates}
               onAddResource={(id, type, rid) => addResourceToDispatch(id, type, rid)}
               onAddResourceToDay={(id, type, rid, day) => addResourceToDispatch(id, type, rid, day)}

@@ -23,6 +23,7 @@ interface WeekViewProps {
   onRemoveResource: OnRemoveResource;
   onRemoveDispatch: (dispatchId: string) => void;
   onResizeDispatch: (dispatchId: string, newEndDate: string) => void;
+  onResizeDispatchStart: (dispatchId: string, newStartDate: string) => void;
   onUpdateResourceDates: (dispatchId: string, resourceId: string, rangeIndex: number, start: string, end: string) => void;
   onAddResource: (dispatchId: string, type: ResourceType, resourceId: string) => void;
   onAddResourceToDay: (dispatchId: string, type: ResourceType, resourceId: string, dayStr: string) => void;
@@ -43,9 +44,9 @@ type PlacedDispatch = {
 function packDispatches(dispatches: DispatchAssignment[], days: Date[]): PlacedDispatch[] {
   const dayStrs = days.map((d) => format(d, "yyyy-MM-dd"));
   const placed: PlacedDispatch[] = [];
-  const rows: { start: number; end: number }[][] = [];
   const sorted = [...dispatches].sort((a, b) => a.date.localeCompare(b.date));
 
+  let rowIdx = 0;
   for (const dispatch of sorted) {
     const endDateStr = dispatch.endDate ?? dispatch.date;
     const startCol = dayStrs.findIndex((ds) => ds >= dispatch.date);
@@ -55,11 +56,8 @@ function packDispatches(dispatches: DispatchAssignment[], days: Date[]): PlacedD
     }
     if (startCol === -1 || endCol === -1 || startCol > endCol) continue;
 
-    let rowIdx = 0;
-    while (rows[rowIdx]?.some((iv) => iv.start <= endCol && iv.end >= startCol)) rowIdx++;
-    if (!rows[rowIdx]) rows[rowIdx] = [];
-    rows[rowIdx].push({ start: startCol, end: endCol });
     placed.push({ dispatch, startCol, endCol, row: rowIdx });
+    rowIdx++;
   }
   return placed;
 }
@@ -71,6 +69,7 @@ export function WeekView({
   onRemoveResource,
   onRemoveDispatch,
   onResizeDispatch,
+  onResizeDispatchStart,
   onUpdateResourceDates,
   onAddResource,
   onAddResourceToDay,
@@ -90,6 +89,11 @@ export function WeekView({
   const [resizingId, setResizingId] = React.useState<string | null>(null);
   const [resizeEndCol, setResizeEndCol] = React.useState(0);
   const resizeMinColRef = React.useRef(0);
+
+  // Left-edge resize state (change start date)
+  const [resizingStartId, setResizingStartId] = React.useState<string | null>(null);
+  const [resizeStartCol, setResizeStartCol] = React.useState(0);
+  const resizeMaxColRef = React.useRef(6);
 
   type ChipResize = {
     dispatchId: string; resourceId: string; rangeIndex: number; edge: "start" | "end";
@@ -124,6 +128,10 @@ export function WeekView({
         onResizeDispatch(resizingId, dayStrs[resizeEndCol]);
         setResizingId(null);
       }
+      if (resizingStartId) {
+        onResizeDispatchStart(resizingStartId, dayStrs[resizeStartCol]);
+        setResizingStartId(null);
+      }
       if (chipResizing) {
         const s = dayStrs[chipResizing.cardStartCol + chipResizing.barStartCol];
         const e = dayStrs[chipResizing.cardStartCol + chipResizing.barEndCol];
@@ -133,7 +141,7 @@ export function WeekView({
     };
     window.addEventListener("mouseup", handleUp);
     return () => window.removeEventListener("mouseup", handleUp);
-  }, [resizingId, resizeEndCol, dayStrs, onResizeDispatch, chipResizing, onUpdateResourceDates]);
+  }, [resizingId, resizeEndCol, resizingStartId, resizeStartCol, dayStrs, onResizeDispatch, onResizeDispatchStart, chipResizing, onUpdateResourceDates]);
 
   return (
     <div className="flex flex-col h-full">
@@ -191,14 +199,16 @@ export function WeekView({
       <ScrollArea className="flex-1">
         <div className="relative p-2">
           {/* Unified column overlays (card resize OR chip resize) */}
-          {(resizingId || chipResizing) && (
+          {(resizingId || resizingStartId || chipResizing) && (
             <div className="absolute inset-2 grid grid-cols-7 pointer-events-none z-20">
               {days.map((day, idx) => (
                 <div
                   key={day.toISOString()}
                   className="pointer-events-auto"
                   onMouseEnter={() => {
-                    if (resizingId) {
+                    if (resizingStartId) {
+                      setResizeStartCol(Math.min(resizeMaxColRef.current, idx));
+                    } else if (resizingId) {
                       setResizeEndCol(Math.max(resizeMinColRef.current, idx));
                     } else if (chipResizing) {
                       const rel = idx - chipResizing.cardStartCol;
@@ -223,21 +233,34 @@ export function WeekView({
               const project = projects.find((p) => p.id === dispatch.projectId);
               const color = getProjectColor(dispatch.projectId, projects);
 
-              const isResizing = resizingId === dispatch.id;
-              const displayEndCol = isResizing ? resizeEndCol : endCol;
+              const isResizingEnd = resizingId === dispatch.id;
+              const isResizingStart = resizingStartId === dispatch.id;
+              const displayEndCol = isResizingEnd ? resizeEndCol : endCol;
+              const displayStartCol = isResizingStart ? resizeStartCol : startCol;
 
               return (
                 <div
                   key={dispatch.id}
                   style={{
-                    gridColumn: `${startCol + 1} / span ${displayEndCol - startCol + 1}`,
+                    gridColumn: `${displayStartCol + 1} / span ${displayEndCol - displayStartCol + 1}`,
                     gridRow: row + 1,
                   }}
                   className={[
                     "relative overflow-hidden shadow-sm transition-shadow",
-                    isResizing ? "select-none" : "",
+                    (isResizingEnd || isResizingStart) ? "select-none" : "",
                   ].join(" ")}
                 >
+                  {/* Left resize handle — drag to change start date */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize z-10 bg-black/0 hover:bg-black/20 transition-colors"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      resizeMaxColRef.current = endCol;
+                      setResizeStartCol(startCol);
+                      setResizingStartId(dispatch.id);
+                    }}
+                  />
                   {/* Header */}
                   <div className={`pl-2 pr-1 py-1.5 flex items-center gap-2 border-b border-black/20 ${color.bg}`}>
                     <button
@@ -264,7 +287,7 @@ export function WeekView({
                       onMouseDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        resizeMinColRef.current = startCol;
+                        resizeMinColRef.current = displayStartCol;
                         setResizeEndCol(endCol);
                         setResizingId(dispatch.id);
                       }}
@@ -279,7 +302,7 @@ export function WeekView({
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      resizeMinColRef.current = startCol;
+                      resizeMinColRef.current = displayStartCol;
                       setResizeEndCol(endCol);
                       setResizingId(dispatch.id);
                     }}
@@ -287,7 +310,7 @@ export function WeekView({
 
                   {/* Body: column dividers + resource bars */}
                   {(() => {
-                    const spanDays = displayEndCol - startCol + 1;
+                    const spanDays = displayEndCol - displayStartCol + 1;
                     type ResourceItem = { id: string; type: "employee" | "equipment" | "attachment" | "tool"; name: string };
                     const resourceGroups: { label: string; items: ResourceItem[] }[] = [
                       { label: "Employees", items: dispatch.employeeIds.map((id) => ({ id, type: "employee" as const, name: employees.find((e) => e.id === id)?.name ?? id })) },
@@ -319,7 +342,7 @@ export function WeekView({
                             style={{ gridTemplateColumns: `repeat(${spanDays}, 1fr)` }}
                           >
                             {Array.from({ length: spanDays }).map((_, i) => {
-                              const colDayStr = dayStrs[startCol + i];
+                              const colDayStr = dayStrs[displayStartCol + i];
                               return (
                                 <div
                                   key={colDayStr}
@@ -372,8 +395,8 @@ export function WeekView({
                               // Compute bar positions for all ranges
                               const bars = ranges.map((range, rangeIndex) => {
                                 const isChipResizingThis = chipResizing?.dispatchId === dispatch.id && chipResizing.resourceId === id && chipResizing.rangeIndex === rangeIndex;
-                                const defaultBarStart = Math.max(0, dayStrs.indexOf(range.start) - startCol);
-                                const defaultBarEnd = Math.min(spanDays - 1, Math.max(defaultBarStart, dayStrs.indexOf(range.end) - startCol));
+                                const defaultBarStart = Math.max(0, dayStrs.indexOf(range.start) - displayStartCol);
+                                const defaultBarEnd = Math.min(spanDays - 1, Math.max(defaultBarStart, dayStrs.indexOf(range.end) - displayStartCol));
                                 const barStart = isChipResizingThis ? chipResizing!.barStartCol : defaultBarStart;
                                 const barEnd = isChipResizingThis ? chipResizing!.barEndCol : defaultBarEnd;
                                 return { rangeIndex, barStart, barEnd, defaultBarStart, defaultBarEnd };
@@ -409,7 +432,7 @@ export function WeekView({
                                           className="shrink-0 self-stretch w-2 cursor-col-resize hover:bg-white/20 transition-colors"
                                           onMouseDown={(e) => {
                                             e.preventDefault(); e.stopPropagation();
-                                            setChipResizing({ dispatchId: dispatch.id, resourceId: id, rangeIndex, edge: "start", barStartCol: barStart, barEndCol: barEnd, cardStartCol: startCol, cardEndCol: displayEndCol });
+                                            setChipResizing({ dispatchId: dispatch.id, resourceId: id, rangeIndex, edge: "start", barStartCol: barStart, barEndCol: barEnd, cardStartCol: displayStartCol, cardEndCol: displayEndCol });
                                           }}
                                         />
                                         {/* X delete */}
@@ -425,7 +448,7 @@ export function WeekView({
                                           className="h-3 w-3 text-white/40 shrink-0 cursor-col-resize hover:text-white/80 transition-colors"
                                           onMouseDown={(e) => {
                                             e.preventDefault(); e.stopPropagation();
-                                            setChipResizing({ dispatchId: dispatch.id, resourceId: id, rangeIndex, edge: "end", barStartCol: barStart, barEndCol: barEnd, cardStartCol: startCol, cardEndCol: displayEndCol });
+                                            setChipResizing({ dispatchId: dispatch.id, resourceId: id, rangeIndex, edge: "end", barStartCol: barStart, barEndCol: barEnd, cardStartCol: displayStartCol, cardEndCol: displayEndCol });
                                           }}
                                         />
                                       </div>
@@ -443,7 +466,7 @@ export function WeekView({
                             style={{ gridTemplateColumns: `repeat(${spanDays}, 1fr)` }}
                           >
                             {Array.from({ length: spanDays }).map((_, i) => {
-                              const colDayStr = dayStrs[startCol + i];
+                              const colDayStr = dayStrs[displayStartCol + i];
                               return (
                                 <div
                                   key={colDayStr}
