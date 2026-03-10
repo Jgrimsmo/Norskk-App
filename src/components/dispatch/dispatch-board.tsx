@@ -73,6 +73,13 @@ export default function DispatchBoard() {
     return JSON.stringify(localDispatches) !== JSON.stringify(savedDispatches);
   }, [localDispatches, savedDispatches, initialized]);
 
+  // Clear justSaved as soon as the user makes a new edit
+  React.useEffect(() => {
+    if (justSaved && isDirty) {
+      setJustSaved(false);
+    }
+  }, [isDirty, justSaved]);
+
   // After save, suppress dirty bar until Firestore catches up
   const showDirtyBar = isDirty && !justSaved;
 
