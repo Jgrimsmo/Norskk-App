@@ -7,10 +7,10 @@ export const runtime = "nodejs";
 /** Serve a 512x512 PWA icon */
 export async function GET() {
   const logoData = fs.readFileSync(
-    path.join(process.cwd(), "public", "Print_Transparent.svg")
+    path.join(process.cwd(), "public", "Norskk.png")
   );
   const base64 = logoData.toString("base64");
-  const src = `data:image/svg+xml;base64,${base64}`;
+  const src = `data:image/png;base64,${base64}`;
 
   return new ImageResponse(
     (
@@ -25,7 +25,7 @@ export async function GET() {
           borderRadius: 72,
         }}
       >
-        <img src={src} width={370} height={370} alt="Norskk" />
+        <img src={src} width={320} height={365} alt="Norskk" />
       </div>
     ),
     { width: 512, height: 512 }
