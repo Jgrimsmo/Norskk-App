@@ -18,10 +18,18 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // Handle background messages
+// NOTE: When the server sends a `notification` payload, FCM automatically
+// displays the system notification. We only call showNotification ourselves
+// for data-only messages (no `notification` key) to avoid duplicates.
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title ?? "Norskk";
+  if (payload.notification) {
+    // FCM already showed this one — nothing to do.
+    return;
+  }
+
+  const title = payload.data?.title ?? "Norskk";
   const options = {
-    body: payload.notification?.body ?? "",
+    body: payload.data?.body ?? "",
     icon: "/icon-192",
     badge: "/icon-192",
     data: payload.data,
