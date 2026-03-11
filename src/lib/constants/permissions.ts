@@ -192,6 +192,8 @@ const LABOURER_PERMISSIONS: string[] = [
   "safety.create",
   "field.view",
   "vendors.view",
+  "daily-reports.view",
+  "daily-reports.create",
 ];
 
 /** Safety Officer — full safety access + read-only on most modules */

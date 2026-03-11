@@ -161,3 +161,19 @@
     cursor: not-allowed;
   }
 }
+
+/* Safe area padding for iOS home indicator */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Prevent native date/time inputs from overflowing containers on mobile */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  max-width: 100% !important;
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}

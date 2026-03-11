@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, X } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
@@ -65,11 +65,13 @@ function newBlankAttachment(): Attachment {
 interface AttachmentsTableProps {
   attachments: Attachment[];
   onAttachmentsChange: (attachments: Attachment[] | ((prev: Attachment[]) => Attachment[])) => void;
+  categoryOptions?: { id: string; label: string }[];
 }
 
 export function AttachmentsTable({
   attachments: attachmentList,
   onAttachmentsChange,
+  categoryOptions: categoryOptionsProp,
 }: AttachmentsTableProps) {
   const [unlockedIds, setUnlockedIds] = React.useState<Set<string>>(
     new Set()
@@ -84,6 +86,14 @@ export function AttachmentsTable({
   );
 
   // Filter option arrays
+  const categorySelectOptions = React.useMemo(() => {
+    if (categoryOptionsProp && categoryOptionsProp.length > 0) return categoryOptionsProp;
+    const cats = Array.from(
+      new Set(attachmentList.map((a) => a.category).filter(Boolean))
+    ).sort();
+    return cats.map((c) => ({ id: c, label: c }));
+  }, [attachmentList, categoryOptionsProp]);
+
   const categoryOptions = React.useMemo(() => {
     const cats = Array.from(
       new Set(attachmentList.map((a) => a.category).filter(Boolean))
@@ -122,9 +132,23 @@ export function AttachmentsTable({
     [onAttachmentsChange]
   );
 
-  const addAttachment = React.useCallback(() => {
-    onAttachmentsChange((prev) => [...prev, newBlankAttachment()]);
-  }, [onAttachmentsChange]);
+  // ── Add form state ──
+  const [adding, setAdding] = React.useState(false);
+  const [newForm, setNewForm] = React.useState({ number: "", name: "", category: "", status: "available" as AttachmentStatus });
+
+  const handleAddSubmit = React.useCallback(() => {
+    if (!newForm.name.trim()) return;
+    const att: Attachment = {
+      id: `att-${crypto.randomUUID().slice(0, 8)}`,
+      number: newForm.number.trim(),
+      name: newForm.name.trim(),
+      category: newForm.category.trim(),
+      status: newForm.status,
+    };
+    onAttachmentsChange((prev) => [...prev, att]);
+    setAdding(false);
+    setNewForm({ number: "", name: "", category: "", status: "available" });
+  }, [newForm, onAttachmentsChange]);
 
   const { unlockRow } = useRelockOnClickOutside(attachmentList, unlockedIds, setUnlockedIds);
 
@@ -136,13 +160,55 @@ export function AttachmentsTable({
           size="sm"
           variant="outline"
           className="gap-1.5 text-xs cursor-pointer"
-          onClick={addAttachment}
+          onClick={() => setAdding(true)}
+          disabled={adding}
         >
           <Plus className="h-3.5 w-3.5" />
           Add Attachment
         </Button>
         <AttachmentsExport attachments={filteredAttachments} />
       </div>
+
+      {/* Add form */}
+      {adding && (
+        <div className="rounded-xl border border-primary/40 bg-card shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
+                  <TableHead className="w-[120px] text-xs font-semibold px-3">Attachment #</TableHead>
+                  <TableHead className="w-[220px] text-xs font-semibold px-3">Name</TableHead>
+                  <TableHead className="w-[160px] text-xs font-semibold px-3">Category</TableHead>
+                  <TableHead className="w-[130px] text-xs font-semibold px-3">Status</TableHead>
+                  <TableHead className="w-[100px] text-xs font-semibold px-3"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow className="h-[36px] hover:bg-muted/20">
+                  <TableCell className="p-0 px-1">
+                    <CellInput value={newForm.number} onChange={(v) => setNewForm((f) => ({ ...f, number: v }))} placeholder="e.g. AT-008" />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellInput value={newForm.name} onChange={(v) => setNewForm((f) => ({ ...f, name: v }))} placeholder="Attachment name" />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellSelect value={newForm.category} onChange={(v) => setNewForm((f) => ({ ...f, category: v }))} options={categorySelectOptions} placeholder="Category" />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellSelect value={newForm.status} onChange={(v) => setNewForm((f) => ({ ...f, status: v as AttachmentStatus }))} options={statusOptions} placeholder="Status" />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" className="h-7 text-xs cursor-pointer px-3" onClick={handleAddSubmit} disabled={!newForm.name.trim()}>Add</Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 cursor-pointer p-0" onClick={() => { setAdding(false); setNewForm({ number: "", name: "", category: "", status: "available" }); }}><X className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -239,12 +305,13 @@ export function AttachmentsTable({
                           {att.category}
                         </span>
                       ) : (
-                        <CellInput
+                        <CellSelect
                           value={att.category}
                           onChange={(v) =>
                             updateAttachment(att.id, "category", v)
                           }
-                          placeholder="e.g. Bucket"
+                          options={categorySelectOptions}
+                          placeholder="Category"
                         />
                       )}
                     </TableCell>

@@ -3,22 +3,28 @@
 import * as React from "react";
 import { format, parseISO } from "date-fns";
 import {
-  FileText,
   Plus,
   Search,
   Camera,
   Users,
+  Wrench,
+  Clock,
+  Download,
+  Eye,
+  Loader2,
 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
-import { ExportDialog } from "@/components/shared/export-dialog";
-import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
-import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
-import { dailyReportCSVColumns, dailyReportPDFColumns, dailyReportPDFRows } from "@/lib/export/columns";
+import { generateDailyReportPDF, generateDailyReportPDFBlobUrl } from "@/lib/export/react-pdf/daily-report";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -36,6 +42,11 @@ import type { DateRange } from "react-day-picker";
 import {
   useEmployees,
   useProjects,
+  useTimeEntries,
+  useEquipment,
+  useCostCodes,
+  useAttachments,
+  useTools,
 } from "@/hooks/use-firestore";
 import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { Collections } from "@/lib/firebase/collections";
@@ -43,29 +54,15 @@ import { SavingIndicator } from "@/components/shared/saving-indicator";
 
 import type {
   DailyReport,
-  WeatherCondition,
   Employee,
   Project,
+  Equipment as EquipmentType,
 } from "@/lib/types/time-tracking";
 
 // ── Helpers ──
 function nextId(): string {
   return `dr-${crypto.randomUUID().slice(0, 8)}`;
 }
-
-
-
-const weatherLabels: Record<WeatherCondition, string> = {
-  sunny: "☀️ Sunny",
-  "partly-cloudy": "⛅ Partly Cloudy",
-  cloudy: "☁️ Cloudy",
-  overcast: "🌥️ Overcast",
-  rain: "🌧️ Rain",
-  snow: "🌨️ Snow",
-  fog: "🌫️ Fog",
-  windy: "💨 Windy",
-  thunderstorm: "⛈️ Thunderstorm",
-};
 
 function createBlankReport(): DailyReport {
   const now = new Date();
@@ -76,7 +73,6 @@ function createBlankReport(): DailyReport {
     time: format(now, "HH:mm"),
     projectId: "",
     authorId: "",
-    status: "draft",
     weather: {
       temperature: "",
       conditions: [],
@@ -101,6 +97,12 @@ function createBlankReport(): DailyReport {
 export default function DailyReportsTable() {
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
+  const { data: timeEntries } = useTimeEntries();
+  const { data: equipment } = useEquipment();
+  const { data: costCodes } = useCostCodes();
+  const { data: attachments } = useAttachments();
+  const { data: tools } = useTools();
+  const { profile } = useCompanyProfile();
   const [reports, setReports, , reportsSaving] = useFirestoreState<DailyReport>(Collections.DAILY_REPORTS);
 
   // Dialog state
@@ -109,6 +111,18 @@ export default function DailyReportsTable() {
     null
   );
   const [pendingNew, setPendingNew] = React.useState(false);
+
+  // PDF Preview state
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = React.useState(false);
+  const [previewReportId, setPreviewReportId] = React.useState<string | null>(null);
+
+  // Cleanup blob URL on unmount
+  React.useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   // Filters
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
@@ -129,6 +143,22 @@ export default function DailyReportsTable() {
     (id: string) => employees.find((e) => e.id === id)?.name ?? "—",
     [employees]
   );
+  const getEquipmentName = React.useCallback(
+    (id: string) => equipment.find((e: EquipmentType) => e.id === id)?.name ?? id,
+    [equipment]
+  );
+
+  // Time entries count per report (matched by date + projectId)
+  const timeEntryCountByReport = React.useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of reports) {
+      const count = timeEntries.filter(
+        (te) => te.date === r.date && te.projectId === r.projectId
+      ).length;
+      map.set(r.id, count);
+    }
+    return map;
+  }, [reports, timeEntries]);
 
   // Filtering
   const filteredReports = React.useMemo(() => {
@@ -204,6 +234,52 @@ export default function DailyReportsTable() {
     setReports((prev) => prev.filter((r) => r.id !== id));
   };
 
+  // Export single report PDF — show preview
+  const handleExportReport = async (report: DailyReport, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPreviewLoading(true);
+    setPreviewReportId(report.id);
+    try {
+      const url = await generateDailyReportPDFBlobUrl({
+        report,
+        employees,
+        projects,
+        equipment,
+        timeEntries,
+        costCodes,
+        attachments,
+        tools,
+        company: profile,
+      });
+      setPreviewUrl(url);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // Download from preview
+  const handleDownloadFromPreview = () => {
+    const report = reports.find((r) => r.id === previewReportId);
+    if (!report) return;
+    generateDailyReportPDF({
+      report,
+      employees,
+      projects,
+      equipment,
+      timeEntries,
+      costCodes,
+      attachments,
+      tools,
+      company: profile,
+    });
+  };
+
+  const closePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewReportId(null);
+  };
+
   // Filter options
   const projectOptions = React.useMemo(
     () => [...new Set(reports.map((r) => r.projectId))].map(
@@ -232,7 +308,6 @@ export default function DailyReportsTable() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <DailyReportsExport reports={filteredReports} employees={employees} projects={projects} />
           <Button
             variant="outline"
             size="sm"
@@ -256,8 +331,8 @@ export default function DailyReportsTable() {
                   onDateRangeChange={setDateRange}
                 />
               </TableHead>
-              <TableHead className="w-[70px] text-xs font-semibold px-3">Time</TableHead>
-              <TableHead className="text-xs font-semibold px-3">
+              <TableHead className="w-[60px] text-xs font-semibold px-3">Time</TableHead>
+              <TableHead className="min-w-[140px] text-xs font-semibold px-3">
                 <ColumnFilter
                   title="Project"
                   options={projectOptions}
@@ -265,7 +340,7 @@ export default function DailyReportsTable() {
                   onChange={setProjectFilter}
                 />
               </TableHead>
-              <TableHead className="text-xs font-semibold px-3">
+              <TableHead className="min-w-[120px] text-xs font-semibold px-3">
                 <ColumnFilter
                   title="Author"
                   options={authorOptions}
@@ -273,17 +348,18 @@ export default function DailyReportsTable() {
                   onChange={setAuthorFilter}
                 />
               </TableHead>
-              <TableHead className="w-[120px] text-xs font-semibold px-3">Weather</TableHead>
+              <TableHead className="min-w-[160px] text-xs font-semibold px-3">Work Description</TableHead>
               <TableHead className="w-[70px] text-xs font-semibold px-3">Staff</TableHead>
+              <TableHead className="w-[90px] text-xs font-semibold px-3">Equipment</TableHead>
               <TableHead className="w-[60px] text-xs font-semibold px-3">Photos</TableHead>
-
+              <TableHead className="w-[90px] text-xs font-semibold px-3">Time Entries</TableHead>
               <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredReports.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
                   No reports found.
                 </TableCell>
               </TableRow>
@@ -293,12 +369,8 @@ export default function DailyReportsTable() {
                   (report.morningPhotoUrls?.length ?? 0) +
                   (report.workPhotoUrls?.length ?? 0) +
                   (report.endOfDayPhotoUrls?.length ?? 0);
-                const weatherStr =
-                  report.weather.conditions.length > 0
-                    ? report.weather.conditions
-                        .map((c) => weatherLabels[c]?.split(" ")[0] ?? c)
-                        .join("")
-                    : "—";
+                const equipCount = (report.onSiteEquipment ?? []).length;
+                const teCount = timeEntryCountByReport.get(report.id) ?? 0;
 
                 return (
                   <TableRow
@@ -306,27 +378,22 @@ export default function DailyReportsTable() {
                     className="group h-[36px] cursor-pointer hover:bg-muted/30 transition-colors"
                     onClick={() => openReport(report)}
                   >
-                    <TableCell className="text-xs font-medium">
+                    <TableCell className="text-xs font-medium px-3">
                       {format(parseISO(report.date), "MM/dd/yyyy")}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground px-3">
                       {report.time || "—"}
                     </TableCell>
-                    <TableCell className="text-xs truncate max-w-[200px]">
+                    <TableCell className="text-xs truncate max-w-[200px] px-3">
                       {getProjectName(report.projectId)}
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-xs px-3">
                       {getEmployeeName(report.authorId)}
                     </TableCell>
-                    <TableCell className="text-xs">
-                      <span title={report.weather.conditions.join(", ")}>
-                        {weatherStr}{" "}
-                        <span className="text-muted-foreground">
-                          {report.weather.temperature}
-                        </span>
-                      </span>
+                    <TableCell className="text-xs truncate max-w-[200px] text-muted-foreground px-3">
+                      {report.workDescription || "—"}
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-xs px-3">
                       {(report.onSiteStaff ?? []).length > 0 ? (
                         <span className="inline-flex items-center gap-1">
                           <Users className="h-3 w-3 text-muted-foreground" />
@@ -336,7 +403,17 @@ export default function DailyReportsTable() {
                         "—"
                       )}
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-xs px-3">
+                      {equipCount > 0 ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Wrench className="h-3 w-3 text-muted-foreground" />
+                          {equipCount}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs px-3">
                       {totalPhotos > 0 ? (
                         <span className="inline-flex items-center gap-1">
                           <Camera className="h-3 w-3 text-muted-foreground" />
@@ -346,11 +423,37 @@ export default function DailyReportsTable() {
                         "—"
                       )}
                     </TableCell>
-                    <TableCell>
-                      <DeleteConfirmButton
-                        onConfirm={() => handleDelete(report.id)}
-                        itemLabel="this daily report"
-                      />
+                    <TableCell className="text-xs px-3">
+                      {teCount > 0 ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          {teCount}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="px-3">
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                          onClick={(e) => handleExportReport(report, e)}
+                          title="Preview PDF"
+                          disabled={previewLoading && previewReportId === report.id}
+                        >
+                          {previewLoading && previewReportId === report.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                        <DeleteConfirmButton
+                          onConfirm={() => handleDelete(report.id)}
+                          itemLabel="this daily report"
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -375,74 +478,49 @@ export default function DailyReportsTable() {
           onSave={handleSave}
         />
       )}
+      {/* PDF Preview Dialog */}
+      <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
+        <DialogContent className="sm:max-w-[900px] h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              PDF Preview
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 rounded-md border overflow-hidden">
+            {previewUrl && (
+              <iframe
+                src={previewUrl}
+                className="w-full h-full"
+                title="PDF Preview"
+              />
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 cursor-pointer"
+              onClick={closePreview}
+            >
+              Close
+            </Button>
+            <div className="flex-1" />
+            <Button
+              className="gap-2 cursor-pointer bg-red-700 hover:bg-red-800 text-white"
+              size="sm"
+              onClick={handleDownloadFromPreview}
+            >
+              <Download className="h-4 w-4" />
+              Download PDF
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <SavingIndicator saving={reportsSaving} />
     </>
-  );
-}
-
-// ── Export sub-component ──
-const DAILY_REPORT_EXPORT_COLUMNS: ExportColumnDef[] = [
-  { id: "date", header: "Date" },
-  { id: "time", header: "Time" },
-  { id: "project", header: "Project" },
-  { id: "author", header: "Author" },
-  { id: "weather", header: "Weather" },
-  { id: "staff", header: "Staff" },
-  { id: "photos", header: "Photos" },
-];
-
-const DAILY_REPORT_GROUP_OPTIONS = [
-  { value: "project", label: "Project" },
-  { value: "author", label: "Author" },
-];
-
-function DailyReportsExport({ reports, employees, projects }: { reports: DailyReport[]; employees: Employee[]; projects: Project[] }) {
-  const { profile } = useCompanyProfile();
-
-  const handleExport = (config: ExportConfig) => {
-    const datestamp = new Date().toISOString().slice(0, 10);
-    const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
-
-    if (config.format === "excel") {
-      exportToExcel(reports, dailyReportCSVColumns(employees, projects), filename, config.selectedColumns);
-    } else if (config.format === "csv") {
-      exportToCSV(reports, dailyReportCSVColumns(employees, projects), filename, config.selectedColumns);
-    } else {
-      generatePDF({
-        title: config.title,
-        filename,
-        company: profile,
-        columns: dailyReportPDFColumns,
-        rows: dailyReportPDFRows(reports, employees, projects),
-        orientation: config.orientation,
-        selectedColumns: config.selectedColumns,
-        groupBy: config.groupBy,
-      });
-    }
-  };
-
-  const handlePreview = (config: ExportConfig) =>
-    generatePDFBlobUrl({
-      title: config.title,
-      filename: "preview",
-      company: profile,
-      columns: dailyReportPDFColumns,
-      rows: dailyReportPDFRows(reports, employees, projects),
-      orientation: config.orientation,
-      selectedColumns: config.selectedColumns,
-      groupBy: config.groupBy,
-    });
-
-  return (
-    <ExportDialog
-      columns={DAILY_REPORT_EXPORT_COLUMNS}
-      groupOptions={DAILY_REPORT_GROUP_OPTIONS}
-      defaultTitle="Daily Reports"
-      defaultOrientation="landscape"
-      onExport={handleExport}
-      onGeneratePDFPreview={handlePreview}
-      disabled={reports.length === 0}
-      recordCount={reports.length}
-    />
   );
 }

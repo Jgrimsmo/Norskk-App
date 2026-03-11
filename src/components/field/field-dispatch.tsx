@@ -19,9 +19,9 @@ import {
   Paperclip,
   Hammer,
   ArrowLeft,
+  Navigation,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,13 +34,14 @@ import {
   useTools,
   useDispatches,
 } from "@/hooks/use-firestore";
+import { useCurrentEmployee } from "@/hooks/use-current-employee";
 
 // ────────────────────────────────────────────────────────
 // Field Dispatch — Weekly view of dispatch assignments
 // ────────────────────────────────────────────────────────
 
 export function FieldDispatch() {
-  const searchParams = useSearchParams();
+  const { employeeId } = useCurrentEmployee();
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
   const { data: equipment } = useEquipment();
@@ -48,7 +49,6 @@ export function FieldDispatch() {
   const { data: tools } = useTools();
   const { data: allDispatches } = useDispatches();
 
-  const employeeId = searchParams.get("employee") || "";
   const [weekStart, setWeekStart] = React.useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
@@ -251,19 +251,38 @@ export function FieldDispatch() {
                       return (
                         <div key={dispatch.id} className="px-3 py-3 space-y-2">
                           {/* Project name + address */}
-                          <div className="flex items-start gap-2">
-                            <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                            <div>
-                              <span className="text-sm font-semibold">
-                                {project?.name || "Unknown Project"}
-                              </span>
-                              {project?.address && (
-                                <p className="text-xs text-muted-foreground">
-                                  {[project.address, project.city, project.province].filter(Boolean).join(", ")}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                          {(() => {
+                            const addressParts = [project?.address, project?.city, project?.province].filter(Boolean);
+                            const fullAddress = addressParts.join(", ");
+                            const mapsUrl = fullAddress
+                              ? `https://maps.apple.com/?daddr=${encodeURIComponent(fullAddress)}`
+                              : null;
+
+                            return mapsUrl ? (
+                              <a
+                                href={mapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-start gap-2 active:opacity-70 transition-opacity"
+                              >
+                                <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-semibold">
+                                    {project?.name || "Unknown Project"}
+                                  </span>
+                                  <p className="text-xs text-muted-foreground">{fullAddress}</p>
+                                </div>
+                                <Navigation className="h-3.5 w-3.5 text-primary shrink-0 mt-1" />
+                              </a>
+                            ) : (
+                              <div className="flex items-start gap-2">
+                                <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                <span className="text-sm font-semibold">
+                                  {project?.name || "Unknown Project"}
+                                </span>
+                              </div>
+                            );
+                          })()}
 
                           {/* Coworkers */}
                           {coworkers.length > 0 && (

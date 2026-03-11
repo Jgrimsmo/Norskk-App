@@ -36,15 +36,10 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
+import { SortableHeader } from "@/components/shared/sortable-header";
+import { useTableSort } from "@/hooks/use-table-sort";
 
 import { type Project, type ProjectStatus, type CostCode } from "@/lib/types/time-tracking";
 import {
@@ -294,6 +289,9 @@ export function ProjectsTable({
     [developers]
   );
 
+  // ── Sort state ──
+  const { sortKey, sortDir, toggleSort, sortData } = useTableSort<string>();
+
   // ── Filter state ──
   const [statusFilter, setStatusFilter] = React.useState<Set<string>>(new Set());
   const [developerFilter, setDeveloperFilter] = React.useState<Set<string>>(new Set());
@@ -305,7 +303,7 @@ export function ProjectsTable({
   const developerOptions = React.useMemo(() => {
     const devIds = Array.from(new Set(projectList.map((p) => p.developerId).filter(Boolean)));
     return devIds.map((id) => ({ id, label: developerMap[id] || id }));
-  }, [projectList]);
+  }, [projectList, developerMap]);
 
   // ── Per-project invoice stats ──
   const invoiceStatsByProject = React.useMemo(() => {
@@ -384,110 +382,115 @@ export function ProjectsTable({
 
       {/* Add form */}
       {adding && (
-        <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3 border-b bg-muted/40">
-            <Plus className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">New Project</h3>
-          </div>
-
-          <div className="p-5 space-y-3">
-            {/* All fields in one row */}
-            {/* Project # | Name | Developer | Street | City | Prov | Status */}
-            <div className="grid gap-3 grid-cols-[90px_1fr_160px_1fr_130px_48px_120px]">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Project #</Label>
-                <Input
-                  value={newForm.number}
-                  onChange={(e) => setNewForm((p) => ({ ...p, number: e.target.value }))}
-                  placeholder="2026-001"
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Name <span className="text-destructive">*</span></Label>
-                <Input
-                  value={newForm.name}
-                  onChange={(e) => setNewForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="Project name"
-                  className="h-8 text-xs"
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Developer</Label>
-                <Select value={newForm.developerId || "__none__"} onValueChange={(v) => setNewForm((p) => ({ ...p, developerId: v === "__none__" ? "" : v }))}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="— None —" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__" className="text-xs">— None —</SelectItem>
-                    {developers.map((d) => (
-                      <SelectItem key={d.id} value={d.id} className="text-xs">{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Street</Label>
-                <Input
-                  value={newForm.address}
-                  onChange={(e) => setNewForm((p) => ({ ...p, address: e.target.value }))}
-                  placeholder="123 Main St"
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">City</Label>
-                <Input
-                  value={newForm.city}
-                  onChange={(e) => setNewForm((p) => ({ ...p, city: e.target.value }))}
-                  placeholder="Edmonton"
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Prov.</Label>
-                <Input
-                  value={newForm.province}
-                  onChange={(e) => setNewForm((p) => ({ ...p, province: e.target.value }))}
-                  placeholder="AB"
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Status</Label>
-                <Select value={newForm.status} onValueChange={(v) => setNewForm((p) => ({ ...p, status: v as ProjectStatus }))}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.entries(statusLabels) as [ProjectStatus, string][]).map(([value, label]) => (
-                      <SelectItem key={value} value={value} className="text-xs">{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-2 pt-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs cursor-pointer"
-                onClick={() => { setAdding(false); setNewForm(BLANK_NEW_PROJECT_FORM); }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="text-xs cursor-pointer"
-                onClick={handleAddSubmit}
-                disabled={!newForm.name.trim()}
-              >
-                Add Project
-              </Button>
-            </div>
+        <div className="rounded-xl border border-primary/40 bg-card shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
+                  <TableHead className="w-[110px] text-xs font-semibold px-3">Project #</TableHead>
+                  <TableHead className="w-[200px] text-xs font-semibold px-3">Name</TableHead>
+                  <TableHead className="w-[160px] text-xs font-semibold px-3">Developer</TableHead>
+                  <TableHead className="text-xs font-semibold px-3">Street</TableHead>
+                  <TableHead className="w-[130px] text-xs font-semibold px-3">City</TableHead>
+                  <TableHead className="w-[60px] text-xs font-semibold px-3">Prov.</TableHead>
+                  <TableHead className="w-[110px] text-xs font-semibold px-3">Status</TableHead>
+                  <TableHead className="w-[100px] text-xs font-semibold px-3"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow className="h-[36px] hover:bg-muted/20">
+                  {/* Project # */}
+                  <TableCell className="p-0 px-1">
+                    <CellInput
+                      value={newForm.number}
+                      onChange={(v) => setNewForm((p) => ({ ...p, number: v }))}
+                      placeholder="26-01"
+                    />
+                  </TableCell>
+                  {/* Name */}
+                  <TableCell className="p-0 px-1">
+                    <CellInput
+                      value={newForm.name}
+                      onChange={(v) => setNewForm((p) => ({ ...p, name: v }))}
+                      placeholder="Project name"
+                    />
+                  </TableCell>
+                  {/* Developer */}
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.developerId || DEVELOPER_NONE}
+                      onChange={(v) => setNewForm((p) => ({ ...p, developerId: v === DEVELOPER_NONE ? "" : v }))}
+                      options={developerSelectOptions}
+                      placeholder="— None —"
+                      footer={
+                        onAddDeveloper ? (
+                          <button
+                            onMouseDown={(e) => { e.preventDefault(); onAddDeveloper(); }}
+                            className="w-full text-left text-xs px-1.5 py-1 rounded-sm text-primary hover:bg-accent hover:text-accent-foreground cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span className="text-base leading-none">+</span> Add Developer
+                          </button>
+                        ) : undefined
+                      }
+                    />
+                  </TableCell>
+                  {/* Street */}
+                  <TableCell className="p-0 px-1">
+                    <CellInput
+                      value={newForm.address}
+                      onChange={(v) => setNewForm((p) => ({ ...p, address: v }))}
+                      placeholder="123 Main St"
+                    />
+                  </TableCell>
+                  {/* City */}
+                  <TableCell className="p-0 px-1">
+                    <CellInput
+                      value={newForm.city}
+                      onChange={(v) => setNewForm((p) => ({ ...p, city: v }))}
+                      placeholder="Edmonton"
+                    />
+                  </TableCell>
+                  {/* Province */}
+                  <TableCell className="p-0 px-1">
+                    <CellInput
+                      value={newForm.province}
+                      onChange={(v) => setNewForm((p) => ({ ...p, province: v }))}
+                      placeholder="AB"
+                    />
+                  </TableCell>
+                  {/* Status */}
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.status}
+                      onChange={(v) => setNewForm((p) => ({ ...p, status: v as ProjectStatus }))}
+                      options={statusOptions}
+                      placeholder="Status"
+                    />
+                  </TableCell>
+                  {/* Actions */}
+                  <TableCell className="p-0 px-1">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs cursor-pointer px-3"
+                        onClick={handleAddSubmit}
+                        disabled={!newForm.name.trim()}
+                      >
+                        Add
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 cursor-pointer p-0"
+                        onClick={() => { setAdding(false); setNewForm(BLANK_NEW_PROJECT_FORM); }}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </div>
         </div>
       )}
@@ -498,29 +501,41 @@ export function ProjectsTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[110px] text-xs font-semibold px-3">Project #</TableHead>
-                <TableHead className="w-[200px] text-xs font-semibold px-3">Name</TableHead>
-                <TableHead className="w-[160px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Developer" options={developerOptions} selected={developerFilter} onChange={setDeveloperFilter} />
+                <TableHead className="w-[110px] text-xs font-semibold px-3">
+                  <SortableHeader label="Project #" column="number" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
                 </TableHead>
-                <TableHead className="w-[220px] text-xs font-semibold px-3">Address</TableHead>
+                <TableHead className="w-[200px] text-xs font-semibold px-3">
+                  <SortableHeader label="Name" column="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                </TableHead>
+                <TableHead className="w-[160px] text-xs font-semibold px-3">
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Developer" options={developerOptions} selected={developerFilter} onChange={setDeveloperFilter} />
+                    <SortableHeader label="" column="developer" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
+                </TableHead>
+                <TableHead className="w-[220px] text-xs font-semibold px-3">
+                  <SortableHeader label="Address" column="address" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                </TableHead>
                 <TableHead className="w-[90px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><Clock className="h-3 w-3" />Entries</div>
+                  <div className="flex items-center justify-center gap-1"><Clock className="h-3 w-3" /><SortableHeader label="Entries" column="entries" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
                 </TableHead>
                 <TableHead className="w-[75px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><ImageIcon className="h-3 w-3" />Photos</div>
+                  <div className="flex items-center justify-center gap-1"><ImageIcon className="h-3 w-3" /><SortableHeader label="Photos" column="photos" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
                 </TableHead>
                 <TableHead className="w-[80px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><FileText className="h-3 w-3" />Reports</div>
+                  <div className="flex items-center justify-center gap-1"><FileText className="h-3 w-3" /><SortableHeader label="Reports" column="reports" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
                 </TableHead>
                 <TableHead className="w-[75px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><ShieldCheck className="h-3 w-3" />Safety</div>
+                  <div className="flex items-center justify-center gap-1"><ShieldCheck className="h-3 w-3" /><SortableHeader label="Safety" column="safety" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
                 </TableHead>
                 <TableHead className="w-[130px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><Receipt className="h-3 w-3" />Payables</div>
+                  <div className="flex items-center justify-center gap-1"><Receipt className="h-3 w-3" /><SortableHeader label="Payables" column="payables" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
                 </TableHead>
                 <TableHead className="w-[110px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Status" options={statusOptions} selected={statusFilter} onChange={setStatusFilter} />
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Status" options={statusOptions} selected={statusFilter} onChange={setStatusFilter} />
+                    <SortableHeader label="" column="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
                 </TableHead>
                 <TableHead className="w-[80px] text-xs font-semibold px-3 text-center">Actions</TableHead>
               </TableRow>
@@ -549,7 +564,23 @@ export function ProjectsTable({
                   </TableCell>
                 </TableRow>
               )}
-              {filteredProjects.map((project) => {
+              {sortData(filteredProjects, (project, key) => {
+                const stats = statsByProject.get(project.id) ?? { timeCount: 0, totalHours: 0, photoCount: 0, reportCount: 0, safetyCount: 0 };
+                const invStats = invoiceStatsByProject.get(project.id);
+                switch (key) {
+                  case "number": return project.number;
+                  case "name": return project.name;
+                  case "developer": return developerMap[project.developerId] || "";
+                  case "address": return composeAddress(project);
+                  case "entries": return stats.timeCount;
+                  case "photos": return stats.photoCount;
+                  case "reports": return stats.reportCount;
+                  case "safety": return stats.safetyCount;
+                  case "payables": return invStats?.total ?? 0;
+                  case "status": return statusLabels[project.status] ?? project.status;
+                  default: return "";
+                }
+              }).map((project) => {
                 const isEditing = editingIds.has(project.id);
                 const stats = statsByProject.get(project.id) ?? { timeCount: 0, totalHours: 0, photoCount: 0, reportCount: 0, safetyCount: 0 };
                 const hoursLabel = stats.totalHours > 0 ? `${stats.totalHours.toFixed(1)}h` : undefined;

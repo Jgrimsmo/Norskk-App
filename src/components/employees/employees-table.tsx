@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, Users } from "lucide-react";
+import { Plus, Pencil, Users, X } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
@@ -124,9 +124,30 @@ export function EmployeesTable({
     [onEmployeesChange]
   );
 
-  const addEmployee = React.useCallback(() => {
-    onEmployeesChange((prev) => [...prev, newBlankEmployee()]);
-  }, [onEmployeesChange]);
+  // ── Add form state ──
+  const [adding, setAdding] = React.useState(false);
+  const [newForm, setNewForm] = React.useState({
+    name: "",
+    role: "",
+    phone: "",
+    email: "",
+    status: "active" as EmployeeStatus,
+  });
+
+  const handleAddSubmit = React.useCallback(() => {
+    if (!newForm.name.trim()) return;
+    const emp: Employee = {
+      id: `emp-${crypto.randomUUID().slice(0, 8)}`,
+      name: newForm.name.trim(),
+      role: newForm.role,
+      phone: newForm.phone.trim(),
+      email: newForm.email.trim(),
+      status: newForm.status,
+    };
+    onEmployeesChange((prev) => [...prev, emp]);
+    setAdding(false);
+    setNewForm({ name: "", role: "", phone: "", email: "", status: "active" });
+  }, [newForm, onEmployeesChange]);
 
   const unlockRow = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -141,13 +162,95 @@ export function EmployeesTable({
           size="sm"
           variant="outline"
           className="gap-1.5 text-xs cursor-pointer"
-          onClick={addEmployee}
+          onClick={() => setAdding(true)}
+          disabled={adding}
         >
           <Plus className="h-3.5 w-3.5" />
           Add Employee
         </Button>
         <EmployeesExport employees={filteredEmployees} />
       </div>
+
+      {/* Add form */}
+      {adding && (
+        <div className="rounded-xl border border-primary/40 bg-card shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
+                  <TableHead className="w-[180px] text-xs font-semibold px-3">Name</TableHead>
+                  <TableHead className="w-[160px] text-xs font-semibold px-3">Role / Trade</TableHead>
+                  <TableHead className="w-[150px] text-xs font-semibold px-3">Phone</TableHead>
+                  <TableHead className="w-[200px] text-xs font-semibold px-3">Email</TableHead>
+                  <TableHead className="w-[110px] text-xs font-semibold px-3">Status</TableHead>
+                  <TableHead className="w-[100px] text-xs font-semibold px-3"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow className="h-[36px] hover:bg-muted/20">
+                  <TableCell className="p-0 px-1">
+                    <CellInput
+                      value={newForm.name}
+                      onChange={(v) => setNewForm((f) => ({ ...f, name: v }))}
+                      placeholder="Full name"
+                    />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.role}
+                      onChange={(v) => setNewForm((f) => ({ ...f, role: v }))}
+                      options={roleSelectOptions}
+                      placeholder="Select role"
+                    />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellInput
+                      value={newForm.phone}
+                      onChange={(v) => setNewForm((f) => ({ ...f, phone: v }))}
+                      placeholder="(555) 000-0000"
+                    />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellInput
+                      value={newForm.email}
+                      onChange={(v) => setNewForm((f) => ({ ...f, email: v }))}
+                      placeholder="email@company.com"
+                    />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.status}
+                      onChange={(v) => setNewForm((f) => ({ ...f, status: v as EmployeeStatus }))}
+                      options={statusOptions}
+                      placeholder="Status"
+                    />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs cursor-pointer px-3"
+                        onClick={handleAddSubmit}
+                        disabled={!newForm.name.trim()}
+                      >
+                        Add
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 cursor-pointer p-0"
+                        onClick={() => { setAdding(false); setNewForm({ name: "", role: "", phone: "", email: "", status: "active" }); }}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -193,7 +296,7 @@ export function EmployeesTable({
                         <p className="text-sm font-medium">No employees yet</p>
                         <p className="text-xs">Add your first employee to get started.</p>
                         <button
-                          onClick={addEmployee}
+                          onClick={() => setAdding(true)}
                           className="mt-1 text-xs text-primary hover:underline cursor-pointer"
                         >
                           + Add Employee

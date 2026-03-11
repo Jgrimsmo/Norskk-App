@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, X } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
@@ -56,6 +56,7 @@ function newBlankEquipment(): Equipment {
     number: "",
     name: "",
     category: "",
+    lastServiceHours: "",
     status: "available",
   };
 }
@@ -67,11 +68,13 @@ function newBlankEquipment(): Equipment {
 interface EquipmentTableProps {
   equipment: Equipment[];
   onEquipmentChange: (equipment: Equipment[] | ((prev: Equipment[]) => Equipment[])) => void;
+  categoryOptions?: { id: string; label: string }[];
 }
 
 export function EquipmentTable({
   equipment: equipmentList,
   onEquipmentChange,
+  categoryOptions: categoryOptionsProp,
 }: EquipmentTableProps) {
   const [unlockedIds, setUnlockedIds] = React.useState<Set<string>>(
     new Set()
@@ -86,6 +89,18 @@ export function EquipmentTable({
   );
 
   // Filter option arrays
+  const categorySelectOptions = React.useMemo(() => {
+    if (categoryOptionsProp && categoryOptionsProp.length > 0) return categoryOptionsProp;
+    const cats = Array.from(
+      new Set(
+        equipmentList
+          .map((e) => e.category)
+          .filter((c) => c && c !== "—")
+      )
+    ).sort();
+    return cats.map((c) => ({ id: c, label: c }));
+  }, [equipmentList, categoryOptionsProp]);
+
   const categoryOptions = React.useMemo(() => {
     const cats = Array.from(
       new Set(
@@ -129,9 +144,24 @@ export function EquipmentTable({
     [onEquipmentChange]
   );
 
-  const addEquipment = React.useCallback(() => {
-    onEquipmentChange((prev) => [...prev, newBlankEquipment()]);
-  }, [onEquipmentChange]);
+  // ── Add form state ──
+  const [adding, setAdding] = React.useState(false);
+  const [newForm, setNewForm] = React.useState({ number: "", name: "", category: "", lastServiceHours: "", status: "available" as EquipmentStatus });
+
+  const handleAddSubmit = React.useCallback(() => {
+    if (!newForm.name.trim()) return;
+    const eq: Equipment = {
+      id: `eq-${crypto.randomUUID().slice(0, 8)}`,
+      number: newForm.number.trim(),
+      name: newForm.name.trim(),
+      category: newForm.category.trim(),
+      lastServiceHours: newForm.lastServiceHours.trim(),
+      status: newForm.status,
+    };
+    onEquipmentChange((prev) => [...prev, eq]);
+    setAdding(false);
+    setNewForm({ number: "", name: "", category: "", lastServiceHours: "", lastServiceHours: "", status: "available" });
+  }, [newForm, onEquipmentChange]);
 
   const { unlockRow } = useRelockOnClickOutside(equipmentList, unlockedIds, setUnlockedIds);
 
@@ -143,13 +173,59 @@ export function EquipmentTable({
           size="sm"
           variant="outline"
           className="gap-1.5 text-xs cursor-pointer"
-          onClick={addEquipment}
+          onClick={() => setAdding(true)}
+          disabled={adding}
         >
           <Plus className="h-3.5 w-3.5" />
           Add Equipment
         </Button>
         <EquipmentExport equipment={filteredEquipment} />
       </div>
+
+      {/* Add form */}
+      {adding && (
+        <div className="rounded-xl border border-primary/40 bg-card shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
+                  <TableHead className="w-[120px] text-xs font-semibold px-3">Equipment #</TableHead>
+                  <TableHead className="w-[220px] text-xs font-semibold px-3">Name</TableHead>
+                  <TableHead className="w-[160px] text-xs font-semibold px-3">Category</TableHead>
+                  <TableHead className="w-[120px] text-xs font-semibold px-3">Last Service</TableHead>
+                  <TableHead className="w-[130px] text-xs font-semibold px-3">Status</TableHead>
+                  <TableHead className="w-[100px] text-xs font-semibold px-3"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow className="h-[36px] hover:bg-muted/20">
+                  <TableCell className="p-0 px-1">
+                    <CellInput value={newForm.number} onChange={(v) => setNewForm((f) => ({ ...f, number: v }))} placeholder="e.g. EQ-008" />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellInput value={newForm.name} onChange={(v) => setNewForm((f) => ({ ...f, name: v }))} placeholder="Equipment name" />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellSelect value={newForm.category} onChange={(v) => setNewForm((f) => ({ ...f, category: v }))} options={categorySelectOptions} placeholder="Category" />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellInput value={newForm.lastServiceHours} onChange={(v) => { if (/^\d*\.?\d*$/.test(v)) setNewForm((f) => ({ ...f, lastServiceHours: v })); }} placeholder="Hours" inputMode="decimal" />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellSelect value={newForm.status} onChange={(v) => setNewForm((f) => ({ ...f, status: v as EquipmentStatus }))} options={statusOptions} placeholder="Status" />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" className="h-7 text-xs cursor-pointer px-3" onClick={handleAddSubmit} disabled={!newForm.name.trim()}>Add</Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 cursor-pointer p-0" onClick={() => { setAdding(false); setNewForm({ number: "", name: "", category: "", lastServiceHours: "", status: "available" }); }}><X className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -171,6 +247,9 @@ export function EquipmentTable({
                     onChange={setCategoryFilter}
                   />
                 </TableHead>
+                <TableHead className="w-[120px] text-xs font-semibold px-3">
+                  Last Service
+                </TableHead>
                 <TableHead className="w-[130px] text-xs font-semibold px-3">
                   <ColumnFilter
                     title="Status"
@@ -186,7 +265,7 @@ export function EquipmentTable({
               {filteredEquipment.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className="h-32 text-center text-muted-foreground"
                   >
                     No equipment matches the current filters.
@@ -246,12 +325,32 @@ export function EquipmentTable({
                           {eq.category}
                         </span>
                       ) : (
-                        <CellInput
+                        <CellSelect
                           value={eq.category}
                           onChange={(v) =>
                             updateEquipment(eq.id, "category", v)
                           }
-                          placeholder="e.g. Excavator"
+                          options={categorySelectOptions}
+                          placeholder="Category"
+                        />
+                      )}
+                    </TableCell>
+
+                    {/* Last Service */}
+                    <TableCell className="p-0 px-1">
+                      {isRetired ? (
+                        <span className="text-xs px-2 text-muted-foreground">
+                          {eq.lastServiceHours}
+                        </span>
+                      ) : (
+                        <CellInput
+                          value={eq.lastServiceHours ?? ""}
+                          onChange={(v) => {
+                            if (/^\d*\.?\d*$/.test(v))
+                              updateEquipment(eq.id, "lastServiceHours", v);
+                          }}
+                          placeholder="Hours"
+                          inputMode="decimal"
                         />
                       )}
                     </TableCell>
@@ -335,6 +434,7 @@ const EQUIPMENT_EXPORT_COLUMNS: ExportColumnDef[] = [
   { id: "number", header: "Number" },
   { id: "name", header: "Name" },
   { id: "category", header: "Category" },
+  { id: "lastServiceHours", header: "Last Service" },
   { id: "status", header: "Status" },
 ];
 

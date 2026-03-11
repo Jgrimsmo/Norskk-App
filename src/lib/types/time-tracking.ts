@@ -67,6 +67,7 @@ export interface Equipment {
   name: string;
   number: string;
   category: string;
+  lastServiceHours: string;
   status: EquipmentStatus;
 }
 
@@ -88,6 +89,11 @@ export interface Tool {
   name: string;
   category: string;
   status: ToolStatus;
+}
+
+export interface EquipmentCategory {
+  id: string;
+  name: string;
 }
 
 // ── Dispatch ────────────────────────────────
@@ -204,7 +210,7 @@ export interface DailyReport {
   time: string; // e.g. "11:37 AM"
   projectId: string;
   authorId: string; // employee id
-  status: DailyReportStatus;
+  status?: DailyReportStatus;
   // Core sections
   weather: WeatherEntry;
   workDescription: string;
@@ -352,6 +358,8 @@ export interface CompanyProfile {
   email: string;
   website: string;
   logoUrl: string;
+  /** Optional separate logo optimised for PDF/print (dark bg friendly) */
+  pdfLogoUrl?: string;
   /** Pay period cadence — defaults to "bi-weekly" */
   payPeriodType: PayPeriodType;
   /** Anchor date for weekly / bi-weekly periods (ISO string, e.g. "2026-01-05") */

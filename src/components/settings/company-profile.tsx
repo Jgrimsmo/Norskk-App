@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Building2, CalendarDays, Loader2, Upload, X } from "lucide-react";
+import { Building2, CalendarDays, FileText, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ const BLANK: CompanyProfile = {
   email: "",
   website: "",
   logoUrl: "",
+  pdfLogoUrl: "",
   payPeriodType: "bi-weekly",
   payPeriodStartDate: "",
 };
@@ -42,7 +43,9 @@ export function CompanyProfileSettings() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [uploadingLogo, setUploadingLogo] = React.useState(false);
+  const [uploadingPdfLogo, setUploadingPdfLogo] = React.useState(false);
   const logoInputRef = React.useRef<HTMLInputElement>(null);
+  const pdfLogoInputRef = React.useRef<HTMLInputElement>(null);
 
   // Load on mount
   React.useEffect(() => {
@@ -86,6 +89,28 @@ export function CompanyProfileSettings() {
       toast.error("Failed to upload logo");
     } finally {
       setUploadingLogo(false);
+      e.target.value = "";
+    }
+  };
+
+  const handlePdfLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files are allowed");
+      return;
+    }
+    setUploadingPdfLogo(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const url = await uploadFile(file, `company/pdf-logo.${ext}`);
+      updateField("pdfLogoUrl", url);
+      toast.success("PDF logo uploaded");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to upload PDF logo");
+    } finally {
+      setUploadingPdfLogo(false);
       e.target.value = "";
     }
   };
@@ -180,6 +205,63 @@ export function CompanyProfileSettings() {
             accept="image/*"
             className="hidden"
             onChange={handleLogoUpload}
+          />
+        </div>
+      </div>
+
+      {/* PDF Logo */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium flex items-center gap-1.5">
+          <FileText className="h-3.5 w-3.5" />
+          PDF / Print Logo
+        </Label>
+        <p className="text-[11px] text-muted-foreground">
+          Optional logo used on exported PDFs. Use a dark version if your main logo is white.
+          Falls back to the company logo above if not set.
+        </p>
+        <div className="flex items-center gap-4">
+          {profile.pdfLogoUrl ? (
+            <div className="relative group">
+              <Image
+                src={profile.pdfLogoUrl}
+                alt="PDF logo"
+                width={64}
+                height={64}
+                className="h-16 w-16 rounded-lg object-contain border bg-white p-1"
+              />
+              <button
+                type="button"
+                onClick={() => updateField("pdfLogoUrl", "")}
+                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ) : (
+            <div className="h-16 w-16 rounded-lg border-2 border-dashed flex items-center justify-center bg-muted/30">
+              <FileText className="h-6 w-6 text-muted-foreground/40" />
+            </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs cursor-pointer"
+            onClick={() => pdfLogoInputRef.current?.click()}
+            disabled={uploadingPdfLogo}
+          >
+            {uploadingPdfLogo ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Upload className="h-3 w-3" />
+            )}
+            {uploadingPdfLogo ? "Uploading…" : "Upload PDF Logo"}
+          </Button>
+          <input
+            ref={pdfLogoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePdfLogoUpload}
           />
         </div>
       </div>

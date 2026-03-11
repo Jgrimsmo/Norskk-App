@@ -6,14 +6,17 @@ import { RequirePermission } from "@/components/require-permission";
 export default function DailyReportsPage() {
   return (
     <RequirePermission permission="daily-reports.view">
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Daily Reports
-        </h1>
-        <p className="text-muted-foreground">
-          Daily site logs with weather, manpower, work performed, delays, and deliveries.
-        </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Daily Reports
+          </h1>
+          <p className="text-muted-foreground">
+            Daily site logs with weather, manpower, work performed, delays, and deliveries.
+          </p>
+        </div>
       </div>
 
       <DailyReportsTable />

@@ -69,9 +69,11 @@ export async function buildPDFDoc(options: PDFReportOptions): Promise<jsPDF> {
     groupBy,
   } = options;
 
-  // Filter columns based on selection
+  // Filter columns based on selection (respecting user order)
   const columns = allColumns && selectedColumns
-    ? allColumns.filter((c) => selectedColumns.includes(c.dataKey))
+    ? selectedColumns
+        .map((id) => allColumns.find((c) => c.dataKey === id))
+        .filter((c): c is NonNullable<typeof c> => c != null)
     : allColumns;
 
   const doc = new jsPDF({ orientation, unit: "mm", format: "letter" });

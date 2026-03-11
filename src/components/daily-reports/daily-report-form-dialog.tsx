@@ -114,7 +114,7 @@ export default function DailyReportFormDialog({
   const { data: tools } = useTools();
 
   const [form, setForm] = React.useState<DailyReport>({ ...report });
-  const isLocked = form.status === "approved";
+  const isLocked = false;
   const isDirty = JSON.stringify(form) !== JSON.stringify(report);
   const { confirmClose } = useUnsavedWarning(isDirty && open);
 

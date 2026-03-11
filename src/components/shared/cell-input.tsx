@@ -7,6 +7,7 @@ interface CellInputProps {
   type?: string;
   className?: string;
   placeholder?: string;
+  inputMode?: "text" | "decimal" | "numeric" | "search" | "tel" | "email" | "url";
 }
 
 export const CellInput = memo(function CellInput({
@@ -15,10 +16,12 @@ export const CellInput = memo(function CellInput({
   type = "text",
   className = "",
   placeholder = "",
+  inputMode,
 }: CellInputProps) {
   return (
     <Input
       type={type}
+      inputMode={inputMode}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}

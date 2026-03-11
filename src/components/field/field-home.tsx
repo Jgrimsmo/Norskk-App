@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
+import { format, formatDistanceToNow, startOfWeek, endOfWeek, isWithinInterval, parseISO } from "date-fns";
 import {
   Truck,
   FileText,
@@ -11,11 +11,14 @@ import {
   MapPin,
   Plus,
   HardHat,
+  Wifi,
+  WifiOff,
+  Navigation,
 } from "lucide-react";
 import Link from "next/link";
 
-
 import { Badge } from "@/components/ui/badge";
+import { PullToRefresh } from "@/components/field/pull-to-refresh";
 
 import {
   useEmployees,
@@ -51,13 +54,44 @@ const quickActions = [
 ];
 
 export function FieldHome() {
-  const { data: employees, loading: loadingEmp } = useEmployees();
-  const { data: projects, loading: loadingProjects } = useProjects();
-  const { data: timeEntries, loading: loadingTime } = useTimeEntries();
-  const { data: dispatches, loading: loadingDispatches } = useDispatches();
+  const { data: employees, loading: loadingEmp, refresh: refreshEmp } = useEmployees();
+  const { data: projects, loading: loadingProjects, refresh: refreshProjects } = useProjects();
+  const { data: timeEntries, loading: loadingTime, refresh: refreshTime } = useTimeEntries();
+  const { data: dispatches, loading: loadingDispatches, refresh: refreshDispatches } = useDispatches();
   const { user } = useAuth();
 
   const loading = loadingEmp || loadingProjects || loadingTime || loadingDispatches;
+
+  // Track last synced time — updates whenever data finishes loading
+  const [lastSynced, setLastSynced] = React.useState<Date | null>(null);
+  const [, forceUpdate] = React.useReducer((x: number) => x + 1, 0);
+  React.useEffect(() => {
+    if (!loading) setLastSynced(new Date());
+  }, [loading, employees, projects, timeEntries, dispatches]);
+
+  // Re-render the "ago" label every 30s
+  React.useEffect(() => {
+    const interval = setInterval(forceUpdate, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const [isOnline, setIsOnline] = React.useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+  React.useEffect(() => {
+    const online = () => setIsOnline(true);
+    const offline = () => setIsOnline(false);
+    window.addEventListener("online", online);
+    window.addEventListener("offline", offline);
+    return () => {
+      window.removeEventListener("online", online);
+      window.removeEventListener("offline", offline);
+    };
+  }, []);
+
+  const handleRefresh = React.useCallback(async () => {
+    await Promise.all([refreshEmp(), refreshProjects(), refreshTime(), refreshDispatches()]);
+  }, [refreshEmp, refreshProjects, refreshTime, refreshDispatches]);
 
   // Auto-match the logged-in user to their employee record
   const currentEmployee = React.useMemo(() => {
@@ -127,17 +161,38 @@ export function FieldHome() {
   }
 
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="space-y-5 pb-6">
-      {/* ── Greeting ── */}
+      {/* ── Greeting + sync status ── */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
           {firstName ? `${greeting}, ${firstName}` : greeting}
         </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">{todayLabel}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <p className="text-sm text-muted-foreground">{todayLabel}</p>
+          <span className="text-muted-foreground/40">·</span>
+          <div className="flex items-center gap-1">
+            {isOnline ? (
+              <Wifi className="h-3 w-3 text-emerald-500" />
+            ) : (
+              <WifiOff className="h-3 w-3 text-destructive" />
+            )}
+            <span className="text-[11px] text-muted-foreground">
+              {lastSynced ? formatDistanceToNow(lastSynced, { addSuffix: true }) : "syncing…"}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ── Today's Assignment ── */}
-      {todayProject ? (
+      {todayProject ? (() => {
+        const addressParts = [todayProject.address, todayProject.city, todayProject.province].filter(Boolean);
+        const fullAddress = addressParts.join(", ");
+        const mapsUrl = fullAddress
+          ? `https://maps.apple.com/?daddr=${encodeURIComponent(fullAddress)}`
+          : null;
+
+        return (
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="bg-primary/10 px-4 py-2 flex items-center gap-2">
             <HardHat className="h-3.5 w-3.5 text-primary" />
@@ -145,22 +200,41 @@ export function FieldHome() {
               Today&apos;s Assignment
             </p>
           </div>
-          <div className="px-4 py-3 flex items-start gap-3">
-            <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm leading-snug">{todayProject.name}</p>
-              {(todayProject.address || todayProject.city) && (
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                  {[todayProject.address, todayProject.city].filter(Boolean).join(", ")}
-                </p>
-              )}
+          {mapsUrl ? (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block px-4 py-3 active:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-start gap-3">
+                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm leading-snug">{todayProject.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {fullAddress}
+                  </p>
+                </div>
+                <Navigation className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              </div>
+              <p className="text-[10px] text-primary font-medium mt-1.5 ml-7">
+                Tap for directions
+              </p>
+            </a>
+          ) : (
+            <div className="px-4 py-3 flex items-start gap-3">
+              <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm leading-snug">{todayProject.name}</p>
+              </div>
+              <Badge variant="secondary" className="text-xs shrink-0">
+                {todayProject.status ?? "Active"}
+              </Badge>
             </div>
-            <Badge variant="secondary" className="text-xs shrink-0">
-              {todayProject.status ?? "Active"}
-            </Badge>
-          </div>
+          )}
         </div>
-      ) : (
+        );
+      })() : (
         <div className="rounded-xl border border-dashed bg-muted/30 px-4 py-4 flex items-center gap-3 text-muted-foreground">
           <CalendarDays className="h-4 w-4 shrink-0" />
           <p className="text-sm">No dispatch assignment for today.</p>
@@ -210,6 +284,7 @@ export function FieldHome() {
         </div>
       </div>
     </div>
+    </PullToRefresh>
   );
 }
 

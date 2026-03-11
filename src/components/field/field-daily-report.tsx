@@ -25,9 +25,9 @@ import {
   Clock,
   RefreshCw,
   Wrench,
+  CalendarIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,6 +42,13 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import type { DateRange } from "react-day-picker";
 
 import { PhotoUpload } from "@/components/shared/photo-upload";
 
@@ -59,6 +66,7 @@ import {
   useTools,
 } from "@/hooks/use-firestore";
 import { useFirestoreState } from "@/hooks/use-firestore-state";
+import { useCurrentEmployee } from "@/hooks/use-current-employee";
 import { Collections, EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
 
@@ -102,7 +110,6 @@ function createBlankReport(authorId: string): DailyReport {
     time: format(now, "HH:mm"),
     projectId: "",
     authorId,
-    status: "draft",
     weather: {
       temperature: "",
       conditions: [],
@@ -129,8 +136,7 @@ function createBlankReport(authorId: string): DailyReport {
 // ────────────────────────────────────────────────────────
 
 export function FieldDailyReport() {
-  const searchParams = useSearchParams();
-  const employeeId = searchParams.get("employee") || "";
+  const { employeeId } = useCurrentEmployee();
 
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
@@ -146,6 +152,11 @@ export function FieldDailyReport() {
   const [mode, setMode] = React.useState<"list" | "edit">("list");
   const [activeReport, setActiveReport] = React.useState<DailyReport | null>(null);
   const [staffSearch, setStaffSearch] = React.useState("");
+
+  // List view tab & browse filters
+  const [listTab, setListTab] = React.useState<"today" | "mine" | "browse">("today");
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
+  const [browseProjectId, setBrowseProjectId] = React.useState("");
 
   // Weather auto-fill
   const [weatherLoading, setWeatherLoading] = React.useState(false);
@@ -185,13 +196,36 @@ export function FieldDailyReport() {
     [reports, employeeId]
   );
 
-  // Today's reports filed by other employees
-  const todayOthersReports = React.useMemo(
+  // All reports from today (everyone)
+  const todayReports = React.useMemo(
     () =>
       reports
-        .filter((r) => r.date === today && r.authorId !== employeeId)
+        .filter((r) => r.date === today)
         .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? "")),
-    [reports, employeeId, today]
+    [reports, today]
+  );
+
+  // Browse / search results
+  const browseFrom = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
+  const browseTo = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : browseFrom;
+  const hasDateFilter = !!browseFrom;
+  const browseReports = React.useMemo(() => {
+    let filtered = reports;
+    if (browseFrom) {
+      filtered = filtered.filter((r) => r.date >= browseFrom);
+    }
+    if (browseTo) {
+      filtered = filtered.filter((r) => r.date <= browseTo);
+    }
+    if (browseProjectId && browseProjectId !== "all") {
+      filtered = filtered.filter((r) => r.projectId === browseProjectId);
+    }
+    return filtered.sort((a, b) => b.date.localeCompare(a.date));
+  }, [reports, browseFrom, browseTo, browseProjectId]);
+
+  const activeProjects = React.useMemo(
+    () => projects.filter((p) => p.status === "active" || p.status === "bidding"),
+    [projects]
   );
 
   const activeEmployees = React.useMemo(
@@ -318,6 +352,52 @@ export function FieldDailyReport() {
 
   // ─── LIST VIEW ───
   if (mode === "list") {
+    // Reusable report card renderer
+    const renderReportCard = (r: DailyReport, showAuthor = false) => {
+      const proj = projects.find((p) => p.id === r.projectId);
+      const author = employees.find((e) => e.id === r.authorId);
+      const isOwn = r.authorId === employeeId;
+      return (
+        <button
+          key={r.id}
+          onClick={() => handleOpen(r)}
+          className={`w-full rounded-xl border shadow-sm p-4 text-left cursor-pointer transition-colors ${
+            isOwn
+              ? "bg-card hover:bg-muted/40 active:bg-muted/60"
+              : "bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
+          }`}
+        >
+          <div className="flex items-start justify-between mb-1">
+            <span className="text-sm font-semibold">
+              {proj ? proj.name : "No project"}
+            </span>
+            {isOwn && (
+              <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                You
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {showAuthor && (author ? `${author.name} · ` : "")}
+            {format(parseISO(r.date), "MMM d, yyyy")}
+            {r.time && ` · ${r.time}`}
+            {r.onSiteStaff.length > 0 && ` · ${r.onSiteStaff.length} staff`}
+          </p>
+          {r.workDescription && (
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+              {r.workDescription}
+            </p>
+          )}
+        </button>
+      );
+    };
+
+    const tabs = [
+      { id: "today" as const, label: "Today", count: todayReports.length },
+      { id: "mine" as const, label: "My Reports", count: myReports.length },
+      { id: "browse" as const, label: "Browse", count: null },
+    ];
+
     return (
       <div className="space-y-4">
         {/* Header */}
@@ -340,89 +420,144 @@ export function FieldDailyReport() {
           </Button>
         </div>
 
-        {/* ── Today on Site (others' reports) ── */}
-        {todayOthersReports.length > 0 && (
+        {/* Tabs */}
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setListTab(tab.id)}
+              className={`flex-1 text-xs font-medium py-2 px-3 rounded-md transition-colors cursor-pointer ${
+                listTab === tab.id
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+              {tab.count !== null && (
+                <span className="ml-1 text-[10px] opacity-60">({tab.count})</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        {listTab === "today" && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Today on Site
-            </p>
-            {todayOthersReports.map((r) => {
-              const proj = projects.find((p) => p.id === r.projectId);
-              const author = employees.find((e) => e.id === r.authorId);
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => handleOpen(r)}
-                  className="w-full rounded-xl border bg-muted/30 shadow-sm p-4 text-left cursor-pointer hover:bg-muted/50 active:bg-muted/70 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-1">
-                    <span className="text-sm font-semibold">
-                      {proj ? proj.name : "No project"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {author ? author.name : "Unknown"}
-                    {r.time && ` · ${r.time}`}
-                    {r.onSiteStaff.length > 0 && ` · ${r.onSiteStaff.length} staff`}
-                  </p>
-                  {r.workDescription && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {r.workDescription}
-                    </p>
-                  )}
-                </button>
-              );
-            })}
+            {todayReports.length === 0 ? (
+              <div className="text-center py-10">
+                <FileText className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">No reports filed today</p>
+              </div>
+            ) : (
+              todayReports.map((r) => renderReportCard(r, true))
+            )}
           </div>
         )}
 
-        {/* ── My Reports ── */}
-        {myReports.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-            <p className="text-sm text-muted-foreground">No reports yet</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 text-xs cursor-pointer"
-              onClick={handleNew}
-            >
-              Create Your First Report
-            </Button>
-          </div>
-        ) : (
+        {listTab === "mine" && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              My Reports
-            </p>
-            {myReports.map((r) => {
-              const proj = projects.find((p) => p.id === r.projectId);
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => handleOpen(r)}
-                  className="w-full rounded-xl border bg-card shadow-sm p-4 text-left cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors"
+            {myReports.length === 0 ? (
+              <div className="text-center py-10">
+                <FileText className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                <p className="text-sm text-muted-foreground">No reports yet</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 text-xs cursor-pointer"
+                  onClick={handleNew}
                 >
-                  <div className="flex items-start justify-between mb-1">
-                    <span className="text-sm font-semibold">
-                      {proj ? proj.name : "No project"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {format(parseISO(r.date), "MMM d, yyyy")}
-                    {r.time && ` · ${r.time}`}
-                    {r.onSiteStaff.length > 0 && ` · ${r.onSiteStaff.length} staff`}
-                  </p>
-                  {r.workDescription && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {r.workDescription}
-                    </p>
-                  )}
-                </button>
-              );
-            })}
+                  Create Your First Report
+                </Button>
+              </div>
+            ) : (
+              myReports.map((r) => renderReportCard(r))
+            )}
           </div>
         )}
+
+        {listTab === "browse" && (
+          <div className="space-y-3">
+            {/* Filters */}
+            <div className="space-y-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full h-9 justify-start text-xs font-normal cursor-pointer"
+                  >
+                    <CalendarIcon className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                    {dateRange?.from ? (
+                      dateRange.to && dateRange.to.getTime() !== dateRange.from.getTime() ? (
+                        <>
+                          {format(dateRange.from, "MMM d, yyyy")} – {format(dateRange.to, "MMM d, yyyy")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "MMM d, yyyy")
+                      )
+                    ) : (
+                      <span className="text-muted-foreground">Select date range</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={1}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Select value={browseProjectId} onValueChange={setBrowseProjectId}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {activeProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {(hasDateFilter || (browseProjectId && browseProjectId !== "all")) && (
+              <button
+                onClick={() => { setDateRange(undefined); setBrowseProjectId(""); }}
+                className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Clear filters
+              </button>
+            )}
+
+            <div className="space-y-2">
+              {!(hasDateFilter || (browseProjectId && browseProjectId !== "all")) ? (
+                <div className="text-center py-10">
+                  <Search className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    Select a date range or project to find reports
+                  </p>
+                </div>
+              ) : browseReports.length === 0 ? (
+                <div className="text-center py-10">
+                  <Search className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    No reports match your filters
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {browseReports.length} report{browseReports.length !== 1 ? "s" : ""} found
+                  </p>
+                  {browseReports.map((r) => renderReportCard(r, true))}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         <SavingIndicator saving={saving} />
       </div>
     );

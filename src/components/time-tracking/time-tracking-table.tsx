@@ -2,7 +2,13 @@
 
 import * as React from "react";
 import { format, parseISO } from "date-fns";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
@@ -10,7 +16,7 @@ import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-d
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { exportToExcel, exportToCSV } from "@/lib/export/csv";
 import { timeEntryColumns } from "@/lib/export/columns";
-import { generateTimeTrackingReport, generateTimeTrackingReportBlobUrl } from "@/lib/export/time-tracking-report";
+
 
 import {
   Table,
@@ -24,6 +30,7 @@ import { CellInput } from "@/components/shared/cell-input";
 import { CellSelect } from "@/components/shared/cell-select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+
 import {
   Tooltip,
   TooltipContent,
@@ -31,6 +38,8 @@ import {
 } from "@/components/ui/tooltip";
 
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
+import { SortableHeader } from "@/components/shared/sortable-header";
+import { useTableSort } from "@/hooks/use-table-sort";
 
 import {
   type TimeEntry,
@@ -53,6 +62,131 @@ import { workTypeLabels } from "@/lib/constants/labels";
 // Helpers
 // ────────────────────────────────────────────
 import { lookupName } from "@/lib/utils/lookup";
+
+/* ── Work Tasks Popover ── */
+function WorkTasksPopover({
+  notes,
+  onChange,
+  readOnly = false,
+}: {
+  notes: string;
+  onChange: (v: string) => void;
+  readOnly?: boolean;
+}) {
+  // Parse numbered lines into plain task strings
+  const parseTasks = (raw: string) =>
+    raw
+      ? raw.split("\n").map((l) => l.replace(/^\d+\.\s*/, ""))
+      : [""];
+
+  const [tasks, setTasks] = React.useState(() => parseTasks(notes));
+  const [open, setOpen] = React.useState(false);
+
+  // Sync when notes change externally
+  React.useEffect(() => {
+    if (!open) setTasks(parseTasks(notes));
+  }, [notes, open]);
+
+  const serialize = (t: string[]) => {
+    const filled = t.filter((s) => s.trim());
+    return filled.length > 0
+      ? filled.map((s, i) => `${i + 1}. ${s.trim()}`).join("\n")
+      : "";
+  };
+
+  const commit = (updated: string[]) => {
+    setTasks(updated);
+    onChange(serialize(updated));
+  };
+
+  const firstLine = notes?.split("\n")[0];
+  const hasMore = notes?.includes("\n");
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="w-full text-left text-xs px-2 py-1.5 truncate max-w-[250px] block cursor-pointer hover:bg-muted/50 rounded-sm transition-colors text-muted-foreground"
+        >
+          {firstLine ? (
+            <>
+              {firstLine}
+              {hasMore && <span className="text-muted-foreground/60"> …</span>}
+            </>
+          ) : (
+            <span className="text-muted-foreground/40 italic">No tasks</span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-3" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Work Tasks</p>
+          <div className="space-y-1.5 max-h-52 overflow-y-auto">
+            {tasks.map((task, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-muted-foreground w-4 shrink-0 text-right">
+                  {i + 1}.
+                </span>
+                {readOnly ? (
+                  <span className="text-xs flex-1">{task || "—"}</span>
+                ) : (
+                  <>
+                    <Input
+                      value={task}
+                      onChange={(e) => {
+                        const updated = [...tasks];
+                        updated[i] = e.target.value;
+                        commit(updated);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const updated = [...tasks];
+                          updated.splice(i + 1, 0, "");
+                          commit(updated);
+                          setTimeout(() => {
+                            const inputs = (e.target as HTMLElement)
+                              .closest(".space-y-1\.5")
+                              ?.querySelectorAll("input");
+                            inputs?.[i + 1]?.focus();
+                          }, 0);
+                        }
+                      }}
+                      placeholder={i === 0 ? "e.g. Excavated footings" : "Next task…"}
+                      className="h-7 text-xs flex-1"
+                    />
+                    {tasks.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => commit(tasks.filter((_, idx) => idx !== i))}
+                        className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          {!readOnly && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5 text-xs h-7 cursor-pointer"
+              onClick={() => commit([...tasks, ""])}
+            >
+              <Plus className="h-3 w-3" />
+              Add task
+            </Button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const workTypeOptions = [
   { id: "lump-sum", label: "Lump Sum" },
@@ -82,6 +216,19 @@ function newBlankEntry(date: string): TimeEntry {
   };
 }
 
+const BLANK_NEW_ENTRY = {
+  date: new Date().toISOString().split("T")[0],
+  employeeId: "",
+  projectId: "",
+  costCodeId: "",
+  equipmentId: EQUIPMENT_NONE_ID,
+  attachmentId: "none",
+  toolId: "none",
+  workType: "tm" as WorkType,
+  hours: "",
+  notes: "",
+};
+
 // ────────────────────────────────────────────
 // Main table component
 // ────────────────────────────────────────────
@@ -102,6 +249,13 @@ export function TimeTrackingTable({
   const { data: tools } = useTools();
 
   const [unlockedIds, setUnlockedIds] = React.useState<Set<string>>(new Set());
+
+  // ── Add form state ──
+  const [adding, setAdding] = React.useState(false);
+  const [newForm, setNewForm] = React.useState(BLANK_NEW_ENTRY);
+
+  // ── Sort state ──
+  const { sortKey, sortDir, toggleSort, sortData } = useTableSort<string>();
 
   // ── Filter state ──
   const [employeeFilter, setEmployeeFilter] = React.useState<Set<string>>(new Set());
@@ -195,12 +349,37 @@ export function TimeTrackingTable({
     [onEntriesChange]
   );
 
-  // ── Add new row ──
-  const addRow = React.useCallback(() => {
-    const today = new Date().toISOString().split("T")[0];
-    const entry = newBlankEntry(today);
+  // ── Add new entry via form ──
+  const handleAddSubmit = React.useCallback(() => {
+    if (!newForm.employeeId || !newForm.projectId || !newForm.hours) return;
+    const entry: TimeEntry = {
+      id: `te-${crypto.randomUUID().slice(0, 8)}`,
+      date: newForm.date,
+      employeeId: newForm.employeeId,
+      projectId: newForm.projectId,
+      costCodeId: newForm.costCodeId,
+      equipmentId: newForm.equipmentId || EQUIPMENT_NONE_ID,
+      attachmentId: newForm.attachmentId === "none" ? "" : newForm.attachmentId,
+      toolId: newForm.toolId === "none" ? "" : newForm.toolId,
+      workType: newForm.workType,
+      hours: Number(newForm.hours) || 0,
+      notes: newForm.notes,
+      approval: "pending",
+    };
     onEntriesChange((prev) => [...prev, entry]);
-  }, [onEntriesChange]);
+    setAdding(false);
+    setNewForm(BLANK_NEW_ENTRY);
+  }, [newForm, onEntriesChange]);
+
+  // Cost codes filtered by selected project in the add form
+  const newFormCostCodeOptions = React.useMemo(() => {
+    if (!newForm.projectId) return costCodeOptions;
+    const proj = projects.find((p) => p.id === newForm.projectId);
+    if (!proj?.costCodeIds?.length) return costCodeOptions;
+    return costCodes
+      .filter((cc) => proj.costCodeIds.includes(cc.id))
+      .map((cc) => ({ id: cc.id, label: cc.code }));
+  }, [newForm.projectId, projects, costCodes, costCodeOptions]);
 
   return (
     <div className="space-y-3">
@@ -210,7 +389,8 @@ export function TimeTrackingTable({
           size="sm"
           variant="outline"
           className="gap-1.5 text-xs cursor-pointer"
-          onClick={addRow}
+          onClick={() => { setNewForm({ ...BLANK_NEW_ENTRY, date: new Date().toISOString().split("T")[0] }); setAdding(true); }}
+          disabled={adding}
         >
           <Plus className="h-3.5 w-3.5" />
           Add Entry
@@ -226,37 +406,209 @@ export function TimeTrackingTable({
         />
       </div>
 
+      {/* Add Entry form — rendered as a mini table matching the main table columns */}
+      {adding && (
+        <div className="rounded-xl border border-primary/40 bg-card shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
+                  <TableHead className="w-[120px] text-xs font-semibold px-3">Date</TableHead>
+                  <TableHead className="w-[160px] text-xs font-semibold px-3">Employee</TableHead>
+                  <TableHead className="w-[200px] text-xs font-semibold px-3">Project</TableHead>
+                  <TableHead className="w-[200px] text-xs font-semibold px-3">Cost Code</TableHead>
+                  <TableHead className="w-[180px] text-xs font-semibold px-3">Equipment</TableHead>
+                  <TableHead className="w-[180px] text-xs font-semibold px-3">Attachment</TableHead>
+                  <TableHead className="w-[180px] text-xs font-semibold px-3">Tool</TableHead>
+                  <TableHead className="w-[130px] text-xs font-semibold px-3">Work Type</TableHead>
+                  <TableHead className="w-[80px] text-xs font-semibold px-3">Hours</TableHead>
+                  <TableHead className="min-w-[180px] text-xs font-semibold px-3">Work Tasks</TableHead>
+                  <TableHead className="w-[110px] text-xs font-semibold px-3"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow className="h-[36px] hover:bg-muted/20">
+                  {/* Date */}
+                  <TableCell className="p-0 px-1">
+                    <CellInput
+                      type="date"
+                      value={newForm.date}
+                      onChange={(v) => setNewForm((f) => ({ ...f, date: v }))}
+                      className="w-full"
+                    />
+                  </TableCell>
+                  {/* Employee */}
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.employeeId}
+                      onChange={(v) => setNewForm((f) => ({ ...f, employeeId: v }))}
+                      options={employeeOptions}
+                      placeholder="Select..."
+                    />
+                  </TableCell>
+                  {/* Project */}
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.projectId}
+                      onChange={(v) => setNewForm((f) => ({ ...f, projectId: v, costCodeId: "" }))}
+                      options={projectOptions}
+                      placeholder="Select..."
+                    />
+                  </TableCell>
+                  {/* Cost Code */}
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.costCodeId}
+                      onChange={(v) => setNewForm((f) => ({ ...f, costCodeId: v }))}
+                      options={newFormCostCodeOptions}
+                      placeholder="Select..."
+                    />
+                  </TableCell>
+                  {/* Equipment */}
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.equipmentId}
+                      onChange={(v) => setNewForm((f) => ({ ...f, equipmentId: v }))}
+                      options={equipmentOptions}
+                      placeholder="None"
+                    />
+                  </TableCell>
+                  {/* Attachment */}
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.attachmentId}
+                      onChange={(v) => setNewForm((f) => ({ ...f, attachmentId: v }))}
+                      options={attachmentOptions}
+                      placeholder="None"
+                    />
+                  </TableCell>
+                  {/* Tool */}
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.toolId}
+                      onChange={(v) => setNewForm((f) => ({ ...f, toolId: v }))}
+                      options={toolOptions}
+                      placeholder="None"
+                    />
+                  </TableCell>
+                  {/* Work Type */}
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.workType}
+                      onChange={(v) => setNewForm((f) => ({ ...f, workType: v as WorkType }))}
+                      options={workTypeOptions}
+                      placeholder="Select..."
+                    />
+                  </TableCell>
+                  {/* Hours */}
+                  <TableCell className="p-0 px-1">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={newForm.hours}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "" || /^\d*\.?\d*$/.test(v)) setNewForm((f) => ({ ...f, hours: v }));
+                      }}
+                      placeholder="0"
+                      className="h-[32px] w-full text-xs rounded-none border border-transparent bg-transparent px-2 py-0 shadow-none focus:outline-none focus:border-primary hover:border-muted-foreground/30"
+                    />
+                  </TableCell>
+                  {/* Work Tasks */}
+                  <TableCell className="p-0 px-1">
+                    <WorkTasksPopover
+                      notes={newForm.notes ?? ""}
+                      onChange={(v) => setNewForm((f) => ({ ...f, notes: v }))}
+                      readOnly={false}
+                    />
+                  </TableCell>
+                  {/* Actions */}
+                  <TableCell className="p-0 px-1">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs cursor-pointer px-3"
+                        onClick={handleAddSubmit}
+                        disabled={!newForm.employeeId || !newForm.projectId || !newForm.hours}
+                      >
+                        Add
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 cursor-pointer p-0"
+                        onClick={() => { setAdding(false); setNewForm(BLANK_NEW_ENTRY); }}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[120px] text-xs font-semibold px-3">Date</TableHead>
+                <TableHead className="w-[120px] text-xs font-semibold px-3">
+                  <SortableHeader label="Date" column="date" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                </TableHead>
                 <TableHead className="w-[160px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Employee" options={employeeOptions} selected={employeeFilter} onChange={setEmployeeFilter} />
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Employee" options={employeeOptions} selected={employeeFilter} onChange={setEmployeeFilter} />
+                    <SortableHeader label="" column="employee" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
                 </TableHead>
                 <TableHead className="w-[200px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Project" options={projectOptions} selected={projectFilter} onChange={setProjectFilter} />
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Project" options={projectOptions} selected={projectFilter} onChange={setProjectFilter} />
+                    <SortableHeader label="" column="project" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
                 </TableHead>
                 <TableHead className="w-[200px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Cost Code" options={costCodeOptions} selected={costCodeFilter} onChange={setCostCodeFilter} />
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Cost Code" options={costCodeOptions} selected={costCodeFilter} onChange={setCostCodeFilter} />
+                    <SortableHeader label="" column="costCode" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
                 </TableHead>
                 <TableHead className="w-[180px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Equipment" options={equipmentOptions} selected={equipmentFilter} onChange={setEquipmentFilter} />
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Equipment" options={equipmentOptions} selected={equipmentFilter} onChange={setEquipmentFilter} />
+                    <SortableHeader label="" column="equipment" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
                 </TableHead>
                 <TableHead className="w-[180px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Attachment" options={attachmentOptions} selected={attachmentFilter} onChange={setAttachmentFilter} />
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Attachment" options={attachmentOptions} selected={attachmentFilter} onChange={setAttachmentFilter} />
+                    <SortableHeader label="" column="attachment" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
                 </TableHead>
                 <TableHead className="w-[180px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Tool" options={toolOptions} selected={toolFilter} onChange={setToolFilter} />
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Tool" options={toolOptions} selected={toolFilter} onChange={setToolFilter} />
+                    <SortableHeader label="" column="tool" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
                 </TableHead>
                 <TableHead className="w-[130px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Work Type" options={workTypeOptions} selected={workTypeFilter} onChange={setWorkTypeFilter} />
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Work Type" options={workTypeOptions} selected={workTypeFilter} onChange={setWorkTypeFilter} />
+                    <SortableHeader label="" column="workType" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
                 </TableHead>
-                <TableHead className="w-[80px] text-xs font-semibold px-3">Hours</TableHead>
-                <TableHead className="min-w-[180px] text-xs font-semibold px-3">Notes</TableHead>
+                <TableHead className="w-[80px] text-xs font-semibold px-3">
+                  <SortableHeader label="Hours" column="hours" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                </TableHead>
+                <TableHead className="min-w-[180px] text-xs font-semibold px-3">Work Tasks</TableHead>
                 <TableHead className="w-[110px] text-xs font-semibold px-3">
-                  <ColumnFilter title="Approval" options={approvalOptions} selected={approvalFilter} onChange={setApprovalFilter} />
+                  <div className="flex items-center gap-1">
+                    <ColumnFilter title="Approval" options={approvalOptions} selected={approvalFilter} onChange={setApprovalFilter} />
+                    <SortableHeader label="" column="approval" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                  </div>
                 </TableHead>
                 <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
               </TableRow>
@@ -269,7 +621,21 @@ export function TimeTrackingTable({
                   </TableCell>
                 </TableRow>
               )}
-              {filteredEntries.map((entry) => {
+              {sortData(filteredEntries, (entry, key) => {
+                switch (key) {
+                  case "date": return entry.date;
+                  case "employee": return lookupName(entry.employeeId, employees);
+                  case "project": return lookupName(entry.projectId, projects);
+                  case "costCode": return lookupName(entry.costCodeId, costCodes);
+                  case "equipment": return lookupName(entry.equipmentId, equipment);
+                  case "attachment": return entry.attachmentId ? lookupName(entry.attachmentId, attachments) : "";
+                  case "tool": return entry.toolId ? lookupName(entry.toolId, tools) : "";
+                  case "workType": return workTypeLabels[entry.workType] ?? entry.workType;
+                  case "hours": return entry.hours;
+                  case "approval": return entry.approval;
+                  default: return "";
+                }
+              }).map((entry) => {
                 const isApproved = entry.approval === "approved" && !unlockedIds.has(entry.id);
 
                 return (
@@ -402,18 +768,13 @@ export function TimeTrackingTable({
                       )}
                     </TableCell>
 
-                    {/* Notes */}
+                    {/* Work Tasks (Notes) */}
                     <TableCell className="p-0 px-1">
-                      {isApproved ? (
-                        <span className="text-xs text-muted-foreground truncate block max-w-[250px] px-2">
-                          {entry.notes || "—"}
-                        </span>
-                      ) : (
-                        <CellInput
-                          value={entry.notes}
-                          onChange={(v) => updateEntry(entry.id, "notes", v)}
-                        />
-                      )}
+                      <WorkTasksPopover
+                        notes={entry.notes}
+                        onChange={(v) => updateEntry(entry.id, "notes", v)}
+                        readOnly={isApproved}
+                      />
                     </TableCell>
 
                     {/* Approval */}
@@ -537,9 +898,9 @@ const TIME_EXPORT_COLUMNS: ExportColumnDef[] = [
   { id: "employee", header: "Employee" },
   { id: "project", header: "Project" },
   { id: "costCode", header: "Cost Code" },
-  { id: "equipment", header: "Equipment", defaultSelected: false },
-  { id: "attachment", header: "Attachment", defaultSelected: false },
-  { id: "tool", header: "Tool", defaultSelected: false },
+  { id: "equipment", header: "Equipment" },
+  { id: "attachment", header: "Attachment" },
+  { id: "tool", header: "Tool" },
   { id: "workType", header: "Work Type" },
   { id: "hours", header: "Hours" },
   { id: "approval", header: "Approval" },
@@ -551,6 +912,11 @@ const TIME_GROUP_OPTIONS = [
   { value: "employee", label: "Employee" },
   { value: "date", label: "Date" },
   { value: "costCode", label: "Cost Code" },
+  { value: "workType", label: "Work Type" },
+  { value: "approval", label: "Approval Status" },
+  { value: "equipment", label: "Equipment" },
+  { value: "attachment", label: "Attachment" },
+  { value: "tool", label: "Tool" },
 ];
 
 function TimeTrackingExport({
@@ -580,7 +946,7 @@ function TimeTrackingExport({
     tools as never[]
   );
 
-  const handleExport = (config: ExportConfig) => {
+  const handleExport = async (config: ExportConfig) => {
     const datestamp = new Date().toISOString().slice(0, 10);
     const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
 
@@ -589,33 +955,43 @@ function TimeTrackingExport({
     } else if (config.format === "csv") {
       exportToCSV(entries, csv, filename, config.selectedColumns);
     } else {
-      generateTimeTrackingReport({
+      const { generateTimeTrackingPDF } = await import("@/lib/export/react-pdf/time-tracking-report");
+      generateTimeTrackingPDF({
         entries,
         employees: employees as never[],
         projects: projects as never[],
         costCodes: costCodes as never[],
+        equipment: equipment as never[],
+        attachments: attachments as never[],
+        tools: tools as never[],
         company: profile,
-        filename,
         selectedColumns: config.selectedColumns,
         groupBy: config.groupBy,
+        groupByLevels: config.groupByLevels,
         title: config.title,
         orientation: config.orientation,
       });
     }
   };
 
-  const handlePreview = (config: ExportConfig) =>
-    generateTimeTrackingReportBlobUrl({
+  const handlePreview = async (config: ExportConfig) => {
+    const { generateTimeTrackingPDFBlobUrl } = await import("@/lib/export/react-pdf/time-tracking-report");
+    return generateTimeTrackingPDFBlobUrl({
       entries,
       employees: employees as never[],
       projects: projects as never[],
       costCodes: costCodes as never[],
+      equipment: equipment as never[],
+      attachments: attachments as never[],
+      tools: tools as never[],
       company: profile,
       selectedColumns: config.selectedColumns,
       groupBy: config.groupBy,
+      groupByLevels: config.groupByLevels,
       title: config.title,
       orientation: config.orientation,
     });
+  };
 
   return (
     <ExportDialog
@@ -627,6 +1003,7 @@ function TimeTrackingExport({
       onGeneratePDFPreview={handlePreview}
       disabled={entries.length === 0}
       recordCount={entries.length}
+      templateKey="time-tracking"
     />
   );
 }

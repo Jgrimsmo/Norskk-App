@@ -89,14 +89,14 @@ export const costCodes: CostCode[] = [
 
 // --- Equipment ---
 export const equipment: Equipment[] = [
-  { id: "eq-1", name: "CAT 320 Excavator", number: "EQ-001", category: "Excavator", status: "in-use" },
-  { id: "eq-2", name: "Boom Lift 60ft", number: "EQ-002", category: "Lift", status: "available" },
-  { id: "eq-3", name: "Concrete Pump Truck", number: "EQ-003", category: "Truck", status: "in-use" },
-  { id: "eq-4", name: "Skid Steer Loader", number: "EQ-004", category: "Loader", status: "available" },
-  { id: "eq-5", name: "Dump Truck 10-yd", number: "EQ-005", category: "Truck", status: "maintenance" },
-  { id: "eq-6", name: "Crane 50-ton", number: "EQ-006", category: "Crane", status: "in-use" },
-  { id: "eq-7", name: "Forklift 5K", number: "EQ-007", category: "Forklift", status: "available" },
-  { id: EQUIPMENT_NONE_ID, name: "None", number: "—", category: "—", status: "available" },
+  { id: "eq-1", name: "CAT 320 Excavator", number: "EQ-001", category: "Excavator", lastServiceHours: "", status: "in-use" },
+  { id: "eq-2", name: "Boom Lift 60ft", number: "EQ-002", category: "Lift", lastServiceHours: "", status: "available" },
+  { id: "eq-3", name: "Concrete Pump Truck", number: "EQ-003", category: "Truck", lastServiceHours: "", status: "in-use" },
+  { id: "eq-4", name: "Skid Steer Loader", number: "EQ-004", category: "Loader", lastServiceHours: "", status: "available" },
+  { id: "eq-5", name: "Dump Truck 10-yd", number: "EQ-005", category: "Truck", lastServiceHours: "", status: "maintenance" },
+  { id: "eq-6", name: "Crane 50-ton", number: "EQ-006", category: "Crane", lastServiceHours: "", status: "in-use" },
+  { id: "eq-7", name: "Forklift 5K", number: "EQ-007", category: "Forklift", lastServiceHours: "", status: "available" },
+  { id: EQUIPMENT_NONE_ID, name: "None", number: "—", category: "—", lastServiceHours: "", status: "available" },
 ];
 
 // --- Sample Time Entries (current week) ---

@@ -13,7 +13,6 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +22,7 @@ import {
   useCostCodes,
   useTimeEntries,
 } from "@/hooks/use-firestore";
+import { useCurrentEmployee } from "@/hooks/use-current-employee";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import {
   getPayPeriod,
@@ -36,13 +36,11 @@ import {
 // ────────────────────────────────────────────────────────
 
 export function FieldDashboard() {
-  const searchParams = useSearchParams();
+  const { employeeId } = useCurrentEmployee();
   const { data: projects } = useProjects();
   const { data: costCodes } = useCostCodes();
   const { data: allEntries } = useTimeEntries();
   const { profile, loading: profileLoading } = useCompanyProfile();
-
-  const employeeId = searchParams.get("employee") || "";
 
   // ── Pay period state ──
   const periodType = profile?.payPeriodType ?? "bi-weekly";

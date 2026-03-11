@@ -214,14 +214,16 @@ export const equipmentCSVColumns: Column<Equipment>[] = [
   { id: "number", header: "Number", accessor: (r) => r.number },
   { id: "name", header: "Name", accessor: (r) => r.name },
   { id: "category", header: "Category", accessor: (r) => r.category },
+  { id: "lastServiceHours", header: "Last Service", accessor: (r) => r.lastServiceHours || "" },
   { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
 ];
 
 export const equipmentPDFColumns: PDFColumn[] = [
-  { header: "Number", dataKey: "number", width: 30 },
-  { header: "Name", dataKey: "name", width: 55 },
-  { header: "Category", dataKey: "category", width: 45 },
-  { header: "Status", dataKey: "status", width: 30 },
+  { header: "Number", dataKey: "number", width: 25 },
+  { header: "Name", dataKey: "name", width: 50 },
+  { header: "Category", dataKey: "category", width: 35 },
+  { header: "Last Service", dataKey: "lastServiceHours", width: 25 },
+  { header: "Status", dataKey: "status", width: 25 },
 ];
 
 export function equipmentPDFRows(data: Equipment[]): Record<string, string | number>[] {
@@ -229,6 +231,7 @@ export function equipmentPDFRows(data: Equipment[]): Record<string, string | num
     number: r.number,
     name: r.name,
     category: r.category,
+    lastServiceHours: r.lastServiceHours || "",
     status: capitalize(r.status),
   }));
 }

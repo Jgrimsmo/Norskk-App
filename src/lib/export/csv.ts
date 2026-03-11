@@ -19,7 +19,9 @@ export interface Column<T> {
  */
 function filterColumns<T>(columns: Column<T>[], selectedIds?: string[]): Column<T>[] {
   if (!selectedIds) return columns;
-  return columns.filter((c) => c.id && selectedIds.includes(c.id));
+  return selectedIds
+    .map((id) => columns.find((c) => c.id === id))
+    .filter((c): c is Column<T> => c != null);
 }
 
 /**

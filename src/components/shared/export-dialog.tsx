@@ -12,6 +12,12 @@ import {
   ArrowLeft,
   Loader2,
   Eye,
+  Plus,
+  X,
+  Layers,
+  Save,
+  Trash2,
+  BookmarkCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,11 +59,22 @@ export interface ExportGroupOption {
   label: string;
 }
 
+export interface ExportTemplate {
+  name: string;
+  selectedColumns: string[];
+  columnOrder: string[];
+  groupByLevels: string[];
+  orientation: "portrait" | "landscape";
+  title: string;
+}
+
 export interface ExportConfig {
   /** Which column IDs are selected */
   selectedColumns: string[];
-  /** Group by value (or "none") */
+  /** Group by value (first level, or "none") — kept for backward compat */
   groupBy: string;
+  /** Ordered array of group-by levels (e.g. ["project","employee"]) */
+  groupByLevels?: string[];
   /** PDF orientation */
   orientation: "portrait" | "landscape";
   /** Report title override */
@@ -83,6 +100,25 @@ interface ExportDialogProps {
   disabled?: boolean;
   /** Number of records being exported */
   recordCount?: number;
+  /** Key for namespacing templates in localStorage (e.g. "time-tracking") */
+  templateKey?: string;
+}
+
+function getStorageKey(templateKey: string) {
+  return `export-templates-${templateKey}`;
+}
+
+function loadTemplates(templateKey: string): ExportTemplate[] {
+  try {
+    const raw = localStorage.getItem(getStorageKey(templateKey));
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistTemplates(templateKey: string, templates: ExportTemplate[]) {
+  localStorage.setItem(getStorageKey(templateKey), JSON.stringify(templates));
 }
 
 export function ExportDialog({
@@ -94,6 +130,7 @@ export function ExportDialog({
   onGeneratePDFPreview,
   disabled,
   recordCount,
+  templateKey,
 }: ExportDialogProps) {
   const [open, setOpen] = React.useState(false);
 
@@ -104,12 +141,22 @@ export function ExportDialog({
   const [columnOrder, setColumnOrder] = React.useState<string[]>(
     () => columns.map((c) => c.id)
   );
-  const [groupBy, setGroupBy] = React.useState("none");
+  const [groupByLevels, setGroupByLevels] = React.useState<string[]>([]);
   const [orientation, setOrientation] = React.useState<"portrait" | "landscape">(
     defaultOrientation
   );
   const [title, setTitle] = React.useState(defaultTitle);
   const [showAdvanced, setShowAdvanced] = React.useState(false);
+
+  // ── Template State ──
+  const [templates, setTemplates] = React.useState<ExportTemplate[]>([]);
+  const [templateName, setTemplateName] = React.useState("");
+  const [showSaveTemplate, setShowSaveTemplate] = React.useState(false);
+
+  // ── Drag-to-reorder State ──
+  const dragItemRef = React.useRef<string | null>(null);
+  const dragOverItemRef = React.useRef<string | null>(null);
+  const [dragOverId, setDragOverId] = React.useState<string | null>(null);
 
   // ── PDF Preview State ──
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
@@ -130,7 +177,7 @@ export function ExportDialog({
         new Set(columns.filter((c) => c.defaultSelected !== false).map((c) => c.id))
       );
       setColumnOrder(columns.map((c) => c.id));
-      setGroupBy("none");
+      setGroupByLevels([]);
       setOrientation(defaultOrientation);
       setTitle(defaultTitle);
       setPreviewUrl((prev) => {
@@ -139,8 +186,51 @@ export function ExportDialog({
       });
       setPreviewLoading(false);
       previewConfigRef.current = null;
+      setShowSaveTemplate(false);
+      setTemplateName("");
+      if (templateKey) setTemplates(loadTemplates(templateKey));
     }
-  }, [open, columns, defaultTitle, defaultOrientation]);
+  }, [open, columns, defaultTitle, defaultOrientation, templateKey]);
+
+  const saveTemplate = () => {
+    if (!templateKey || !templateName.trim()) return;
+    const template: ExportTemplate = {
+      name: templateName.trim(),
+      selectedColumns: Array.from(selectedColumns),
+      columnOrder: [...columnOrder],
+      groupByLevels: [...groupByLevels],
+      orientation,
+      title,
+    };
+    const updated = [...templates.filter((t) => t.name !== template.name), template];
+    persistTemplates(templateKey, updated);
+    setTemplates(updated);
+    setTemplateName("");
+    setShowSaveTemplate(false);
+  };
+
+  const deleteTemplate = (name: string) => {
+    if (!templateKey) return;
+    const updated = templates.filter((t) => t.name !== name);
+    persistTemplates(templateKey, updated);
+    setTemplates(updated);
+  };
+
+  const applyTemplate = (template: ExportTemplate) => {
+    const validCols = new Set(columns.map((c) => c.id));
+    const selected = template.selectedColumns.filter((id) => validCols.has(id));
+    setSelectedColumns(new Set(selected.length > 0 ? selected : [columns[0].id]));
+    const order = template.columnOrder.filter((id) => validCols.has(id));
+    // Add any columns not in the template order at the end
+    const missing = columns.map((c) => c.id).filter((id) => !order.includes(id));
+    setColumnOrder([...order, ...missing]);
+    setGroupByLevels(template.groupByLevels);
+    setOrientation(template.orientation);
+    setTitle(template.title);
+  };
+
+  // All group options are always available regardless of column selection
+  const availableGroupOptions = groupOptions ?? [];
 
   const toggleColumn = (id: string) => {
     setSelectedColumns((prev) => {
@@ -165,23 +255,12 @@ export function ExportDialog({
     setSelectedColumns(new Set([columns[0].id]));
   };
 
-  const moveColumn = (id: string, direction: "up" | "down") => {
-    setColumnOrder((prev) => {
-      const idx = prev.indexOf(id);
-      if (idx < 0) return prev;
-      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (swapIdx < 0 || swapIdx >= prev.length) return prev;
-      const next = [...prev];
-      [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
-      return next;
-    });
-  };
-
   const handleExport = (format: "excel" | "csv" | "pdf") => {
     const orderedSelected = columnOrder.filter((id) => selectedColumns.has(id));
     const config: ExportConfig = {
       selectedColumns: orderedSelected,
-      groupBy,
+      groupBy: groupByLevels.length > 0 ? groupByLevels[0] : "none",
+      groupByLevels: groupByLevels.length > 0 ? groupByLevels : undefined,
       orientation,
       title,
       format,
@@ -301,6 +380,82 @@ export function ExportDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-1">
+          {/* ── Templates ── */}
+          {templateKey && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium flex items-center gap-1.5">
+                <BookmarkCheck className="h-3.5 w-3.5" />
+                Templates
+              </Label>
+
+              {templates.length > 0 && (
+                <div className="rounded-md border divide-y">
+                  {templates.map((t) => (
+                    <div
+                      key={t.name}
+                      className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted/50 cursor-pointer group"
+                      onClick={() => applyTemplate(t)}
+                    >
+                      <span className="text-sm flex-1 truncate">{t.name}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTemplate(t.name);
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showSaveTemplate ? (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveTemplate(); }}
+                    placeholder="Template name..."
+                    className="h-7 text-sm flex-1"
+                    autoFocus
+                  />
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-7 px-2 text-xs gap-1 cursor-pointer"
+                    onClick={saveTemplate}
+                    disabled={!templateName.trim()}
+                  >
+                    <Save className="h-3 w-3" />
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 cursor-pointer"
+                    onClick={() => { setShowSaveTemplate(false); setTemplateName(""); }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7 cursor-pointer"
+                  onClick={() => setShowSaveTemplate(true)}
+                >
+                  <Plus className="h-3 w-3" />
+                  Save Current as Template
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* ── Report Title ── */}
           <div className="space-y-1.5">
             <Label htmlFor="export-title" className="text-xs font-medium">
@@ -315,23 +470,87 @@ export function ExportDialog({
             />
           </div>
 
-          {/* ── Group By ── */}
+          {/* ── Group By (multi-level) ── */}
           {groupOptions && groupOptions.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Group By</Label>
-              <Select value={groupBy} onValueChange={setGroupBy}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Grouping</SelectItem>
-                  {groupOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-medium flex items-center gap-1.5">
+                <Layers className="h-3.5 w-3.5" />
+                Group By
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Add grouping levels in order from broadest to most specific.
+              </p>
+
+              <div className="space-y-1.5">
+                {groupByLevels.map((level, idx) => {
+                  // Options already picked at other levels
+                  const usedElsewhere = groupByLevels.filter((_, i) => i !== idx);
+                  const available = availableGroupOptions.filter(
+                    (opt) => !usedElsewhere.includes(opt.value)
+                  );
+
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground w-6 shrink-0 text-right">
+                        L{idx + 1}
+                      </span>
+                      <Select
+                        value={level}
+                        onValueChange={(v) => {
+                          setGroupByLevels((prev) => {
+                            const next = [...prev];
+                            next[idx] = v;
+                            return next;
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-sm flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {available.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 shrink-0"
+                        onClick={() =>
+                          setGroupByLevels((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  );
+                })}
+
+                {groupByLevels.length < availableGroupOptions.length && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs h-7 cursor-pointer"
+                    onClick={() => {
+                      const used = new Set(groupByLevels);
+                      const next = availableGroupOptions.find(
+                        (opt) => !used.has(opt.value)
+                      );
+                      if (next) {
+                        setGroupByLevels((prev) => [...prev, next.value]);
+                      }
+                    }}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Group Level
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
@@ -361,12 +580,55 @@ export function ExportDialog({
               </div>
             </div>
 
-            <div className="rounded-md border p-2 space-y-1">
-              {orderedColumns.map((col, idx) => (
+            <div className="rounded-md border p-2 space-y-0.5">
+              {orderedColumns.map((col) => (
                 <div
                   key={col.id}
-                  className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 group"
+                  draggable
+                  onDragStart={() => { dragItemRef.current = col.id; }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (dragOverItemRef.current !== col.id) {
+                      dragOverItemRef.current = col.id;
+                      setDragOverId(col.id);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverItemRef.current === col.id) {
+                      dragOverItemRef.current = null;
+                      setDragOverId(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const fromId = dragItemRef.current;
+                    const toId = col.id;
+                    if (fromId && fromId !== toId) {
+                      setColumnOrder((prev) => {
+                        const next = [...prev];
+                        const fromIdx = next.indexOf(fromId);
+                        const toIdx = next.indexOf(toId);
+                        if (fromIdx < 0 || toIdx < 0) return prev;
+                        next.splice(fromIdx, 1);
+                        next.splice(toIdx, 0, fromId);
+                        return next;
+                      });
+                    }
+                    dragItemRef.current = null;
+                    dragOverItemRef.current = null;
+                    setDragOverId(null);
+                  }}
+                  onDragEnd={() => {
+                    dragItemRef.current = null;
+                    dragOverItemRef.current = null;
+                    setDragOverId(null);
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 group transition-colors",
+                    dragOverId === col.id && "bg-muted border-primary/30 border-dashed border"
+                  )}
                 >
+                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 cursor-grab active:cursor-grabbing shrink-0" />
                   <Checkbox
                     id={`col-${col.id}`}
                     checked={selectedColumns.has(col.id)}
@@ -379,27 +641,6 @@ export function ExportDialog({
                   >
                     {col.header}
                   </Label>
-                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 w-5 p-0"
-                      onClick={() => moveColumn(col.id, "up")}
-                      disabled={idx === 0}
-                    >
-                      <ChevronUp className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 w-5 p-0"
-                      onClick={() => moveColumn(col.id, "down")}
-                      disabled={idx === orderedColumns.length - 1}
-                    >
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </div>
-                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40" />
                 </div>
               ))}
             </div>

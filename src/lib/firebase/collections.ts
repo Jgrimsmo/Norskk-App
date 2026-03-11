@@ -18,6 +18,9 @@ export const Collections = {
   VENDORS: "vendors",
   INVOICES: "invoices",
   NOTIFICATIONS: "notifications",
+  EQUIPMENT_CATEGORIES: "equipmentCategories",
+  ATTACHMENT_CATEGORIES: "attachmentCategories",
+  TOOL_CATEGORIES: "toolCategories",
 } as const;
 
 /** Sentinel equipment ID representing "no equipment". */

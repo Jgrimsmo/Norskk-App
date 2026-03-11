@@ -7,6 +7,8 @@ import {
   Plus,
   ArrowLeft,
   Save,
+  X,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -33,6 +35,8 @@ import {
   useTools,
   useTimeEntries,
 } from "@/hooks/use-firestore";
+import { useAuth } from "@/lib/firebase/auth-context";
+import { useOfflineQueue } from "@/hooks/use-offline-queue";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import type { TimeEntry, WorkType } from "@/lib/types/time-tracking";
 
@@ -48,6 +52,7 @@ export function FieldTimeEntry() {
   const dateFromParam = searchParams.get("date");
   const hasFixedDate = Boolean(dateFromParam) && !isEditing;
 
+  const { user } = useAuth();
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
   const { data: costCodes } = useCostCodes();
@@ -55,6 +60,20 @@ export function FieldTimeEntry() {
   const { data: attachments } = useAttachments();
   const { data: tools } = useTools();
   const { data: allEntries, add, update } = useTimeEntries();
+  const { enqueue, pendingCount } = useOfflineQueue(add);
+
+  // ── Auto-match logged-in user to employee record ──
+  const resolvedEmployeeId = React.useMemo(() => {
+    const paramId = searchParams.get("employee");
+    if (paramId && employees.find((e) => e.id === paramId)) return paramId;
+    if (!user) return "";
+    const byUid = employees.find((e) => e.id === user.uid || e.uid === user.uid);
+    if (byUid) return byUid.id;
+    const byEmail = employees.find(
+      (e) => e.email && e.email.toLowerCase() === user.email?.toLowerCase()
+    );
+    return byEmail?.id ?? "";
+  }, [searchParams, employees, user]);
 
   // ── Find existing entry when editing ──
   const existingEntry = React.useMemo(
@@ -63,9 +82,7 @@ export function FieldTimeEntry() {
   );
 
   // ── Form state (pre-fill from query params or existing entry) ──
-  const [employeeId, setEmployeeId] = React.useState(
-    searchParams.get("employee") || ""
-  );
+  const [employeeId, setEmployeeId] = React.useState("");
   const [date, setDate] = React.useState(
     searchParams.get("date") || format(new Date(), "yyyy-MM-dd")
   );
@@ -76,13 +93,32 @@ export function FieldTimeEntry() {
   const [toolId, setToolId] = React.useState("");
   const [workType, setWorkType] = React.useState<WorkType>("tm");
   const [hours, setHours] = React.useState("");
-  const [notes, setNotes] = React.useState("");
+  const [tasks, setTasks] = React.useState<string[]>([""]);
   const [submitting, setSubmitting] = React.useState(false);
+  const [saved, setSaved] = React.useState(false);
   const [initialized, setInitialized] = React.useState(!isEditing);
+
+  // Keep employeeId in sync with resolved value
+  React.useEffect(() => {
+    if (resolvedEmployeeId && !employeeId) {
+      setEmployeeId(resolvedEmployeeId);
+    }
+  }, [resolvedEmployeeId, employeeId]);
+
+  // Reset cost code when user changes project (skip the change from edit init)
+  const justInitializedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (justInitializedRef.current) {
+      justInitializedRef.current = false;
+      return;
+    }
+    setCostCodeId("");
+  }, [projectId]);
 
   // ── Populate form when editing an existing entry ──
   React.useEffect(() => {
     if (isEditing && existingEntry && !initialized) {
+      justInitializedRef.current = true;
       setEmployeeId(existingEntry.employeeId);
       setDate(existingEntry.date);
       setProjectId(existingEntry.projectId);
@@ -92,7 +128,11 @@ export function FieldTimeEntry() {
       setToolId(existingEntry.toolId || "");
       setWorkType(existingEntry.workType);
       setHours(String(existingEntry.hours));
-      setNotes(existingEntry.notes || "");
+      setTasks(
+        existingEntry.notes
+          ? existingEntry.notes.split("\n").map((line) => line.replace(/^\d+\.\s*/, ""))
+          : [""]
+      );
       setInitialized(true);
     }
   }, [isEditing, existingEntry, initialized]);
@@ -127,10 +167,7 @@ export function FieldTimeEntry() {
     [tools]
   );
 
-  // Reset cost code when project changes
-  React.useEffect(() => {
-    setCostCodeId("");
-  }, [projectId]);
+
 
   // ── Submit handler ──
   const canSubmit =
@@ -139,6 +176,13 @@ export function FieldTimeEntry() {
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
+
+    // Serialize tasks to numbered notes string
+    const filledTasks = tasks.filter((t) => t.trim());
+    const notes = filledTasks.length > 0
+      ? filledTasks.map((t, i) => `${i + 1}. ${t.trim()}`).join("\n")
+      : "";
+
     try {
       if (isEditing && editId) {
         // Update existing entry
@@ -155,7 +199,7 @@ export function FieldTimeEntry() {
           notes,
         });
         toast.success("Entry updated!");
-        router.push("/field");
+        setSaved(true);
       } else {
         // Create new entry
         const entry: TimeEntry = {
@@ -172,8 +216,15 @@ export function FieldTimeEntry() {
           notes,
           approval: "pending",
         };
-        await add(entry);
-        toast.success("Time entry submitted!");
+
+        if (!navigator.onLine) {
+          // Queue for later sync
+          enqueue(entry);
+          toast.info("Saved offline — will sync when back online");
+        } else {
+          await add(entry);
+          toast.success("Time entry submitted!");
+        }
 
         // Reset form but keep employee & date
         setProjectId("");
@@ -182,7 +233,7 @@ export function FieldTimeEntry() {
         setAttachmentId("");
         setToolId("");
         setHours("");
-        setNotes("");
+        setTasks([""]);
       }
     } catch {
       toast.error(isEditing ? "Failed to update entry" : "Failed to submit entry");
@@ -207,7 +258,7 @@ export function FieldTimeEntry() {
   }, [date]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       {/* ── Page Header ── */}
       <div className="flex items-center gap-3">
         <Link href="/field">
@@ -227,7 +278,7 @@ export function FieldTimeEntry() {
       </div>
 
       {/* ── Entry Form ── */}
-      <div className="rounded-xl border bg-card shadow-sm p-4 space-y-4">
+      <div className="rounded-xl border bg-card shadow-sm p-3 sm:p-4 space-y-4">
         {/* Employee — read-only display */}
         <div className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">Submitting as</span>
@@ -260,7 +311,7 @@ export function FieldTimeEntry() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="h-11 text-sm cursor-pointer"
+                className="h-11 text-sm cursor-pointer w-full max-w-full"
               />
             </div>
             <Separator />
@@ -399,39 +450,109 @@ export function FieldTimeEntry() {
           </div>
         </div>
 
-        {/* Notes */}
+        {/* Work Tasks (Notes) */}
         <div className="space-y-1.5">
           <Label className="text-sm font-medium text-muted-foreground">
-            Notes <span className="text-xs">(optional)</span>
+            Work Tasks <span className="text-xs">(optional)</span>
           </Label>
-          <Input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any notes for this entry…"
-            className="h-11 text-sm"
-          />
+          <div className="space-y-2">
+            {tasks.map((task, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-muted-foreground w-5 shrink-0 text-right">
+                  {i + 1}.
+                </span>
+                <Input
+                  value={task}
+                  onChange={(e) => {
+                    const updated = [...tasks];
+                    updated[i] = e.target.value;
+                    setTasks(updated);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const updated = [...tasks];
+                      updated.splice(i + 1, 0, "");
+                      setTasks(updated);
+                      // Focus next input after render
+                      setTimeout(() => {
+                        const inputs = (e.target as HTMLElement).closest(".space-y-2")?.querySelectorAll("input");
+                        inputs?.[i + 1]?.focus();
+                      }, 0);
+                    }
+                  }}
+                  placeholder={i === 0 ? "e.g. Excavated for footings" : "Next task…"}
+                  className="h-10 text-sm flex-1"
+                />
+                {tasks.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setTasks(tasks.filter((_, idx) => idx !== i))}
+                    className="h-8 w-8 flex items-center justify-center text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-1 gap-1.5 text-xs cursor-pointer"
+            onClick={() => setTasks([...tasks, ""])}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add task
+          </Button>
         </div>
 
         {/* Submit / Save */}
-        <Button
-          className="w-full h-12 text-base font-semibold gap-2 cursor-pointer"
-          disabled={!canSubmit || submitting}
-          onClick={handleSubmit}
-        >
-          {submitting ? (
-            "Saving…"
-          ) : isEditing ? (
-            <>
-              <Save className="h-5 w-5" />
-              Save Changes
-            </>
-          ) : (
-            <>
-              <Plus className="h-5 w-5" />
-              Submit Entry
-            </>
-          )}
-        </Button>
+        {saved ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-center gap-2 h-12 rounded-md bg-green-500/10 text-green-600 dark:text-green-400 font-semibold text-base">
+              <Check className="h-5 w-5" />
+              Saved
+            </div>
+            <Button
+              variant="outline"
+              className="w-full h-10 gap-2 cursor-pointer"
+              asChild
+            >
+              <Link href="/field">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Home
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <Button
+            className="w-full h-12 text-base font-semibold gap-2 cursor-pointer"
+            disabled={!canSubmit || submitting}
+            onClick={handleSubmit}
+          >
+            {submitting ? (
+              "Saving…"
+            ) : isEditing ? (
+              <>
+                <Save className="h-5 w-5" />
+                Save Changes
+              </>
+            ) : (
+              <>
+                <Plus className="h-5 w-5" />
+                Submit Entry
+              </>
+            )}
+          </Button>
+        )}
+
+        {pendingCount > 0 && (
+          <p className="text-xs text-center text-amber-600 dark:text-amber-400">
+            {pendingCount} offline {pendingCount === 1 ? "entry" : "entries"} waiting to sync
+          </p>
+        )}
       </div>
     </div>
   );
