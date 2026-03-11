@@ -369,7 +369,7 @@ export function dailyReportCSVColumns(
         (r.workPhotoUrls?.length ?? 0) +
         (r.endOfDayPhotoUrls?.length ?? 0),
     },
-    { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
+    { id: "status", header: "Status", accessor: (r) => capitalize(r.status ?? "") },
   ];
 }
 
@@ -403,6 +403,6 @@ export function dailyReportPDFRows(
       (r.morningPhotoUrls?.length ?? 0) +
       (r.workPhotoUrls?.length ?? 0) +
       (r.endOfDayPhotoUrls?.length ?? 0),
-    status: capitalize(r.status),
+    status: capitalize(r.status ?? ""),
   }));
 }
