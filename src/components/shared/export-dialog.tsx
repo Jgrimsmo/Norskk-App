@@ -102,6 +102,16 @@ interface ExportDialogProps {
   recordCount?: number;
   /** Key for namespacing templates in localStorage (e.g. "time-tracking") */
   templateKey?: string;
+  /** PDF-only mode — hides Excel / CSV buttons */
+  pdfOnly?: boolean;
+  /** Controlled open state (when provided, dialog is controlled externally) */
+  controlledOpen?: boolean;
+  /** Controlled open change handler */
+  onControlledOpenChange?: (open: boolean) => void;
+  /** Custom trigger element — set to null to hide the default trigger */
+  trigger?: React.ReactNode | null;
+  /** Label for the columns / sections selector (default: "Columns") */
+  columnsLabel?: string;
 }
 
 function getStorageKey(templateKey: string) {
@@ -131,8 +141,18 @@ export function ExportDialog({
   disabled,
   recordCount,
   templateKey,
+  pdfOnly,
+  controlledOpen,
+  onControlledOpenChange,
+  trigger,
+  columnsLabel = "Columns",
 }: ExportDialogProps) {
-  const [open, setOpen] = React.useState(false);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled
+    ? (v: boolean) => onControlledOpenChange?.(v)
+    : setInternalOpen;
 
   // ── State ──
   const [selectedColumns, setSelectedColumns] = React.useState<Set<string>>(
@@ -307,17 +327,21 @@ export function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-xs cursor-pointer"
-          disabled={disabled}
-        >
-          <Download className="h-3.5 w-3.5" />
-          Export
-        </Button>
-      </DialogTrigger>
+      {trigger !== null && (
+        <DialogTrigger asChild>
+          {trigger ?? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs cursor-pointer"
+              disabled={disabled}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
 
       <DialogContent className={cn(
         "flex flex-col overflow-hidden",
@@ -558,7 +582,7 @@ export function ExportDialog({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium">
-                Columns ({selectedColumns.size} of {columns.length})
+                {columnsLabel} ({selectedColumns.size} of {columns.length})
               </Label>
               <div className="flex gap-1">
                 <Button
@@ -686,22 +710,26 @@ export function ExportDialog({
 
         {/* ── Export Buttons (always visible at bottom) ── */}
         <div className="flex items-center gap-2 shrink-0 pt-2">
-          <Button
-            className="flex-1 gap-2 cursor-pointer bg-green-700 hover:bg-green-800 text-white"
-            size="sm"
-            onClick={() => handleExport("excel")}
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Excel
-          </Button>
-          <Button
-            className="flex-1 gap-2 cursor-pointer bg-blue-700 hover:bg-blue-800 text-white"
-            size="sm"
-            onClick={() => handleExport("csv")}
-          >
-            <FileText className="h-4 w-4" />
-            CSV
-          </Button>
+          {!pdfOnly && (
+            <>
+              <Button
+                className="flex-1 gap-2 cursor-pointer bg-green-700 hover:bg-green-800 text-white"
+                size="sm"
+                onClick={() => handleExport("excel")}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </Button>
+              <Button
+                className="flex-1 gap-2 cursor-pointer bg-blue-700 hover:bg-blue-800 text-white"
+                size="sm"
+                onClick={() => handleExport("csv")}
+              >
+                <FileText className="h-4 w-4" />
+                CSV
+              </Button>
+            </>
+          )}
           <Button
             className="flex-1 gap-2 cursor-pointer bg-red-700 hover:bg-red-800 text-white"
             size="sm"

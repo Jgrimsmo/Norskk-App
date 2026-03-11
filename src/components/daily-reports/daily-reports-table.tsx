@@ -9,22 +9,15 @@ import {
   Users,
   Wrench,
   Clock,
-  Download,
   Eye,
-  Loader2,
 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
-import { generateDailyReportPDF, generateDailyReportPDFBlobUrl } from "@/lib/export/react-pdf/daily-report";
+import { generateDailyReportPDF, generateDailyReportPDFBlobUrl, DAILY_REPORT_SECTIONS } from "@/lib/export/react-pdf/daily-report";
+import { ExportDialog, type ExportColumnDef, type ExportConfig } from "@/components/shared/export-dialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -112,17 +105,9 @@ export default function DailyReportsTable() {
   );
   const [pendingNew, setPendingNew] = React.useState(false);
 
-  // PDF Preview state
-  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = React.useState(false);
-  const [previewReportId, setPreviewReportId] = React.useState<string | null>(null);
-
-  // Cleanup blob URL on unmount
-  React.useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+  // PDF Export dialog state
+  const [exportDialogOpen, setExportDialogOpen] = React.useState(false);
+  const [exportReport, setExportReport] = React.useState<DailyReport | null>(null);
 
   // Filters
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
@@ -234,35 +219,18 @@ export default function DailyReportsTable() {
     setReports((prev) => prev.filter((r) => r.id !== id));
   };
 
-  // Export single report PDF — show preview
-  const handleExportReport = async (report: DailyReport, e: React.MouseEvent) => {
+  // Open export dialog for a specific report
+  const handleExportReport = (report: DailyReport, e: React.MouseEvent) => {
     e.stopPropagation();
-    setPreviewLoading(true);
-    setPreviewReportId(report.id);
-    try {
-      const url = await generateDailyReportPDFBlobUrl({
-        report,
-        employees,
-        projects,
-        equipment,
-        timeEntries,
-        costCodes,
-        attachments,
-        tools,
-        company: profile,
-      });
-      setPreviewUrl(url);
-    } finally {
-      setPreviewLoading(false);
-    }
+    setExportReport(report);
+    setExportDialogOpen(true);
   };
 
-  // Download from preview
-  const handleDownloadFromPreview = () => {
-    const report = reports.find((r) => r.id === previewReportId);
-    if (!report) return;
-    generateDailyReportPDF({
-      report,
+  // Export handler (download PDF)
+  const handleExport = async (config: ExportConfig) => {
+    if (!exportReport) return;
+    await generateDailyReportPDF({
+      report: exportReport,
       employees,
       projects,
       equipment,
@@ -271,13 +239,31 @@ export default function DailyReportsTable() {
       attachments,
       tools,
       company: profile,
+      selectedSections: config.selectedColumns,
+      orientation: config.orientation,
+      title: config.title,
     });
+    setExportDialogOpen(false);
+    setExportReport(null);
   };
 
-  const closePreview = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setPreviewReportId(null);
+  // Preview handler (generate blob URL for ExportDialog's built-in preview)
+  const handlePreview = async (config: ExportConfig) => {
+    if (!exportReport) return "";
+    return generateDailyReportPDFBlobUrl({
+      report: exportReport,
+      employees,
+      projects,
+      equipment,
+      timeEntries,
+      costCodes,
+      attachments,
+      tools,
+      company: profile,
+      selectedSections: config.selectedColumns,
+      orientation: config.orientation,
+      title: config.title,
+    });
   };
 
   // Filter options
@@ -348,7 +334,7 @@ export default function DailyReportsTable() {
                   onChange={setAuthorFilter}
                 />
               </TableHead>
-              <TableHead className="min-w-[160px] text-xs font-semibold px-3">Work Description</TableHead>
+              <TableHead className="min-w-[160px] text-xs font-semibold px-3">Work Tasks</TableHead>
               <TableHead className="w-[70px] text-xs font-semibold px-3">Staff</TableHead>
               <TableHead className="w-[90px] text-xs font-semibold px-3">Equipment</TableHead>
               <TableHead className="w-[60px] text-xs font-semibold px-3">Photos</TableHead>
@@ -440,14 +426,9 @@ export default function DailyReportsTable() {
                           size="sm"
                           className="h-7 w-7 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
                           onClick={(e) => handleExportReport(report, e)}
-                          title="Preview PDF"
-                          disabled={previewLoading && previewReportId === report.id}
+                          title="Export PDF"
                         >
-                          {previewLoading && previewReportId === report.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Eye className="h-3.5 w-3.5" />
-                          )}
+                          <Eye className="h-3.5 w-3.5" />
                         </Button>
                         <DeleteConfirmButton
                           onConfirm={() => handleDelete(report.id)}
@@ -478,47 +459,27 @@ export default function DailyReportsTable() {
           onSave={handleSave}
         />
       )}
-      {/* PDF Preview Dialog */}
-      <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) closePreview(); }}>
-        <DialogContent className="sm:max-w-[900px] h-[90vh] flex flex-col">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="h-5 w-5" />
-              PDF Preview
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="flex-1 min-h-0 rounded-md border overflow-hidden">
-            {previewUrl && (
-              <iframe
-                src={previewUrl}
-                className="w-full h-full"
-                title="PDF Preview"
-              />
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 cursor-pointer"
-              onClick={closePreview}
-            >
-              Close
-            </Button>
-            <div className="flex-1" />
-            <Button
-              className="gap-2 cursor-pointer bg-red-700 hover:bg-red-800 text-white"
-              size="sm"
-              onClick={handleDownloadFromPreview}
-            >
-              <Download className="h-4 w-4" />
-              Download PDF
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* PDF Export Dialog (section customization + preview) */}
+      <ExportDialog
+        columns={DAILY_REPORT_SECTIONS as unknown as ExportColumnDef[]}
+        defaultTitle={
+          exportReport
+            ? `Daily Report #${exportReport.reportNumber}`
+            : "Daily Report"
+        }
+        defaultOrientation="portrait"
+        onExport={handleExport}
+        onGeneratePDFPreview={handlePreview}
+        pdfOnly
+        controlledOpen={exportDialogOpen}
+        onControlledOpenChange={(open) => {
+          setExportDialogOpen(open);
+          if (!open) setExportReport(null);
+        }}
+        trigger={null}
+        columnsLabel="Sections"
+        templateKey="daily-reports"
+      />
 
       <SavingIndicator saving={reportsSaving} />
     </>

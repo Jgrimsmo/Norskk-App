@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Wrench, Download, CheckCircle2, AlertTriangle, Plus, X, Settings } from "lucide-react";
+import { Wrench, CheckCircle2, AlertTriangle, Plus, X, Settings } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -132,15 +132,6 @@ export default function EquipmentPage() {
             Track equipment, attachments, and tools.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => toast.info("Export coming soon", { description: "CSV and PDF export will be available once the backend is connected." })}
-        >
-          <Download className="h-4 w-4" />
-          Export
-        </Button>
       </div>
 
       {/* Summary cards */}

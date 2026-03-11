@@ -16,6 +16,7 @@ import {
   Sunrise,
   Hammer,
   Moon,
+  Plus,
   Users,
   X,
   Search,
@@ -43,7 +44,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 
 import { PhotoUpload } from "@/components/shared/photo-upload";
 
@@ -61,6 +61,7 @@ import {
   useAttachments,
   useTools,
 } from "@/hooks/use-firestore";
+import { useCurrentEmployee } from "@/hooks/use-current-employee";
 import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 
@@ -112,8 +113,27 @@ export default function DailyReportFormDialog({
   const { data: equipment } = useEquipment();
   const { data: attachments } = useAttachments();
   const { data: tools } = useTools();
+  const { employeeId: currentEmployeeId } = useCurrentEmployee();
 
-  const [form, setForm] = React.useState<DailyReport>({ ...report });
+  const [form, setForm] = React.useState<DailyReport>(() => {
+    // Auto-set author to current user if creating a new report with no author
+    if (!report.authorId && currentEmployeeId) {
+      return { ...report, authorId: currentEmployeeId };
+    }
+    return { ...report };
+  });
+
+  // Work tasks (stored as newline-separated workDescription)
+  const [workTasks, setWorkTasks] = React.useState<string[]>(() => {
+    const desc = report.workDescription || "";
+    const lines = desc.split("\n").filter((l) => l.trim());
+    return lines.length > 0 ? lines : [""];
+  });
+
+  const updateWorkTasks = (tasks: string[]) => {
+    setWorkTasks(tasks);
+    update("workDescription", tasks.filter((t) => t.trim()).join("\n"));
+  };
   const isLocked = false;
   const isDirty = JSON.stringify(form) !== JSON.stringify(report);
   const { confirmClose } = useUnsavedWarning(isDirty && open);
@@ -128,8 +148,14 @@ export default function DailyReportFormDialog({
   const [weatherAutoFilled, setWeatherAutoFilled] = React.useState(false);
 
   React.useEffect(() => {
-    setForm({ ...report });
-  }, [report]);
+    const updated = !report.authorId && currentEmployeeId
+      ? { ...report, authorId: currentEmployeeId }
+      : { ...report };
+    setForm(updated);
+    const desc = report.workDescription || "";
+    const lines = desc.split("\n").filter((l) => l.trim());
+    setWorkTasks(lines.length > 0 ? lines : [""]);
+  }, [report, currentEmployeeId]);
 
   const update = <K extends keyof DailyReport>(key: K, value: DailyReport[K]) => {
     if (isLocked) return;
@@ -280,7 +306,7 @@ export default function DailyReportFormDialog({
           <div className="p-6 space-y-6">
             {/* ─── Project, Date, Time ─── */}
             <section>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
                   <Label className="text-xs text-muted-foreground">
                     Project
@@ -331,6 +357,27 @@ export default function DailyReportFormDialog({
                     className="h-9 text-sm mt-1"
                     disabled={isLocked}
                   />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Author</Label>
+                  <Select
+                    value={form.authorId}
+                    onValueChange={(v) => update("authorId", v)}
+                    disabled={isLocked}
+                  >
+                    <SelectTrigger className="h-9 text-sm mt-1 cursor-pointer">
+                      <SelectValue placeholder="Select author…" />
+                    </SelectTrigger>
+                    <SelectContent position="popper">
+                      {employees
+                        .filter((e) => e.status === "active")
+                        .map((e) => (
+                          <SelectItem key={e.id} value={e.id} className="text-sm">
+                            {e.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </section>
@@ -389,8 +436,8 @@ export default function DailyReportFormDialog({
                   )}
                 </div>
 
-                {/* Temp row */}
-                <div className="grid grid-cols-1 gap-3">
+                {/* Temp / Wind / Precip / Ground row */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
                     <Label className="text-xs text-muted-foreground">
                       Temperature
@@ -400,10 +447,45 @@ export default function DailyReportFormDialog({
                       onChange={(e) =>
                         updateWeather("temperature", e.target.value)
                       }
-                      placeholder="e.g. 6°C"
+                      placeholder="e.g. -5°C – 3°C"
                       className="h-8 text-xs mt-1"
                       disabled={isLocked}
                     />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Precipitation
+                    </Label>
+                    <Input
+                      value={form.weather.precipitation}
+                      onChange={(e) =>
+                        updateWeather("precipitation", e.target.value)
+                      }
+                      placeholder="e.g. 2.5 mm"
+                      className="h-8 text-xs mt-1"
+                      disabled={isLocked}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Ground Conditions
+                    </Label>
+                    <Select
+                      value={form.weather.groundConditions}
+                      onValueChange={(v) => updateWeather("groundConditions", v as DailyReport["weather"]["groundConditions"])}
+                      disabled={isLocked}
+                    >
+                      <SelectTrigger className="h-8 text-xs mt-1 cursor-pointer">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dry">Dry</SelectItem>
+                        <SelectItem value="wet">Wet</SelectItem>
+                        <SelectItem value="muddy">Muddy</SelectItem>
+                        <SelectItem value="frozen">Frozen</SelectItem>
+                        <SelectItem value="flooded">Flooded</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -411,18 +493,55 @@ export default function DailyReportFormDialog({
 
             <Separator />
 
-            {/* ─── Work Description ─── */}
+            {/* ─── Work Tasks ─── */}
             <section>
               <Label className="text-sm font-semibold text-foreground">
-                Work Description
+                Work Tasks
               </Label>
-              <Textarea
-                value={form.workDescription}
-                onChange={(e) => update("workDescription", e.target.value)}
-                placeholder="Describe the main work performed today…"
-                className="text-sm mt-2 min-h-[80px]"
-                disabled={isLocked}
-              />
+              <div className="mt-2 space-y-1.5">
+                {workTasks.map((task, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground w-5 text-right shrink-0">
+                      {idx + 1}.
+                    </span>
+                    <Input
+                      value={task}
+                      onChange={(e) => {
+                        const next = [...workTasks];
+                        next[idx] = e.target.value;
+                        updateWorkTasks(next);
+                      }}
+                      placeholder={`Task ${idx + 1}…`}
+                      className="h-8 text-sm flex-1"
+                      disabled={isLocked}
+                    />
+                    {workTasks.length > 1 && !isLocked && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = workTasks.filter((_, i) => i !== idx);
+                          updateWorkTasks(next);
+                        }}
+                        className="text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {!isLocked && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs gap-1 cursor-pointer mt-1"
+                    onClick={() => updateWorkTasks([...workTasks, ""])}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Task
+                  </Button>
+                )}
+              </div>
             </section>
 
             <Separator />

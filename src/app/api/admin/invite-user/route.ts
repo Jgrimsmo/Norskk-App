@@ -16,6 +16,7 @@ interface InviteRequestBody {
   email?: string;
   phone?: string;
   role?: string;
+  permissionLevel?: string;
   status?: EmployeeStatus;
 }
 
@@ -106,7 +107,10 @@ export async function POST(req: Request) {
       .collection(Collections.EMPLOYEES)
       .doc(decoded.uid)
       .get();
-    const requesterRole = String(requesterSnap.data()?.role || "").toLowerCase();
+    const requesterData = requesterSnap.data();
+    const requesterRole = String(
+      requesterData?.permissionLevel || requesterData?.role || ""
+    ).toLowerCase();
 
     if (requesterRole !== "admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
@@ -117,12 +121,13 @@ export async function POST(req: Request) {
     const name = body.name?.trim() || "";
     const email = body.email?.trim().toLowerCase() || "";
     const phone = body.phone?.trim() || "";
-    const role = body.role?.trim() || "Labourer";
+    const role = body.role?.trim() || "";
+    const permissionLevel = body.permissionLevel?.trim() || "Labourer";
     const status: EmployeeStatus = body.status === "inactive" ? "inactive" : "active";
 
     if (!name) return badRequest("Name is required");
     if (!email) return badRequest("Email is required");
-    if (!VALID_ROLES.has(role)) return badRequest("Invalid role");
+    if (!VALID_ROLES.has(permissionLevel)) return badRequest("Invalid permission level");
 
     let createdUid: string | null = null;
 
@@ -144,6 +149,7 @@ export async function POST(req: Request) {
         email,
         phone,
         role,
+        permissionLevel,
         status,
         createdAt: new Date().toISOString(),
       });

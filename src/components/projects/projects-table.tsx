@@ -591,14 +591,13 @@ export function ProjectsTable({
                     key={project.id}
                     data-row-id={project.id}
                     className={`group h-[36px] transition-colors ${
-                      isEditing ? "bg-amber-50/40 dark:bg-amber-900/10" : "hover:bg-muted/30 cursor-pointer"
+                      isEditing ? "bg-amber-50/40 dark:bg-amber-900/10" : "hover:bg-muted/30"
                     }`}
-                    onClick={() => { if (!isEditing) router.push(`/projects/${project.id}`); }}
                   >
                     {/* Project Number */}
                     <TableCell className="text-xs p-0 px-1">
                       {isEditing ? (
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div>
                           <CellInput value={project.number} onChange={(v) => updateProject(project.id, "number", v)} placeholder="e.g. 2026-006" />
                         </div>
                       ) : (
@@ -609,18 +608,23 @@ export function ProjectsTable({
                     {/* Name */}
                     <TableCell className="p-0 px-1">
                       {isEditing ? (
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div>
                           <CellInput value={project.name} onChange={(v) => updateProject(project.id, "name", v)} placeholder="Project name" />
                         </div>
                       ) : (
-                        <span className="px-2 text-xs font-semibold">{project.name || "—"}</span>
+                        <button
+                          className="text-xs px-2 font-medium text-foreground hover:text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left transition-colors"
+                          onClick={() => router.push(`/projects/${project.id}`)}
+                        >
+                          {project.name || "—"}
+                        </button>
                       )}
                     </TableCell>
 
                     {/* Developer */}
                     <TableCell className="p-0 px-1">
                       {isEditing ? (
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div>
                           <CellSelect
                             value={project.developerId || DEVELOPER_NONE}
                             onChange={(v) => updateProject(project.id, "developerId", v === DEVELOPER_NONE ? "" : v)}
@@ -655,31 +659,31 @@ export function ProjectsTable({
                     </TableCell>
 
                     {/* Time Entries + Hours */}
-                    <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="px-3 text-center">
                       <StatCell icon={Clock} count={stats.timeCount} sub={hoursLabel}
                         tooltip={`${stats.timeCount} time entr${stats.timeCount !== 1 ? "ies" : "y"} · ${stats.totalHours.toFixed(1)} hrs`} />
                     </TableCell>
 
                     {/* Photos */}
-                    <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="px-3 text-center">
                       <StatCell icon={ImageIcon} count={stats.photoCount}
                         tooltip={`${stats.photoCount} photo${stats.photoCount !== 1 ? "s" : ""}`} />
                     </TableCell>
 
                     {/* Daily Reports */}
-                    <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="px-3 text-center">
                       <StatCell icon={FileText} count={stats.reportCount}
                         tooltip={`${stats.reportCount} daily report${stats.reportCount !== 1 ? "s" : ""}`} />
                     </TableCell>
 
                     {/* Safety Forms */}
-                    <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="px-3 text-center">
                       <StatCell icon={ShieldCheck} count={stats.safetyCount}
                         tooltip={`${stats.safetyCount} safety form${stats.safetyCount !== 1 ? "s" : ""}`} />
                     </TableCell>
 
                     {/* Payables */}
-                    <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="px-3 text-center">
                       {invStats ? (
                         <Link href={`/payables?project=${project.id}`}>
                           <div className="inline-flex flex-col items-center leading-tight group/pay cursor-pointer">
@@ -703,7 +707,7 @@ export function ProjectsTable({
                     {/* Status */}
                     <TableCell className="p-0 px-1">
                       {isEditing ? (
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div>
                           <CellSelect value={project.status} onChange={(v) => updateProject(project.id, "status", v)} options={statusOptions} placeholder="Status" />
                         </div>
                       ) : (
@@ -714,7 +718,7 @@ export function ProjectsTable({
                     </TableCell>
 
                     {/* Actions */}
-                    <TableCell className="p-0 px-1" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="p-0 px-1">
                       <div className="flex items-center gap-0.5 justify-center">
                         {isEditing ? (
                           <>

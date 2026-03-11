@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Users, Download, UserCheck, UserX } from "lucide-react";
-import { toast } from "sonner";
+import { Users, UserCheck, UserX } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { EmployeesTable } from "@/components/employees/employees-table";
@@ -34,15 +33,6 @@ export default function EmployeesPage() {
             Manage your workforce, roles, and contact information.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => toast.info("Export coming soon", { description: "CSV and PDF export will be available once the backend is connected." })}
-        >
-          <Download className="h-4 w-4" />
-          Export
-        </Button>
       </div>
 
       {/* Summary cards */}

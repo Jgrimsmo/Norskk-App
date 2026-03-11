@@ -85,9 +85,11 @@ function FieldHeader() {
 
   // Check if the current user has dashboard management permissions
   const showAdminLink = useMemo(() => {
-    if (!currentEmployee?.role) return false;
+    if (!currentEmployee) return false;
+    const level = currentEmployee.permissionLevel || currentEmployee.role;
+    if (!level) return false;
     const template = DEFAULT_ROLE_TEMPLATES.find(
-      (t) => t.role.toLowerCase() === currentEmployee.role.toLowerCase()
+      (t) => t.role.toLowerCase() === level.toLowerCase()
     );
     return template ? template.permissions.includes("employees.view") : false;
   }, [currentEmployee]);

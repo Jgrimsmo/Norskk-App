@@ -31,7 +31,7 @@ export function usePermissions() {
     [employees, user?.email]
   );
 
-  const realRole = employee?.role ?? "";
+  const realRole = employee?.permissionLevel || (employee?.role ?? "");
   // Use preview role if set, otherwise use real role
   const role = previewRole ?? realRole;
 

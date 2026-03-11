@@ -132,9 +132,6 @@ export async function GET(req: NextRequest) {
     const precip: number = daily.precipitation_sum[0] ?? 0;
     const windKph: number = daily.wind_speed_10m_max[0] ?? 0;
 
-    const tMaxF = Math.round(tMaxC * 9 / 5 + 32);
-    const tMinF = Math.round(tMinC * 9 / 5 + 32);
-
     const conditions = wmoToConditions(wmoCode);
     if (windKph > 30 && !conditions.includes("windy")) {
       conditions.push("windy");
@@ -142,7 +139,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       conditions,
-      temperature: `${Math.round(tMinC)}°C – ${Math.round(tMaxC)}°C  (${tMinF}°F – ${tMaxF}°F)`,
+      temperature: `${Math.round(tMinC)}°C – ${Math.round(tMaxC)}°C`,
       windSpeed: `${Math.round(windKph)} km/h`,
       precipitation: precip > 0 ? `${precip.toFixed(1)} mm` : "None",
       groundConditions: groundCondition(precip, tMinC),

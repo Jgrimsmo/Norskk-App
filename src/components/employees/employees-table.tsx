@@ -1,15 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, Users, X } from "lucide-react";
+import { Plus, Pencil, Check, Users, X } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
-import { ExportDialog } from "@/components/shared/export-dialog";
-import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
-import { useCompanyProfile } from "@/hooks/use-company-profile";
-import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
-import { employeeCSVColumns, employeePDFColumns, employeePDFRows } from "@/lib/export/columns";
+import { EmployeeDetailSheet } from "@/components/employees/employee-detail-sheet";
 import { DEFAULT_ROLE_TEMPLATES } from "@/lib/constants/permissions";
+import { PERMISSION_LEVELS } from "@/lib/constants/permissions";
 
 import {
   Table,
@@ -72,10 +68,32 @@ export function EmployeesTable({
     new Set()
   );
 
+  // ── Detail sheet state ──
+  const [selectedEmpId, setSelectedEmpId] = React.useState<string | null>(null);
+  const selectedEmployee = React.useMemo(
+    () => employeeList.find((e) => e.id === selectedEmpId) ?? null,
+    [employeeList, selectedEmpId]
+  );
+
+  const handleDetailUpdate = React.useCallback(
+    (id: string, patch: Partial<Employee>) => {
+      onEmployeesChange((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, ...patch } : e))
+      );
+    },
+    [onEmployeesChange]
+  );
+
   // ── Filter state ──
   const [roleFilter, setRoleFilter] = React.useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = React.useState<Set<string>>(
     new Set()
+  );
+
+  // Permission level options (for the permissions dropdown)
+  const permissionLevelOptions = React.useMemo(
+    () => PERMISSION_LEVELS.map((l) => ({ id: l, label: l })),
+    []
   );
 
   // Role options from templates (used for both the cell select and the column filter)
@@ -86,11 +104,14 @@ export function EmployeesTable({
 
   // Filter option arrays – include template roles plus any extra roles already in use
   const roleOptions = React.useMemo(() => {
-    const templateRoles = new Set(DEFAULT_ROLE_TEMPLATES.map((t) => t.role));
-    const extra = employeeList
-      .map((e) => e.role)
-      .filter((r) => r && !templateRoles.has(r));
-    const all = [...templateRoles, ...extra].sort();
+    const all = [...new Set(employeeList.map((e) => e.role).filter(Boolean))].sort();
+    return all.map((r) => ({ id: r, label: r }));
+  }, [employeeList]);
+
+  // Permission level filter options
+  const [permLevelFilter, setPermLevelFilter] = React.useState<Set<string>>(new Set());
+  const permLevelOptions = React.useMemo(() => {
+    const all = [...new Set(employeeList.map((e) => e.permissionLevel || e.role).filter(Boolean))].sort();
     return all.map((r) => ({ id: r, label: r }));
   }, [employeeList]);
 
@@ -102,10 +123,11 @@ export function EmployeesTable({
   const filteredEmployees = React.useMemo(() => {
     return employeeList.filter((emp) => {
       if (roleFilter.size > 0 && !roleFilter.has(emp.role)) return false;
+      if (permLevelFilter.size > 0 && !permLevelFilter.has(emp.permissionLevel || emp.role)) return false;
       if (statusFilter.size > 0 && !statusFilter.has(emp.status)) return false;
       return true;
     });
-  }, [employeeList, roleFilter, statusFilter]);
+  }, [employeeList, roleFilter, permLevelFilter, statusFilter]);
 
   // ── Mutations ──
   const updateEmployee = React.useCallback(
@@ -129,6 +151,7 @@ export function EmployeesTable({
   const [newForm, setNewForm] = React.useState({
     name: "",
     role: "",
+    permissionLevel: "Labourer",
     phone: "",
     email: "",
     status: "active" as EmployeeStatus,
@@ -140,18 +163,26 @@ export function EmployeesTable({
       id: `emp-${crypto.randomUUID().slice(0, 8)}`,
       name: newForm.name.trim(),
       role: newForm.role,
+      permissionLevel: newForm.permissionLevel,
       phone: newForm.phone.trim(),
       email: newForm.email.trim(),
       status: newForm.status,
     };
     onEmployeesChange((prev) => [...prev, emp]);
     setAdding(false);
-    setNewForm({ name: "", role: "", phone: "", email: "", status: "active" });
+    setNewForm({ name: "", role: "", permissionLevel: "Labourer", phone: "", email: "", status: "active" });
   }, [newForm, onEmployeesChange]);
 
-  const unlockRow = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const unlockRow = (id: string) => {
     setUnlockedIds((prev) => new Set(prev).add(id));
+  };
+
+  const lockRow = (id: string) => {
+    setUnlockedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   return (
@@ -168,7 +199,6 @@ export function EmployeesTable({
           <Plus className="h-3.5 w-3.5" />
           Add Employee
         </Button>
-        <EmployeesExport employees={filteredEmployees} />
       </div>
 
       {/* Add form */}
@@ -178,10 +208,11 @@ export function EmployeesTable({
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                  <TableHead className="w-[180px] text-xs font-semibold px-3">Name</TableHead>
-                  <TableHead className="w-[160px] text-xs font-semibold px-3">Role / Trade</TableHead>
-                  <TableHead className="w-[150px] text-xs font-semibold px-3">Phone</TableHead>
-                  <TableHead className="w-[200px] text-xs font-semibold px-3">Email</TableHead>
+                  <TableHead className="w-[170px] text-xs font-semibold px-3">Name</TableHead>
+                  <TableHead className="w-[140px] text-xs font-semibold px-3">Role / Title</TableHead>
+                  <TableHead className="w-[150px] text-xs font-semibold px-3">Permission Level</TableHead>
+                  <TableHead className="w-[140px] text-xs font-semibold px-3">Phone</TableHead>
+                  <TableHead className="w-[180px] text-xs font-semibold px-3">Email</TableHead>
                   <TableHead className="w-[110px] text-xs font-semibold px-3">Status</TableHead>
                   <TableHead className="w-[100px] text-xs font-semibold px-3"></TableHead>
                 </TableRow>
@@ -196,11 +227,18 @@ export function EmployeesTable({
                     />
                   </TableCell>
                   <TableCell className="p-0 px-1">
-                    <CellSelect
+                    <CellInput
                       value={newForm.role}
                       onChange={(v) => setNewForm((f) => ({ ...f, role: v }))}
-                      options={roleSelectOptions}
-                      placeholder="Select role"
+                      placeholder="e.g. Director"
+                    />
+                  </TableCell>
+                  <TableCell className="p-0 px-1">
+                    <CellSelect
+                      value={newForm.permissionLevel}
+                      onChange={(v) => setNewForm((f) => ({ ...f, permissionLevel: v }))}
+                      options={permissionLevelOptions}
+                      placeholder="Select level"
                     />
                   </TableCell>
                   <TableCell className="p-0 px-1">
@@ -239,7 +277,7 @@ export function EmployeesTable({
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 cursor-pointer p-0"
-                        onClick={() => { setAdding(false); setNewForm({ name: "", role: "", phone: "", email: "", status: "active" }); }}
+                        onClick={() => { setAdding(false); setNewForm({ name: "", role: "", permissionLevel: "Labourer", phone: "", email: "", status: "active" }); }}
                       >
                         <X className="h-3.5 w-3.5" />
                       </Button>
@@ -258,21 +296,29 @@ export function EmployeesTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[180px] text-xs font-semibold px-3">
+                <TableHead className="w-[170px] text-xs font-semibold px-3">
                   Name
                 </TableHead>
-                <TableHead className="w-[160px] text-xs font-semibold px-3">
+                <TableHead className="w-[140px] text-xs font-semibold px-3">
                   <ColumnFilter
-                    title="Role / Trade"
+                    title="Role / Title"
                     options={roleOptions}
                     selected={roleFilter}
                     onChange={setRoleFilter}
                   />
                 </TableHead>
                 <TableHead className="w-[150px] text-xs font-semibold px-3">
+                  <ColumnFilter
+                    title="Permission Level"
+                    options={permLevelOptions}
+                    selected={permLevelFilter}
+                    onChange={setPermLevelFilter}
+                  />
+                </TableHead>
+                <TableHead className="w-[140px] text-xs font-semibold px-3">
                   Phone
                 </TableHead>
-                <TableHead className="w-[200px] text-xs font-semibold px-3">
+                <TableHead className="w-[180px] text-xs font-semibold px-3">
                   Email
                 </TableHead>
                 <TableHead className="w-[110px] text-xs font-semibold px-3">
@@ -289,7 +335,7 @@ export function EmployeesTable({
             <TableBody>
               {filteredEmployees.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-40 text-center">
+                  <TableCell colSpan={7} className="h-40 text-center">
                     {employeeList.length === 0 ? (
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Users className="h-8 w-8 opacity-30" />
@@ -311,26 +357,22 @@ export function EmployeesTable({
                 </TableRow>
               )}
               {filteredEmployees.map((emp) => {
-                const isInactive =
-                  emp.status === "inactive" && !unlockedIds.has(emp.id);
+                const isLocked = !unlockedIds.has(emp.id);
 
                 return (
                   <TableRow
                     key={emp.id}
-                    className={`group h-[36px] ${
-                      isInactive
-                        ? "bg-gray-50/30 cursor-pointer hover:bg-muted/20"
-                        : "hover:bg-muted/20"
-                    }`}
-                    onClick={isInactive ? (e) => unlockRow(emp.id, e) : undefined}
-                    title={isInactive ? "Click to edit" : undefined}
+                    className="group h-[36px] hover:bg-muted/20"
                   >
                     {/* Name */}
                     <TableCell className="p-0 px-1">
-                      {isInactive ? (
-                        <span className="text-xs px-2 text-muted-foreground">
+                      {isLocked ? (
+                        <button
+                          className="text-xs px-2 font-medium text-foreground hover:text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left transition-colors"
+                          onClick={() => setSelectedEmpId(emp.id)}
+                        >
                           {emp.name}
-                        </span>
+                        </button>
                       ) : (
                         <CellInput
                           value={emp.name}
@@ -340,27 +382,45 @@ export function EmployeesTable({
                       )}
                     </TableCell>
 
-                    {/* Role / Trade */}
+                    {/* Role / Title */}
                     <TableCell className="p-0 px-1">
-                      {isInactive ? (
+                      {isLocked ? (
                         <span className="text-xs px-2 text-muted-foreground">
-                          {emp.role}
+                          {emp.role || "—"}
                         </span>
                       ) : (
-                        <CellSelect
+                        <CellInput
                           value={emp.role}
                           onChange={(v) => updateEmployee(emp.id, "role", v)}
-                          options={roleSelectOptions}
-                          placeholder="Select role"
+                          placeholder="e.g. Director"
+                        />
+                      )}
+                    </TableCell>
+
+                    {/* Permission Level */}
+                    <TableCell className="p-0 px-1">
+                      {isLocked ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-medium"
+                        >
+                          {emp.permissionLevel || emp.role}
+                        </Badge>
+                      ) : (
+                        <CellSelect
+                          value={emp.permissionLevel || emp.role}
+                          onChange={(v) => updateEmployee(emp.id, "permissionLevel", v)}
+                          options={permissionLevelOptions}
+                          placeholder="Select level"
                         />
                       )}
                     </TableCell>
 
                     {/* Phone */}
                     <TableCell className="p-0 px-1">
-                      {isInactive ? (
+                      {isLocked ? (
                         <span className="text-xs px-2 text-muted-foreground">
-                          {emp.phone}
+                          {emp.phone || "—"}
                         </span>
                       ) : (
                         <CellInput
@@ -373,9 +433,9 @@ export function EmployeesTable({
 
                     {/* Email */}
                     <TableCell className="p-0 px-1">
-                      {isInactive ? (
+                      {isLocked ? (
                         <span className="text-xs px-2 text-muted-foreground">
-                          {emp.email}
+                          {emp.email || "—"}
                         </span>
                       ) : (
                         <CellInput
@@ -388,7 +448,7 @@ export function EmployeesTable({
 
                     {/* Status */}
                     <TableCell className="p-0 px-1">
-                      {isInactive ? (
+                      {isLocked ? (
                         <Badge
                           variant="outline"
                           className={`text-[10px] font-medium capitalize ${statusColors[emp.status]}`}
@@ -407,30 +467,60 @@ export function EmployeesTable({
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
-                      {isInactive ? (
+                      {isLocked ? (
                         <div className="flex items-center gap-0.5">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                onClick={(e) => unlockRow(emp.id, e)}
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                                onClick={() => unlockRow(emp.id)}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent side="left">
-                              <p className="text-xs">Edit inactive employee</p>
+                              <p className="text-xs">Edit</p>
                             </TooltipContent>
                           </Tooltip>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center">
                           <DeleteConfirmButton
                             onConfirm={() => deleteEmployee(emp.id)}
                             itemLabel="this employee"
                           />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-0.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-green-600 hover:text-green-700 cursor-pointer"
+                                onClick={() => lockRow(emp.id)}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              <p className="text-xs">Done editing</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                                onClick={() => lockRow(emp.id)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              <p className="text-xs">Cancel</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       )}
                     </TableCell>
@@ -451,70 +541,13 @@ export function EmployeesTable({
           {employeeList.filter((e) => e.status === "active").length} active
         </span>
       </div>
+      {/* Employee detail sheet */}
+      <EmployeeDetailSheet
+        employee={selectedEmployee}
+        open={!!selectedEmpId}
+        onOpenChange={(open) => { if (!open) setSelectedEmpId(null); }}
+        onUpdate={handleDetailUpdate}
+      />
     </div>
-  );
-}
-
-// ── Export sub-component ──
-const EMPLOYEE_EXPORT_COLUMNS: ExportColumnDef[] = [
-  { id: "name", header: "Name" },
-  { id: "role", header: "Role" },
-  { id: "phone", header: "Phone" },
-  { id: "email", header: "Email" },
-  { id: "status", header: "Status" },
-];
-
-const EMPLOYEE_GROUP_OPTIONS = [
-  { value: "role", label: "Role" },
-  { value: "status", label: "Status" },
-];
-
-function EmployeesExport({ employees }: { employees: Employee[] }) {
-  const { profile } = useCompanyProfile();
-
-  const handleExport = (config: ExportConfig) => {
-    const datestamp = new Date().toISOString().slice(0, 10);
-    const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
-
-    if (config.format === "excel") {
-      exportToExcel(employees, employeeCSVColumns, filename, config.selectedColumns);
-    } else if (config.format === "csv") {
-      exportToCSV(employees, employeeCSVColumns, filename, config.selectedColumns);
-    } else {
-      generatePDF({
-        title: config.title,
-        filename,
-        company: profile,
-        columns: employeePDFColumns,
-        rows: employeePDFRows(employees),
-        orientation: config.orientation,
-        selectedColumns: config.selectedColumns,
-        groupBy: config.groupBy,
-      });
-    }
-  };
-
-  const handlePreview = (config: ExportConfig) =>
-    generatePDFBlobUrl({
-      title: config.title,
-      filename: "preview",
-      company: profile,
-      columns: employeePDFColumns,
-      rows: employeePDFRows(employees),
-      orientation: config.orientation,
-      selectedColumns: config.selectedColumns,
-      groupBy: config.groupBy,
-    });
-
-  return (
-    <ExportDialog
-      columns={EMPLOYEE_EXPORT_COLUMNS}
-      groupOptions={EMPLOYEE_GROUP_OPTIONS}
-      defaultTitle="Employees"
-      onExport={handleExport}
-      onGeneratePDFPreview={handlePreview}
-      disabled={employees.length === 0}
-      recordCount={employees.length}
-    />
   );
 }

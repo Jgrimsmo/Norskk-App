@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Clock,
   FileText,
+  Ruler,
   ShieldCheck,
   Image as ImageIcon,
   ChevronLeft,
@@ -57,6 +58,7 @@ import {
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
 import { DateColumnFilter } from "@/components/time-tracking/date-column-filter";
 import DailyReportFormDialog from "@/components/daily-reports/daily-report-form-dialog";
+import { ProjectDrawings } from "@/components/projects/project-drawings";
 
 import { useFirestoreState } from "@/hooks/use-firestore-state";
 import {
@@ -704,6 +706,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             <Receipt className="h-3.5 w-3.5" />
             Payables
           </TabsTrigger>
+          <TabsTrigger value="drawings" className="gap-1.5">
+            <Ruler className="h-3.5 w-3.5" />
+            Drawings
+          </TabsTrigger>
           <TabsTrigger value="cost-codes" className="gap-1.5">
             <Hash className="h-3.5 w-3.5" />
             Cost Codes
@@ -1082,6 +1088,18 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                 prev.map((p) => (p.id === project.id ? { ...p, payablesCostCodeIds: next } : p))
               );
             }}
+          />
+        </TabsContent>
+
+        {/* ── Drawings ── */}
+        <TabsContent value="drawings" className="mt-4">
+          <ProjectDrawings
+            project={project}
+            onUpdate={(patch) =>
+              setProjects((prev) =>
+                prev.map((p) => (p.id === project.id ? { ...p, ...patch } : p))
+              )
+            }
           />
         </TabsContent>
       </Tabs>

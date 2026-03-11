@@ -53,6 +53,33 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
+    // Employee certificate PDFs (up to 10 MB)
+    match /employee-certificates/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && isOpsManager();
+    }
+
+    // Equipment document PDFs (up to 20 MB)
+    match /equipment-documents/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && request.resource != null
+        && request.resource.size < 20 * 1024 * 1024
+        && isOpsManager();
+    }
+
+    // Project drawing PDFs (up to 50 MB)
+    match /project-drawings/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && request.resource != null
+        && request.resource.size < 50 * 1024 * 1024
+        && isOpsManager();
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

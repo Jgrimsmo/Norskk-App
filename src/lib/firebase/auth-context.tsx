@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: firebaseUser.email || "",
               phone: "",
               role: "Labourer",
+              permissionLevel: "Labourer",
               status: "active",
               uid: firebaseUser.uid,
               createdAt: new Date().toISOString(),

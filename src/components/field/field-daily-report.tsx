@@ -41,7 +41,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -165,6 +164,14 @@ export function FieldDailyReport() {
   // Equipment search
   const [equipSearch, setEquipSearch] = React.useState("");
 
+  // Work tasks (stored as newline-separated workDescription)
+  const [workTasks, setWorkTasks] = React.useState<string[]>([""]);
+
+  const updateWorkTasks = (tasks: string[]) => {
+    setWorkTasks(tasks);
+    update("workDescription", tasks.filter((t) => t.trim()).join("\n"));
+  };
+
   const autoFetchWeather = React.useCallback(
     async (projectId: string, date: string) => {
       const proj = projects.find((p) => p.id === projectId);
@@ -259,12 +266,16 @@ export function FieldDailyReport() {
   const handleNew = () => {
     const blank = createBlankReport(employeeId);
     setActiveReport(blank);
+    setWorkTasks([""]);
     setMode("edit");
   };
 
   // Open existing
   const handleOpen = (r: DailyReport) => {
     setActiveReport({ ...r });
+    const desc = r.workDescription || "";
+    const lines = desc.split("\n").filter((l) => l.trim());
+    setWorkTasks(lines.length > 0 ? lines : [""]);
     setMode("edit");
   };
 
@@ -699,7 +710,7 @@ export function FieldDailyReport() {
             <Input
               value={activeReport.weather.temperature}
               onChange={(e) => updateWeather("temperature", e.target.value)}
-              placeholder="e.g. 6°C"
+              placeholder="e.g. -5°C – 3°C"
               className="h-10 text-sm mt-1"
               disabled={isLocked}
             />
@@ -709,16 +720,53 @@ export function FieldDailyReport() {
 
       <Separator />
 
-      {/* ─── Work Description ─── */}
+      {/* ─── Work Tasks ─── */}
       <section>
-        <Label className="text-sm font-semibold">Work Description</Label>
-        <Textarea
-          value={activeReport.workDescription}
-          onChange={(e) => update("workDescription", e.target.value)}
-          placeholder="Describe the main work performed today…"
-          className="text-sm mt-2 min-h-[100px]"
-          disabled={isLocked}
-        />
+        <Label className="text-sm font-semibold">Work Tasks</Label>
+        <div className="mt-2 space-y-1.5">
+          {workTasks.map((task, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground w-5 text-right shrink-0">
+                {idx + 1}.
+              </span>
+              <Input
+                value={task}
+                onChange={(e) => {
+                  const next = [...workTasks];
+                  next[idx] = e.target.value;
+                  updateWorkTasks(next);
+                }}
+                placeholder={`Task ${idx + 1}…`}
+                className="h-10 text-sm flex-1"
+                disabled={isLocked}
+              />
+              {workTasks.length > 1 && !isLocked && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = workTasks.filter((_, i) => i !== idx);
+                    updateWorkTasks(next);
+                  }}
+                  className="text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+          {!isLocked && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1 cursor-pointer mt-1"
+              onClick={() => updateWorkTasks([...workTasks, ""])}
+            >
+              <Plus className="h-3 w-3" />
+              Add Task
+            </Button>
+          )}
+        </div>
       </section>
 
       <Separator />

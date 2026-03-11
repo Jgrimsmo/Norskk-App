@@ -31,6 +31,60 @@ export interface Employee {
   uid?: string;        // Firebase Auth UID — links auth account to employee
   createdAt?: string;  // ISO timestamp of account creation
   fcmToken?: string;   // Firebase Cloud Messaging token for push notifications
+  /** Permission level — maps to a role template (Admin, PM, Foreman, etc.).
+   *  Falls back to `role` when not set for backward compatibility. */
+  permissionLevel?: string;
+
+  // Employment details
+  hireDate?: string;
+
+  // Compensation
+  currentWage?: number;
+  wageType?: "hourly" | "salary";
+  lastIncreaseDate?: string;
+  lastIncreaseAmount?: number;
+  wageHistory?: WageHistoryEntry[];
+
+  // Emergency contact
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
+
+  // Certificates
+  certificates?: Certificate[];
+
+  // Notes
+  notes?: string;
+}
+
+export interface WageHistoryEntry {
+  date: string;
+  amount: number;
+  note?: string;
+}
+
+export interface Certificate {
+  id: string;
+  name: string;
+  issueDate?: string;
+  expiryDate?: string;
+  certificateNumber?: string;
+  fileUrl?: string;
+  fileName?: string;
+}
+
+export interface Drawing {
+  id: string;
+  name: string;
+  fileUrl: string;
+  fileName: string;
+  uploadedAt: string;
+}
+
+export interface DrawingFolder {
+  id: string;
+  name: string;
+  drawings: Drawing[];
 }
 
 export interface Project {
@@ -44,6 +98,7 @@ export interface Project {
   status: ProjectStatus;
   costCodeIds: string[];
   payablesCostCodeIds?: string[]; // cost codes available in invoice uploads
+  drawingFolders?: DrawingFolder[];
 }
 
 export interface CostCode {
@@ -60,7 +115,14 @@ export interface Developer {
   email?: string;
 }
 
-export type EquipmentStatus = "available" | "in-use" | "maintenance" | "retired";
+export type EquipmentStatus = "available" | "in-use" | "maintenance" | "rental" | "retired";
+
+export interface ServiceHistoryEntry {
+  id: string;
+  date: string;
+  hours: string;
+  notes?: string;
+}
 
 export interface Equipment {
   id: string;
@@ -69,6 +131,23 @@ export interface Equipment {
   category: string;
   lastServiceHours: string;
   status: EquipmentStatus;
+
+  // Detail fields
+  year?: string;
+  brand?: string;
+  model?: string;
+  weight?: string;
+  lastServiceDate?: string;
+  notes?: string;
+
+  // Document uploads
+  operatorsManualUrl?: string;
+  operatorsManualName?: string;
+  salesAgreementUrl?: string;
+  salesAgreementName?: string;
+
+  // Service history
+  serviceHistory?: ServiceHistoryEntry[];
 }
 
 export type AttachmentStatus = "available" | "in-use" | "retired";

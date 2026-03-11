@@ -38,16 +38,7 @@ import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { useEmployees } from "@/hooks/use-firestore";
 import { useAuth } from "@/lib/firebase/auth-context";
 import type { Employee } from "@/lib/types/time-tracking";
-
-// ── Role options ──
-const ROLES = [
-  "Admin",
-  "Foreman",
-  "Operator",
-  "Labourer",
-  "Safety Officer",
-  "PM",
-] as const;
+import { PERMISSION_LEVELS } from "@/lib/constants/permissions";
 
 const roleColors: Record<string, string> = {
   Admin: "bg-purple-100 text-purple-800 border-purple-200",
@@ -73,7 +64,8 @@ export function UserManagementSettings() {
     name: "",
     email: "",
     phone: "",
-    role: "Labourer",
+    role: "",
+    permissionLevel: "Labourer",
     status: "active" as "active" | "inactive",
   });
 
@@ -82,6 +74,7 @@ export function UserManagementSettings() {
     setEditForm({
       name: emp.name,
       role: emp.role,
+      permissionLevel: emp.permissionLevel || emp.role,
       phone: emp.phone,
       email: emp.email,
       status: emp.status,
@@ -133,6 +126,7 @@ export function UserManagementSettings() {
           email: newUser.email,
           phone: newUser.phone,
           role: newUser.role,
+          permissionLevel: newUser.permissionLevel,
           status: newUser.status,
         }),
       });
@@ -156,7 +150,8 @@ export function UserManagementSettings() {
         name: "",
         email: "",
         phone: "",
-        role: "Labourer",
+        role: "",
+        permissionLevel: "Labourer",
         status: "active",
       });
     } catch (err: unknown) {
@@ -196,7 +191,7 @@ export function UserManagementSettings() {
     if (!emp.createdAt) return false;
     const created = new Date(emp.createdAt).getTime();
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return emp.role === "Labourer" && created > sevenDaysAgo;
+    return (emp.permissionLevel || emp.role) === "Labourer" && created > sevenDaysAgo;
   };
 
   const sorted = [...employees].sort((a, b) => {
@@ -307,20 +302,31 @@ export function UserManagementSettings() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Role</Label>
-              <Select
+              <Label className="text-xs">Role / Title</Label>
+              <Input
                 value={newUser.role}
+                onChange={(e) =>
+                  setNewUser((p) => ({ ...p, role: e.target.value }))
+                }
+                placeholder="e.g. Director"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Permission Level</Label>
+              <Select
+                value={newUser.permissionLevel}
                 onValueChange={(v) =>
-                  setNewUser((p) => ({ ...p, role: v }))
+                  setNewUser((p) => ({ ...p, permissionLevel: v }))
                 }
               >
                 <SelectTrigger className="h-8 text-xs cursor-pointer">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((role) => (
-                    <SelectItem key={role} value={role} className="text-xs">
-                      {role}
+                  {PERMISSION_LEVELS.map((level) => (
+                    <SelectItem key={level} value={level} className="text-xs">
+                      {level}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -357,7 +363,8 @@ export function UserManagementSettings() {
               <TableHead className="text-xs">Name</TableHead>
               <TableHead className="text-xs">Email</TableHead>
               <TableHead className="text-xs">Phone</TableHead>
-              <TableHead className="text-xs">Role</TableHead>
+              <TableHead className="text-xs">Role / Title</TableHead>
+              <TableHead className="text-xs">Permission Level</TableHead>
               <TableHead className="text-xs">Status</TableHead>
               <TableHead className="text-xs w-[100px]">Actions</TableHead>
             </TableRow>
@@ -423,17 +430,33 @@ export function UserManagementSettings() {
                   </TableCell>
                   <TableCell className="text-xs">
                     {isEditing ? (
-                      <Select
+                      <Input
                         value={editForm.role || ""}
+                        onChange={(e) =>
+                          setEditForm((p) => ({ ...p, role: e.target.value }))
+                        }
+                        className="h-7 text-xs"
+                        placeholder="e.g. Director"
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {emp.role || "—"}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {isEditing ? (
+                      <Select
+                        value={editForm.permissionLevel || editForm.role || ""}
                         onValueChange={(v) =>
-                          setEditForm((p) => ({ ...p, role: v }))
+                          setEditForm((p) => ({ ...p, permissionLevel: v }))
                         }
                       >
                         <SelectTrigger className="h-7 text-xs cursor-pointer">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {ROLES.map((r) => (
+                          {PERMISSION_LEVELS.map((r) => (
                             <SelectItem key={r} value={r} className="text-xs">
                               {r}
                             </SelectItem>
@@ -443,9 +466,9 @@ export function UserManagementSettings() {
                     ) : (
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${roleColors[emp.role] || "bg-gray-100 text-gray-700 border-gray-200"}`}
+                        className={`text-[10px] ${roleColors[emp.permissionLevel || emp.role] || "bg-gray-100 text-gray-700 border-gray-200"}`}
                       >
-                        {emp.role}
+                        {emp.permissionLevel || emp.role}
                       </Badge>
                     )}
                   </TableCell>
@@ -529,7 +552,7 @@ export function UserManagementSettings() {
             {sorted.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="text-center text-sm text-muted-foreground py-8"
                 >
                   No users yet. Click Add User to get started.

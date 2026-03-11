@@ -170,7 +170,25 @@ export interface DailyReportPDFOptions {
   company?: CompanyProfile | null;
   /** Pre-resolved photo data URLs (keyed by original URL) */
   photoDataUrls?: Map<string, string>;
+  /** Section IDs to include (undefined = all sections) */
+  selectedSections?: string[];
+  /** PDF page orientation */
+  orientation?: "portrait" | "landscape";
+  /** Custom report title override */
+  title?: string;
 }
+
+/** All toggleable section definitions for daily report PDFs */
+export const DAILY_REPORT_SECTIONS = [
+  { id: "weather", header: "Weather Conditions" },
+  { id: "workDescription", header: "Work Tasks" },
+  { id: "staff", header: "On-Site Staff" },
+  { id: "equipment", header: "On-Site Equipment" },
+  { id: "timeEntries", header: "Time Entries" },
+  { id: "photos", header: "Site Photos" },
+] as const;
+
+const ALL_SECTION_IDS = DAILY_REPORT_SECTIONS.map((s) => s.id);
 
 // ── Document component ──
 
@@ -185,7 +203,11 @@ function DailyReportDocument({
   tools = [],
   company,
   photoDataUrls,
+  selectedSections,
+  orientation = "portrait",
+  title,
 }: DailyReportPDFOptions) {
+  const sections = new Set(selectedSections ?? ALL_SECTION_IDS);
   const project = projects.find((p) => p.id === report.projectId);
   const author = employees.find((e) => e.id === report.authorId);
   const w = report.weather;
@@ -198,10 +220,8 @@ function DailyReportDocument({
   const weatherRows: TableRow[] = [
     { field: "Temperature", value: w.temperature || "—" },
     { field: "Conditions", value: w.conditions.join(", ") || "—" },
-    { field: "Wind Speed", value: w.windSpeed || "—" },
     { field: "Precipitation", value: w.precipitation || "—" },
     { field: "Ground Conditions", value: w.groundConditions || "—" },
-    { field: "Weather Delay", value: w.weatherDelay ? `Yes (${w.delayHours} hrs)` : "No" },
   ];
 
   // On-Site Staff table
@@ -279,8 +299,8 @@ function DailyReportDocument({
     <Document>
       <ReportPage
         company={company}
-        title={`Daily Report #${report.reportNumber}`}
-        orientation="portrait"
+        title={title || `Daily Report #${report.reportNumber}`}
+        orientation={orientation}
       >
         {/* ── Report Info ── */}
         <View>
@@ -290,20 +310,26 @@ function DailyReportDocument({
           <InfoRow label="Time" value={report.time || "—"} />
         </View>
 
-        {/* ── Work Description ── */}
-        {report.workDescription && (
+        {/* ── Work Tasks ── */}
+        {sections.has("workDescription") && report.workDescription && (
           <View style={s.workDescBlock}>
-            <Text style={s.workDescLabel}>Work Description</Text>
-            <Text style={s.workDescText}>{report.workDescription}</Text>
+            <Text style={s.workDescLabel}>Work Tasks</Text>
+            {report.workDescription.split("\n").filter((l) => l.trim()).map((task, i) => (
+              <Text key={i} style={s.workDescText}>{i + 1}. {task}</Text>
+            ))}
           </View>
         )}
 
         {/* ── 1. Weather ── */}
-        <SectionHeader title="Weather Conditions" />
-        <ReportTable columns={weatherColumns} rows={weatherRows} />
+        {sections.has("weather") && (
+          <>
+            <SectionHeader title="Weather Conditions" />
+            <ReportTable columns={weatherColumns} rows={weatherRows} />
+          </>
+        )}
 
         {/* ── 2. On-Site Staff ── */}
-        {staffRows.length > 0 && (
+        {sections.has("staff") && staffRows.length > 0 && (
           <>
             <SectionHeader title={`On-Site Staff (${staffRows.length})`} />
             <ReportTable columns={staffCols} rows={staffRows} />
@@ -311,7 +337,7 @@ function DailyReportDocument({
         )}
 
         {/* ── 3. On-Site Equipment ── */}
-        {equipRows.length > 0 && (
+        {sections.has("equipment") && equipRows.length > 0 && (
           <>
             <SectionHeader title={`On-Site Equipment (${equipRows.length})`} />
             <ReportTable columns={equipCols} rows={equipRows} />
@@ -319,7 +345,7 @@ function DailyReportDocument({
         )}
 
         {/* ── 4. Time Entries ── */}
-        {timeEntryRows.length > 0 && (
+        {sections.has("timeEntries") && timeEntryRows.length > 0 && (
           <>
             <SectionHeader title={`Time Entries (${timeEntryRows.length})`} />
             <ReportTable columns={timeEntryCols} rows={timeEntryRows} />
@@ -331,7 +357,7 @@ function DailyReportDocument({
         )}
 
         {/* ── 5. Photos ── */}
-        {allPhotoGroups.length > 0 && (
+        {sections.has("photos") && allPhotoGroups.length > 0 && (
           <>
             <SectionHeader title="Site Photos" />
             {allPhotoGroups.map((group) => (
@@ -480,9 +506,10 @@ async function resolvePhotos(
 export async function generateDailyReportPDF(
   opts: DailyReportPDFOptions
 ): Promise<void> {
+  const includePhotos = !opts.selectedSections || opts.selectedSections.includes("photos");
   const [resolved, photoDataUrls] = await Promise.all([
     resolveCompanyLogo(opts),
-    resolvePhotos(opts.report),
+    includePhotos ? resolvePhotos(opts.report) : Promise.resolve(new Map<string, string>()),
   ]);
   const blob = await pdf(
     <DailyReportDocument {...resolved} photoDataUrls={photoDataUrls} />
@@ -498,9 +525,10 @@ export async function generateDailyReportPDF(
 export async function generateDailyReportPDFBlobUrl(
   opts: DailyReportPDFOptions
 ): Promise<string> {
+  const includePhotos = !opts.selectedSections || opts.selectedSections.includes("photos");
   const [resolved, photoDataUrls] = await Promise.all([
     resolveCompanyLogo(opts),
-    resolvePhotos(opts.report),
+    includePhotos ? resolvePhotos(opts.report) : Promise.resolve(new Map<string, string>()),
   ]);
   const blob = await pdf(
     <DailyReportDocument {...resolved} photoDataUrls={photoDataUrls} />

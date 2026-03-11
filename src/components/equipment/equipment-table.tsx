@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, X } from "lucide-react";
+import { Plus, Pencil, X, Check } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
+import { EquipmentDetailSheet } from "@/components/equipment/equipment-detail-sheet";
 import { ExportDialog } from "@/components/shared/export-dialog";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
@@ -35,7 +36,6 @@ import {
   type Equipment,
   type EquipmentStatus,
 } from "@/lib/types/time-tracking";
-import { useRelockOnClickOutside } from "@/hooks/use-relock-on-click-outside";
 
 // ────────────────────────────────────────────
 // Helpers
@@ -47,6 +47,7 @@ const statusLabels: Record<EquipmentStatus, string> = {
   available: "Available",
   "in-use": "In Use",
   maintenance: "Maintenance",
+  rental: "Rental",
   retired: "Retired",
 };
 
@@ -78,6 +79,22 @@ export function EquipmentTable({
 }: EquipmentTableProps) {
   const [unlockedIds, setUnlockedIds] = React.useState<Set<string>>(
     new Set()
+  );
+
+  // ── Detail sheet state ──
+  const [selectedEqId, setSelectedEqId] = React.useState<string | null>(null);
+  const selectedEquipment = React.useMemo(
+    () => equipmentList.find((e) => e.id === selectedEqId) ?? null,
+    [equipmentList, selectedEqId]
+  );
+
+  const handleDetailUpdate = React.useCallback(
+    (id: string, patch: Partial<Equipment>) => {
+      onEquipmentChange((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, ...patch } : e))
+      );
+    },
+    [onEquipmentChange]
   );
 
   // ── Filter state ──
@@ -113,7 +130,7 @@ export function EquipmentTable({
   }, [equipmentList]);
 
   const statusOptions = (
-    ["available", "in-use", "maintenance", "retired"] as EquipmentStatus[]
+    ["available", "in-use", "maintenance", "rental", "retired"] as EquipmentStatus[]
   ).map((s) => ({ id: s, label: statusLabels[s] }));
 
   // ── Filtered equipment ──
@@ -163,7 +180,17 @@ export function EquipmentTable({
     setNewForm({ number: "", name: "", category: "", lastServiceHours: "", status: "available" });
   }, [newForm, onEquipmentChange]);
 
-  const { unlockRow } = useRelockOnClickOutside(equipmentList, unlockedIds, setUnlockedIds);
+  const unlockRow = (id: string) => {
+    setUnlockedIds((prev) => new Set(prev).add(id));
+  };
+
+  const lockRow = (id: string) => {
+    setUnlockedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-3">
@@ -192,7 +219,6 @@ export function EquipmentTable({
                   <TableHead className="w-[120px] text-xs font-semibold px-3">Equipment #</TableHead>
                   <TableHead className="w-[220px] text-xs font-semibold px-3">Name</TableHead>
                   <TableHead className="w-[160px] text-xs font-semibold px-3">Category</TableHead>
-                  <TableHead className="w-[120px] text-xs font-semibold px-3">Last Service</TableHead>
                   <TableHead className="w-[130px] text-xs font-semibold px-3">Status</TableHead>
                   <TableHead className="w-[100px] text-xs font-semibold px-3"></TableHead>
                 </TableRow>
@@ -207,9 +233,6 @@ export function EquipmentTable({
                   </TableCell>
                   <TableCell className="p-0 px-1">
                     <CellSelect value={newForm.category} onChange={(v) => setNewForm((f) => ({ ...f, category: v }))} options={categorySelectOptions} placeholder="Category" />
-                  </TableCell>
-                  <TableCell className="p-0 px-1">
-                    <CellInput value={newForm.lastServiceHours} onChange={(v) => { if (/^\d*\.?\d*$/.test(v)) setNewForm((f) => ({ ...f, lastServiceHours: v })); }} placeholder="Hours" inputMode="decimal" />
                   </TableCell>
                   <TableCell className="p-0 px-1">
                     <CellSelect value={newForm.status} onChange={(v) => setNewForm((f) => ({ ...f, status: v as EquipmentStatus }))} options={statusOptions} placeholder="Status" />
@@ -273,20 +296,19 @@ export function EquipmentTable({
                 </TableRow>
               )}
               {filteredEquipment.map((eq) => {
-                const isRetired =
-                  eq.status === "retired" && !unlockedIds.has(eq.id);
+                const isLocked = !unlockedIds.has(eq.id);
 
                 return (
                   <TableRow
                     key={eq.id}
                     data-row-id={eq.id}
                     className={`group h-[36px] ${
-                      isRetired ? "bg-gray-50/30" : "hover:bg-muted/20"
+                      isLocked ? "" : "hover:bg-muted/20"
                     }`}
                   >
                     {/* Equipment # */}
                     <TableCell className="text-xs p-0 px-1">
-                      {isRetired ? (
+                      {isLocked ? (
                         <span className="px-2 text-muted-foreground font-medium">
                           {eq.number}
                         </span>
@@ -303,10 +325,13 @@ export function EquipmentTable({
 
                     {/* Name */}
                     <TableCell className="p-0 px-1">
-                      {isRetired ? (
-                        <span className="text-xs px-2 text-muted-foreground">
+                      {isLocked ? (
+                        <button
+                          className="text-xs px-2 font-medium text-foreground hover:text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left transition-colors"
+                          onClick={() => setSelectedEqId(eq.id)}
+                        >
                           {eq.name}
-                        </span>
+                        </button>
                       ) : (
                         <CellInput
                           value={eq.name}
@@ -320,7 +345,7 @@ export function EquipmentTable({
 
                     {/* Category */}
                     <TableCell className="p-0 px-1">
-                      {isRetired ? (
+                      {isLocked ? (
                         <span className="text-xs px-2 text-muted-foreground">
                           {eq.category}
                         </span>
@@ -338,26 +363,23 @@ export function EquipmentTable({
 
                     {/* Last Service */}
                     <TableCell className="p-0 px-1">
-                      {isRetired ? (
-                        <span className="text-xs px-2 text-muted-foreground">
-                          {eq.lastServiceHours}
-                        </span>
-                      ) : (
-                        <CellInput
-                          value={eq.lastServiceHours ?? ""}
-                          onChange={(v) => {
-                            if (/^\d*\.?\d*$/.test(v))
-                              updateEquipment(eq.id, "lastServiceHours", v);
-                          }}
-                          placeholder="Hours"
-                          inputMode="decimal"
-                        />
-                      )}
+                      <span className="text-xs px-2 text-muted-foreground">
+                        {(() => {
+                          const maxHours = (eq.serviceHistory || []).reduce(
+                            (max, e) => {
+                              const h = parseFloat(e.hours);
+                              return !isNaN(h) && h > max ? h : max;
+                            },
+                            -1
+                          );
+                          return maxHours >= 0 ? String(maxHours) : eq.lastServiceHours || "—";
+                        })()}
+                      </span>
                     </TableCell>
 
                     {/* Status */}
                     <TableCell className="p-0 px-1">
-                      {isRetired ? (
+                      {isLocked ? (
                         <Badge
                           variant="outline"
                           className={`text-[10px] font-medium capitalize ${statusColors[eq.status]}`}
@@ -378,32 +400,60 @@ export function EquipmentTable({
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
-                      {isRetired ? (
+                      {isLocked ? (
                         <div className="flex items-center gap-0.5">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                onClick={(e) => unlockRow(eq.id, e)}
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                                onClick={() => unlockRow(eq.id)}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent side="left">
-                              <p className="text-xs">
-                                Edit retired equipment
-                              </p>
+                              <p className="text-xs">Edit</p>
                             </TooltipContent>
                           </Tooltip>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center">
                           <DeleteConfirmButton
                             onConfirm={() => deleteEquipment(eq.id)}
                             itemLabel="this equipment"
                           />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-0.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-green-600 hover:text-green-700 cursor-pointer"
+                                onClick={() => lockRow(eq.id)}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              <p className="text-xs">Done editing</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                                onClick={() => lockRow(eq.id)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              <p className="text-xs">Cancel</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       )}
                     </TableCell>
@@ -425,6 +475,13 @@ export function EquipmentTable({
           {equipmentList.filter((e) => e.status === "available" && e.id !== EQUIPMENT_NONE_ID).length} available
         </span>
       </div>
+      {/* Equipment detail sheet */}
+      <EquipmentDetailSheet
+        equipment={selectedEquipment}
+        open={!!selectedEqId}
+        onOpenChange={(open) => { if (!open) setSelectedEqId(null); }}
+        onUpdate={handleDetailUpdate}
+      />
     </div>
   );
 }

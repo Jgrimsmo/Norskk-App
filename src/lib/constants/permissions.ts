@@ -259,3 +259,6 @@ export const DEFAULT_ROLE_TEMPLATES: RoleTemplate[] = [
 export function getDefaultTemplate(role: string): RoleTemplate | undefined {
   return DEFAULT_ROLE_TEMPLATES.find((t) => t.role === role);
 }
+
+/** Available permission levels (role template names) */
+export const PERMISSION_LEVELS = DEFAULT_ROLE_TEMPLATES.map((t) => t.role);
