@@ -160,7 +160,7 @@ export function EquipmentTable({
     };
     onEquipmentChange((prev) => [...prev, eq]);
     setAdding(false);
-    setNewForm({ number: "", name: "", category: "", lastServiceHours: "", lastServiceHours: "", status: "available" });
+    setNewForm({ number: "", name: "", category: "", lastServiceHours: "", status: "available" });
   }, [newForm, onEquipmentChange]);
 
   const { unlockRow } = useRelockOnClickOutside(equipmentList, unlockedIds, setUnlockedIds);
