@@ -584,7 +584,7 @@ export function FieldDailyReport() {
   if (!activeReport) return null;
 
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-5 pb-36">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -1057,7 +1057,7 @@ export function FieldDailyReport() {
       </section>
 
       {/* ─── Sticky Footer ─── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t p-4 flex items-center gap-3 max-w-lg mx-auto safe-area-bottom">
+      <div className="fixed bottom-16 left-0 right-0 bg-background/95 backdrop-blur border-t p-4 flex items-center gap-3 max-w-lg mx-auto safe-area-bottom z-40">
         <Button
           className="flex-1 h-10 text-sm cursor-pointer"
           onClick={handleSave}
