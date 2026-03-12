@@ -111,7 +111,7 @@ export function TopBar() {
           </Button>
         </div>
       )}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6 safe-area-top">
+      <header className="sticky top-0 z-30 flex min-h-14 items-center gap-4 border-b bg-background px-4 lg:px-6 safe-area-top">
       {/* Left section: sidebar trigger + breadcrumb */}
       <div className="flex items-center gap-3">
         <SidebarTrigger className="-ml-1 h-8 w-8 text-muted-foreground hover:text-foreground" />
