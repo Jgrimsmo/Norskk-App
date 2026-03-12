@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 import type {
   DispatchAssignment,
@@ -167,6 +168,7 @@ export default function DispatchBoard() {
   // View state
   const [view, setView] = React.useState<DispatchView>("week");
   const [currentDate, setCurrentDate] = React.useState(new Date());
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
   // Selected project (shared between sidebar and calendar)
   const [selectedProjectId, setSelectedProjectId] = React.useState("");
@@ -544,35 +546,58 @@ export default function DispatchBoard() {
     return format(currentDate, "MMMM yyyy");
   }, [currentDate, view]);
 
+  // ── Sidebar content (shared between desktop inline and mobile Sheet) ──
+  const sidebarContent = (
+    <DispatchSidebar
+      selectedProjectId={selectedProjectId}
+      setSelectedProjectId={setSelectedProjectId}
+      hasSelection={hasSelection}
+      clearSelection={clearSelection}
+    />
+  );
+
   // ── Render ──
   return (
-    <div className="flex gap-4 h-full">
-      {/* ─── LEFT: Resource Selection Panel ─── */}
-      <DispatchSidebar
-        selectedProjectId={selectedProjectId}
-        setSelectedProjectId={setSelectedProjectId}
-        hasSelection={hasSelection}
-        clearSelection={clearSelection}
-      />
+    <div className="flex flex-col md:flex-row gap-4 h-full">
+      {/* ─── LEFT: Resource Selection Panel (desktop) ─── */}
+      <div className="hidden md:block">
+        {sidebarContent}
+      </div>
 
       {/* ─── RIGHT: Calendar Area ─── */}
       <div className="flex-1 rounded-xl border border-border bg-card shadow-sm flex flex-col min-w-0">
         {/* Calendar Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3 md:p-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-xl font-bold text-foreground tracking-tight">
+            {/* Mobile sidebar trigger */}
+            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="md:hidden h-7 px-2 text-xs cursor-pointer"
+                >
+                  Resources
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-80 p-0">
+                <SheetTitle className="sr-only">Dispatch Resources</SheetTitle>
+                {sidebarContent}
+              </SheetContent>
+            </Sheet>
+            <CalendarDays className="h-4 w-4 text-muted-foreground hidden sm:block" />
+            <h2 className="text-base sm:text-xl font-bold text-foreground tracking-tight">
               {headerLabel}
             </h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {/* View toggle */}
             <div className="flex gap-0.5 bg-muted/60 p-1 rounded-lg">
               {(["day", "week", "month"] as DispatchView[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`px-3 py-1 text-xs font-semibold capitalize cursor-pointer rounded-md transition-all ${
+                  className={`px-2 sm:px-3 py-1 text-xs font-semibold capitalize cursor-pointer rounded-md transition-all ${
                     view === v
                       ? "bg-card text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
@@ -583,7 +608,7 @@ export default function DispatchBoard() {
               ))}
             </div>
 
-            <Separator orientation="vertical" className="h-5" />
+            <Separator orientation="vertical" className="h-5 hidden sm:block" />
 
             {/* Navigation */}
             <Button

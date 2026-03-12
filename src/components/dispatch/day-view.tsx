@@ -26,7 +26,7 @@ export function DayView({
   hasSelection,
 }: DayViewProps) {
   return (
-    <div className="p-4 space-y-2">
+    <div className="p-3 sm:p-4 space-y-2 overflow-x-auto">
       {hasSelection && (
         <Button
           variant="outline"

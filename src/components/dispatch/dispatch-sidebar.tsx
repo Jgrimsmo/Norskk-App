@@ -154,7 +154,7 @@ export function DispatchSidebar({
   );
 
   return (
-    <div className="w-72 shrink-0 rounded-xl border bg-card shadow-sm flex flex-col h-full overflow-hidden">
+    <div className="w-full md:w-72 shrink-0 rounded-xl md:border bg-card md:shadow-sm flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="px-4 pt-4 pb-3 border-b shrink-0">
         <div className="flex items-center justify-between">

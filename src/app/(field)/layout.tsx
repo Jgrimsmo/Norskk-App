@@ -95,7 +95,7 @@ function FieldHeader() {
   }, [currentEmployee]);
 
   return (
-    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b safe-area-top">
       <div className="flex items-center justify-between px-4 h-14">
         <div className="flex items-center gap-3">
           {profile?.logoUrl ? (

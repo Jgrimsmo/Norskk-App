@@ -95,7 +95,7 @@ export function TopBar() {
     <>
       {/* Preview mode banner */}
       {isPreviewing && (
-        <div className="sticky top-0 z-40 flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-amber-950">
+        <div className="sticky top-0 z-40 flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-amber-950 safe-area-top">
           <Eye className="h-4 w-4" />
           <span className="text-xs font-semibold">
             Previewing as: {previewRole}
@@ -111,7 +111,7 @@ export function TopBar() {
           </Button>
         </div>
       )}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6 safe-area-top">
       {/* Left section: sidebar trigger + breadcrumb */}
       <div className="flex items-center gap-3">
         <SidebarTrigger className="-ml-1 h-8 w-8 text-muted-foreground hover:text-foreground" />

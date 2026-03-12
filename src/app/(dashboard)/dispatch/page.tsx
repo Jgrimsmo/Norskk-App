@@ -6,7 +6,7 @@ import { RequirePermission } from "@/components/require-permission";
 export default function DispatchPage() {
   return (
     <RequirePermission permission="dispatch.view">
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-8rem)]">
       <div className="shrink-0 pb-4">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Dispatch

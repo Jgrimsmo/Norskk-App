@@ -26,7 +26,8 @@ export function MonthView({
   const { data: projects } = useProjects();
 
   return (
-    <div>
+    <div className="overflow-x-auto">
+      <div className="min-w-[480px]">
       {/* Weekday headers */}
       <div className="grid grid-cols-7 border-b">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
@@ -118,6 +119,7 @@ export function MonthView({
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

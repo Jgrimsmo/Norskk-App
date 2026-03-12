@@ -144,7 +144,8 @@ export function WeekView({
   }, [resizingId, resizeEndCol, resizingStartId, resizeStartCol, dayStrs, onResizeDispatch, onResizeDispatchStart, chipResizing, onUpdateResourceDates]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-x-auto">
+      <div className="min-w-[640px] flex flex-col h-full">
       {/* ── Day header row ── */}
       <div className="grid grid-cols-7 border-b border-border shrink-0">
         {days.map((day, idx) => {
@@ -518,6 +519,7 @@ export function WeekView({
           </div>
         </div>
       </ScrollArea>
+      </div>
     </div>
   );
 }
