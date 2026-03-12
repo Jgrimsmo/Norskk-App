@@ -82,6 +82,16 @@ export const PERMISSION_MODULES = [
     ],
   },
   {
+    id: "forms",
+    label: "Custom Forms",
+    actions: [
+      { id: "view", label: "View form submissions" },
+      { id: "create", label: "Fill out forms" },
+      { id: "manage-templates", label: "Create & edit form templates" },
+      { id: "delete", label: "Delete submissions" },
+    ],
+  },
+  {
     id: "settings",
     label: "Settings",
     actions: [
@@ -158,6 +168,9 @@ const FOREMAN_PERMISSIONS: string[] = [
   "vendors.view",
   "payables.view",
   "payables.create",
+  "forms.view",
+  "forms.create",
+  "forms.manage-templates",
 ];
 
 /** Operator — can log time, view dispatch and equipment, submit reports */
@@ -178,6 +191,8 @@ const OPERATOR_PERMISSIONS: string[] = [
   "vendors.view",
   "payables.view",
   "payables.create",
+  "forms.view",
+  "forms.create",
 ];
 
 /** Labourer — basic field access, log own time */
@@ -194,6 +209,8 @@ const LABOURER_PERMISSIONS: string[] = [
   "vendors.view",
   "daily-reports.view",
   "daily-reports.create",
+  "forms.view",
+  "forms.create",
 ];
 
 /** Safety Officer — full safety access + read-only on most modules */
@@ -214,6 +231,8 @@ const SAFETY_OFFICER_PERMISSIONS: string[] = [
   "field.view",
   "vendors.view",
   "payables.view",
+  "forms.view",
+  "forms.create",
 ];
 
 export interface RoleTemplate {

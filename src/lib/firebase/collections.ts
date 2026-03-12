@@ -21,6 +21,8 @@ export const Collections = {
   EQUIPMENT_CATEGORIES: "equipmentCategories",
   ATTACHMENT_CATEGORIES: "attachmentCategories",
   TOOL_CATEGORIES: "toolCategories",
+  FORM_TEMPLATES: "formTemplates",
+  FORM_SUBMISSIONS: "formSubmissions",
 } as const;
 
 /** Sentinel equipment ID representing "no equipment". */

@@ -18,6 +18,8 @@ import type {
   Vendor,
   Invoice,
   AppNotification,
+  FormTemplate,
+  FormSubmission,
 } from "@/lib/types/time-tracking";
 
 // ── Core entities ───────────────────────────
@@ -82,4 +84,14 @@ export function useInvoices() {
 
 export function useNotifications() {
   return useCollection<AppNotification>(Collections.NOTIFICATIONS);
+}
+
+// ── Custom Forms ────────────────────────────
+
+export function useFormTemplates() {
+  return useCollection<FormTemplate>(Collections.FORM_TEMPLATES);
+}
+
+export function useFormSubmissions() {
+  return useCollection<FormSubmission>(Collections.FORM_SUBMISSIONS);
 }

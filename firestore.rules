@@ -135,6 +135,20 @@ service cloud.firestore {
       allow delete: if isOpsManager() || (isSignedIn() && resource.data.recipientId == request.auth.uid);
     }
 
+    match /formTemplates/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isOpsManager();
+      allow update: if isOpsManager();
+      allow delete: if isAdmin();
+    }
+
+    match /formSubmissions/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isOpsManager() || (isSignedIn() && resource.data.submittedById == request.auth.uid);
+      allow delete: if isOpsManager();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

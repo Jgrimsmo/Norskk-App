@@ -14,6 +14,7 @@ import {
   Wifi,
   WifiOff,
   Navigation,
+  FileCheck,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -44,6 +45,12 @@ const quickActions = [
     description: "Create & view daily reports",
     href: "/field/daily-report",
     icon: FileText,
+  },
+  {
+    title: "Forms",
+    description: "Fill out inspections & safety forms",
+    href: "/field/forms",
+    icon: FileCheck,
   },
   {
     title: "Time History",

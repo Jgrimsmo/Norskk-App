@@ -18,6 +18,7 @@ import {
   Smartphone,
   Building2,
   Receipt,
+  FileCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -82,6 +83,7 @@ const navSections: NavSection[] = [
     items: [
       { title: "Daily Reports", href: "/daily-reports", icon: ClipboardList, permission: "daily-reports.view" },
       { title: "Safety", href: "/safety", icon: ShieldCheck, permission: "safety.view" },
+      { title: "Forms", href: "/forms", icon: FileCheck, permission: "forms.view" },
     ],
   },
   {
