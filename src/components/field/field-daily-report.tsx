@@ -1057,7 +1057,7 @@ export function FieldDailyReport() {
       </section>
 
       {/* ─── Sticky Footer ─── */}
-      <div className="fixed bottom-18 left-0 right-0 bg-background/95 backdrop-blur border-t p-4 flex items-center gap-3 max-w-lg mx-auto safe-area-bottom z-40">
+      <div className="fixed bottom-20 left-0 right-0 bg-background/95 backdrop-blur border-t p-4 flex items-center gap-3 max-w-lg mx-auto safe-area-bottom z-40">
         <Button
           className="flex-1 h-10 text-sm cursor-pointer"
           onClick={handleSave}
