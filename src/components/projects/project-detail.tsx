@@ -64,10 +64,10 @@ import { useFirestoreState } from "@/hooks/use-firestore-state";
 import {
   useEmployees,
   useCostCodes,
-  useSafetyForms,
   useInvoices,
   useVendors,
   useDevelopers,
+  useFormSubmissions,
 } from "@/hooks/use-firestore";
 import { InvoiceUploadDialog } from "@/components/payables/invoice-upload-dialog";
 import { PayablesTable } from "@/components/payables/payables-table";
@@ -80,14 +80,13 @@ import {
 import type {
   ProjectStatus,
   Project,
-  SafetyFormType,
   TimeEntry,
   DailyReport,
   Invoice,
   InvoiceStatus,
+  FormSubmission,
 } from "@/lib/types/time-tracking";
 import { useRelockOnClickOutside } from "@/hooks/use-relock-on-click-outside";
-import { formTypeLabels } from "@/lib/constants/labels";
 
 // ────────────────────────────────────────────
 // Labels
@@ -375,7 +374,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const [projects, setProjects, loadingProjects, savingProjects] = useFirestoreState<Project>(Collections.PROJECTS);
   const { data: employees } = useEmployees();
   const { data: costCodes } = useCostCodes();
-  const { data: safetyForms, loading: loadingSafety } = useSafetyForms();
+  const { data: formSubmissions } = useFormSubmissions();
   const { data: developers } = useDevelopers();
   const { data: allInvoices, update: updateInvoice, remove: removeInvoice } = useInvoices();
   const { data: vendors } = useVendors();
@@ -388,7 +387,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     useFirestoreState<DailyReport>(Collections.DAILY_REPORTS);
 
   const project = projects.find((p) => p.id === projectId);
-  const loading = loadingProjects || loadingTime || loadingReports || loadingSafety;
+  const loading = loadingProjects || loadingTime || loadingReports;
   const saving = savingTime || savingReports || savingProjects;
 
   // ── Unlock approved entries for editing ──
@@ -440,10 +439,15 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
   const projectSafetyForms = React.useMemo(
     () =>
-      safetyForms
-        .filter((sf) => sf.projectId === projectId && matchesDateRange(sf.date, safetyDateRange))
+      formSubmissions
+        .filter(
+          (fs) =>
+            fs.category === "safety" &&
+            (fs.linkedProjectIds?.includes(projectId) || fs.projectId === projectId) &&
+            matchesDateRange(fs.date, safetyDateRange)
+        )
         .sort((a, b) => b.date.localeCompare(a.date)),
-    [safetyForms, projectId, safetyDateRange]
+    [formSubmissions, projectId, safetyDateRange]
   );
 
   // ── All photos with date metadata ──
@@ -656,7 +660,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             Safety Forms
           </div>
           <div className="mt-1 text-2xl font-bold">
-            {safetyForms.filter((sf) => sf.projectId === projectId).length}
+            {formSubmissions.filter((fs) => fs.category === "safety" && (fs.linkedProjectIds?.includes(projectId) || fs.projectId === projectId)).length}
           </div>
         </div>
         <div className="rounded-xl border bg-card p-4 shadow-sm">
@@ -981,8 +985,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                         onDateRangeChange={setSafetyDateRange}
                       />
                     </TableHead>
-                    <TableHead className="w-[140px] text-xs font-semibold px-3">Type</TableHead>
-                    <TableHead className="text-xs font-semibold px-3">Title</TableHead>
+                    <TableHead className="text-xs font-semibold px-3">Form</TableHead>
                     <TableHead className="w-[160px] text-xs font-semibold px-3">Submitted By</TableHead>
                     <TableHead className="w-[100px] text-xs font-semibold px-3">Status</TableHead>
                   </TableRow>
@@ -991,33 +994,28 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                   {projectSafetyForms.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={5}
+                        colSpan={4}
                         className="h-32 text-center text-muted-foreground"
                       >
                         No safety forms match the current filters.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    projectSafetyForms.map((sf) => (
-                      <TableRow key={sf.id} className="h-[36px]">
-                        <TableCell className="text-xs px-3">{sf.date}</TableCell>
-                        <TableCell className="text-xs px-3">
-                          <Badge variant="outline" className="text-[10px]">
-                            {formTypeLabels[sf.formType] ?? sf.formType}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs px-3 max-w-[300px] truncate">
-                          {sf.title || "—"}
+                    projectSafetyForms.map((fs) => (
+                      <TableRow key={fs.id} className="h-[36px]">
+                        <TableCell className="text-xs px-3">{fs.date}</TableCell>
+                        <TableCell className="text-xs px-3 max-w-[300px] truncate font-medium">
+                          {fs.templateName || "—"}
                         </TableCell>
                         <TableCell className="text-xs px-3">
-                          {getEmployeeName(sf.submittedById)}
+                          {fs.submittedByName || getEmployeeName(fs.submittedById)}
                         </TableCell>
                         <TableCell className="text-xs px-3">
                           <Badge
                             variant="outline"
-                            className={`text-[10px] capitalize ${safetyStatusColors[sf.status]}`}
+                            className={`text-[10px] capitalize ${safetyStatusColors[fs.status] || ""}`}
                           >
-                            {sf.status}
+                            {fs.status}
                           </Badge>
                         </TableCell>
                       </TableRow>

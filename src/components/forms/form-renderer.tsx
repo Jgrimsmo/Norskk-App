@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeft, Loader2, Save, Camera, X } from "lucide-react";
+import { format } from "date-fns";
+import { ArrowLeft, Loader2, Save, Camera, X, Plus, Trash2, Search, Eraser } from "lucide-react";
+import SignatureCanvas from "react-signature-canvas";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +23,21 @@ import { toast } from "sonner";
 
 import type {
   FormTemplate,
+  FormSection,
   FormField,
+  FormFieldOption,
+  FormFieldOptionsSource,
   FormSubmission,
 } from "@/lib/types/time-tracking";
-import { useFormSubmissions, useProjects } from "@/hooks/use-firestore";
+import {
+  useFormSubmissions,
+  useProjects,
+  useEmployees,
+  useEquipment,
+  useAttachments,
+  useTools,
+} from "@/hooks/use-firestore";
+import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { useCurrentEmployee } from "@/hooks/use-current-employee";
 
@@ -48,16 +61,238 @@ function isFieldVisible(
   }
 }
 
+// ── Data-source field (search-as-you-type + custom entry) ──
+function DataSourceField({
+  field,
+  value,
+  onChange,
+  options,
+}: {
+  field: FormField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  options: FormFieldOption[];
+}) {
+  const isMulti = field.type === "multiselect" || field.type === "checkbox";
+  const [search, setSearch] = React.useState("");
+  const [customInput, setCustomInput] = React.useState("");
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selected = isMulti
+    ? (Array.isArray(value) ? (value as string[]) : [])
+    : [];
+  const singleValue = !isMulti ? String(value ?? "") : "";
+
+  // Combine real options + any custom values already selected
+  const allOptionValues = new Set(options.map((o) => o.value));
+  const customSelected = isMulti
+    ? selected.filter((v) => !allOptionValues.has(v))
+    : singleValue && !allOptionValues.has(singleValue)
+      ? [singleValue]
+      : [];
+  const customOptions: FormFieldOption[] = customSelected.map((v) => ({ value: v, label: v }));
+  const allOptions = [...options, ...customOptions];
+
+  const filtered = search.trim()
+    ? allOptions.filter((o) =>
+        o.label.toLowerCase().includes(search.trim().toLowerCase())
+      )
+    : [];
+
+  const toggleOption = (optValue: string) => {
+    if (isMulti) {
+      onChange(
+        selected.includes(optValue)
+          ? selected.filter((v) => v !== optValue)
+          : [...selected, optValue]
+      );
+    } else {
+      onChange(optValue);
+    }
+    setSearch("");
+  };
+
+  const addCustom = () => {
+    const name = customInput.trim();
+    if (!name) return;
+    if (isMulti) {
+      if (!selected.includes(name)) {
+        onChange([...selected, name]);
+      }
+    } else {
+      onChange(name);
+    }
+    setCustomInput("");
+    setSearch("");
+  };
+
+  const resolveLabel = (v: string) => {
+    const opt = allOptions.find((o) => o.value === v);
+    return opt?.label || v;
+  };
+
+  return (
+    <div ref={wrapperRef} className="space-y-2">
+      {/* Selected chips (multi) */}
+      {isMulti && selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((v) => (
+            <span
+              key={v}
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-1 text-xs font-medium"
+            >
+              {resolveLabel(v)}
+              <button
+                type="button"
+                onClick={() => toggleOption(v)}
+                className="hover:text-destructive cursor-pointer"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Selected display (single) */}
+      {!isMulti && singleValue && (
+        <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+          <span className="flex-1">{resolveLabel(singleValue)}</span>
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="text-muted-foreground hover:text-destructive cursor-pointer"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Search input + results + custom entry (hidden for single-select when value is set) */}
+      {(isMulti || !singleValue) && (
+        <>
+          {/* Search input */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={field.placeholder || "Search…"}
+              className="h-9 text-sm pl-8"
+            />
+          </div>
+
+          {/* Search results dropdown */}
+          {search.trim().length > 0 && (
+            <div className="rounded-lg border bg-popover shadow-md max-h-[200px] overflow-y-auto">
+              {filtered.length > 0 ? (
+                <div className="p-1.5 space-y-0.5">
+                  {filtered.map((opt) => {
+                    const isChecked = isMulti
+                      ? selected.includes(opt.value)
+                      : singleValue === opt.value;
+                    return (
+                      <label
+                        key={opt.value}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-sm"
+                      >
+                        {isMulti ? (
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={() => toggleOption(opt.value)}
+                            className="h-3.5 w-3.5"
+                          />
+                        ) : (
+                          <input
+                            type="radio"
+                            checked={isChecked}
+                            onChange={() => toggleOption(opt.value)}
+                            className="accent-primary h-3.5 w-3.5"
+                          />
+                        )}
+                        <span className={isChecked ? "font-medium" : ""}>
+                          {opt.label || opt.value}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-3">
+                  No results found
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Add custom name */}
+          <div className="flex items-center gap-2">
+            <Input
+              value={customInput}
+              onChange={(e) => setCustomInput(e.target.value)}
+              placeholder="Add a name not in the list…"
+              className="h-8 text-xs flex-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addCustom();
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1 shrink-0 cursor-pointer"
+              onClick={addCustom}
+              disabled={!customInput.trim()}
+            >
+              <Plus className="h-3 w-3" /> Add
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Individual field renderer ──
 function RenderField({
   field,
   value,
   onChange,
+  resolvedOptions,
 }: {
   field: FormField;
   value: unknown;
   onChange: (v: unknown) => void;
+  resolvedOptions?: FormFieldOption[];
 }) {
+  const options = resolvedOptions || field.options || [];
+
+  // Use search-based UI for data-sourced fields
+  if (field.optionsSource && resolvedOptions) {
+    return (
+      <DataSourceField
+        field={field}
+        value={value}
+        onChange={onChange}
+        options={resolvedOptions}
+      />
+    );
+  }
+
   switch (field.type) {
     case "text":
       return (
@@ -90,20 +325,44 @@ function RenderField({
 
     case "date":
       return (
-        <Input
-          type="date"
-          value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            type="date"
+            value={String(value ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 text-xs cursor-pointer"
+            onClick={() => onChange(format(new Date(), "yyyy-MM-dd"))}
+          >
+            Today
+          </Button>
+        </div>
       );
 
     case "time":
       return (
-        <Input
-          type="time"
-          value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            type="time"
+            value={String(value ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 text-xs cursor-pointer"
+            onClick={() => onChange(format(new Date(), "HH:mm"))}
+          >
+            Now
+          </Button>
+        </div>
       );
 
     case "select":
@@ -113,7 +372,7 @@ function RenderField({
             <SelectValue placeholder="Select…" />
           </SelectTrigger>
           <SelectContent>
-            {(field.options || []).map((opt) => (
+            {options.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label || opt.value}
               </SelectItem>
@@ -126,7 +385,7 @@ function RenderField({
       const selected = Array.isArray(value) ? (value as string[]) : [];
       return (
         <div className="space-y-1.5">
-          {(field.options || []).map((opt) => (
+          {options.map((opt) => (
             <label key={opt.value} className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={selected.includes(opt.value)}
@@ -149,7 +408,7 @@ function RenderField({
       const checked = Array.isArray(value) ? (value as string[]) : [];
       return (
         <div className="space-y-1.5">
-          {(field.options || []).map((opt) => (
+          {options.map((opt) => (
             <label key={opt.value} className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={checked.includes(opt.value)}
@@ -171,7 +430,7 @@ function RenderField({
     case "radio":
       return (
         <div className="space-y-1.5">
-          {(field.options || []).map((opt) => (
+          {options.map((opt) => (
             <label key={opt.value} className="flex items-center gap-2 text-sm">
               <input
                 type="radio"
@@ -243,26 +502,51 @@ function RenderField({
       );
     }
 
-    case "signature":
+    case "signature": {
+      const sigRef = React.createRef<SignatureCanvas>();
       return (
-        <div className="border rounded-lg p-4 text-center text-sm text-muted-foreground">
+        <div className="border rounded-lg p-3 space-y-2">
           {value ? (
-            <div className="space-y-2">
+            <div className="text-center space-y-2">
               <img src={String(value)} alt="Signature" className="max-h-24 mx-auto" />
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer"
+                className="cursor-pointer gap-1.5"
                 onClick={() => onChange("")}
               >
-                Clear Signature
+                <Eraser className="h-3.5 w-3.5" /> Clear & Re-sign
               </Button>
             </div>
           ) : (
-            <p>Signature capture will be available on submit.</p>
+            <>
+              <p className="text-xs text-muted-foreground text-center">Draw your signature below</p>
+              <div className="border rounded bg-white">
+                <SignatureCanvas
+                  ref={sigRef}
+                  penColor="black"
+                  canvasProps={{ className: "w-full h-32" }}
+                  onEnd={() => {
+                    const dataUrl = sigRef.current?.getTrimmedCanvas().toDataURL("image/png");
+                    if (dataUrl) onChange(dataUrl);
+                  }}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="cursor-pointer gap-1.5 text-xs"
+                  onClick={() => sigRef.current?.clear()}
+                >
+                  <Eraser className="h-3.5 w-3.5" /> Clear
+                </Button>
+              </div>
+            </>
           )}
         </div>
       );
+    }
 
     case "section-header":
       return null; // rendered separately
@@ -275,7 +559,179 @@ function RenderField({
   }
 }
 
+// ── Repeatable Section ──
+function RepeatableSection({
+  section,
+  entries,
+  onChange,
+  getFieldOptions,
+}: {
+  section: FormSection;
+  entries: Record<string, unknown>[];
+  onChange: (entries: Record<string, unknown>[]) => void;
+  getFieldOptions: (field: FormField) => FormFieldOption[] | undefined;
+}) {
+  const addEntry = () => onChange([...entries, {}]);
+  const removeEntry = (idx: number) => {
+    const next = entries.filter((_, i) => i !== idx);
+    onChange(next.length > 0 ? next : [{}]);
+  };
+  const updateEntry = (idx: number, fieldId: string, value: unknown) => {
+    onChange(entries.map((e, i) => (i === idx ? { ...e, [fieldId]: value } : e)));
+  };
+
+  return (
+    <div className="space-y-4">
+      {section.title && (
+        <>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              {section.title} ({entries.length})
+            </h3>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1 cursor-pointer"
+              onClick={addEntry}
+            >
+              <Plus className="h-3 w-3" /> Add Entry
+            </Button>
+          </div>
+          <Separator />
+        </>
+      )}
+
+      {entries.map((entry, eIdx) => (
+        <div key={eIdx} className="rounded-lg border p-3 space-y-3 relative">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              #{eIdx + 1}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-destructive cursor-pointer"
+              onClick={() => removeEntry(eIdx)}
+              disabled={entries.length <= 1}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {section.fields.map((field) => {
+              if (!isFieldVisible(field, entry)) return null;
+
+              if (field.type === "section-header") {
+                return (
+                  <div key={field.id} className="pt-1">
+                    <h4 className="text-sm font-bold">{field.label}</h4>
+                  </div>
+                );
+              }
+
+              if (field.type === "label") {
+                return (
+                  <p key={field.id} className="text-sm text-muted-foreground">
+                    {field.label}
+                  </p>
+                );
+              }
+
+              return (
+                <div
+                  key={field.id}
+                  className={field.width === "half" ? "w-1/2 inline-block pr-2 align-top" : ""}
+                >
+                  <Label className="text-xs font-medium mb-1 block">
+                    {field.label}
+                    {field.required && <span className="text-destructive ml-0.5">*</span>}
+                  </Label>
+                  <RenderField
+                    field={field}
+                    value={entry[field.id]}
+                    onChange={(v) => updateEntry(eIdx, field.id, v)}
+                    resolvedOptions={getFieldOptions(field)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {!section.title && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="text-xs gap-1 cursor-pointer"
+          onClick={addEntry}
+        >
+          <Plus className="h-3 w-3" /> Add Entry
+        </Button>
+      )}
+    </div>
+  );
+}
+
 // ── Main Form Renderer ──
+
+/** Extract linked entity IDs from form values based on data-source fields */
+function extractLinkedIds(
+  sections: FormSection[],
+  values: Record<string, unknown>,
+): {
+  linkedProjectIds?: string[];
+  linkedEquipmentIds?: string[];
+  linkedEmployeeIds?: string[];
+  linkedAttachmentIds?: string[];
+  linkedToolIds?: string[];
+} {
+  const map: Record<string, Set<string>> = {
+    projects: new Set<string>(),
+    equipment: new Set<string>(),
+    employees: new Set<string>(),
+    attachments: new Set<string>(),
+    tools: new Set<string>(),
+  };
+
+  const processField = (field: FormField, vals: Record<string, unknown>) => {
+    if (!field.optionsSource) return;
+    const raw = vals[field.id];
+    if (!raw) return;
+    const ids = Array.isArray(raw) ? raw : [raw];
+    for (const id of ids) {
+      const str = String(id).trim();
+      if (str) map[field.optionsSource].add(str);
+    }
+  };
+
+  for (const section of sections) {
+    if (section.repeatable) {
+      const entries = values[`__repeatable_${section.id}`];
+      if (Array.isArray(entries)) {
+        for (const entry of entries as Record<string, unknown>[]) {
+          for (const field of section.fields) processField(field, entry);
+        }
+      }
+    } else {
+      for (const field of section.fields) processField(field, values);
+    }
+  }
+
+  const toArr = (s: Set<string>) => [...s];
+  const result: Record<string, string[]> = {};
+  if (map.projects.size > 0) result.linkedProjectIds = toArr(map.projects);
+  if (map.equipment.size > 0) result.linkedEquipmentIds = toArr(map.equipment);
+  if (map.employees.size > 0) result.linkedEmployeeIds = toArr(map.employees);
+  if (map.attachments.size > 0) result.linkedAttachmentIds = toArr(map.attachments);
+  if (map.tools.size > 0) result.linkedToolIds = toArr(map.tools);
+  return result;
+}
+
 interface FormRendererProps {
   template: FormTemplate;
   existingSubmission?: FormSubmission;
@@ -286,8 +742,36 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
   const { user } = useAuth();
   const { employee } = useCurrentEmployee();
   const { data: projects } = useProjects();
+  const { data: employees } = useEmployees();
+  const { data: equipment } = useEquipment();
+  const { data: attachments } = useAttachments();
+  const { data: tools } = useTools();
   const { add, update } = useFormSubmissions();
   const [saving, setSaving] = React.useState(false);
+
+  // Resolve data-source options for fields that use optionsSource
+  const sourceOptions = React.useMemo<Record<FormFieldOptionsSource, FormFieldOption[]>>(() => ({
+    employees: employees
+      .filter((e) => e.status === "active")
+      .map((e) => ({ value: e.id, label: e.name })),
+    projects: projects
+      .filter((p) => p.status === "active")
+      .map((p) => ({ value: p.id, label: p.name })),
+    equipment: equipment
+      .filter((e) => e.status !== "retired" && e.id !== EQUIPMENT_NONE_ID)
+      .map((e) => ({ value: e.id, label: e.number ? `${e.name} #${e.number}` : e.name })),
+    attachments: attachments
+      .filter((a) => a.status !== "retired")
+      .map((a) => ({ value: a.id, label: a.number ? `${a.name} #${a.number}` : a.name })),
+    tools: tools
+      .filter((t) => t.status !== "retired" && t.status !== "lost")
+      .map((t) => ({ value: t.id, label: t.number ? `${t.name} #${t.number}` : t.name })),
+  }), [employees, projects, equipment, attachments, tools]);
+
+  const getFieldOptions = (field: FormField): FormFieldOption[] | undefined => {
+    if (field.optionsSource) return sourceOptions[field.optionsSource];
+    return undefined;
+  };
 
   const [values, setValues] = React.useState<Record<string, unknown>>(
     existingSubmission?.values || {}
@@ -303,12 +787,27 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
       return "Please select a project.";
     }
     for (const section of template.sections) {
-      for (const field of section.fields) {
-        if (!isFieldVisible(field, values)) continue;
-        if (!field.required) continue;
-        const v = values[field.id];
-        if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) {
-          return `"${field.label}" is required.`;
+      if (section.repeatable) {
+        const entries = (values[`__repeatable_${section.id}`] as Record<string, unknown>[] | undefined) ?? [{}];
+        for (let eIdx = 0; eIdx < entries.length; eIdx++) {
+          const entry = entries[eIdx];
+          for (const field of section.fields) {
+            if (!isFieldVisible(field, entry)) continue;
+            if (!field.required) continue;
+            const v = entry[field.id];
+            if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) {
+              return `"${field.label}" is required (entry #${eIdx + 1}).`;
+            }
+          }
+        }
+      } else {
+        for (const field of section.fields) {
+          if (!isFieldVisible(field, values)) continue;
+          if (!field.required) continue;
+          const v = values[field.id];
+          if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) {
+            return `"${field.label}" is required.`;
+          }
         }
       }
     }
@@ -325,19 +824,23 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
     setSaving(true);
     try {
       const now = new Date().toISOString();
+      const linked = extractLinkedIds(template.sections, values);
+
       if (existingSubmission) {
-        await update(existingSubmission.id, {
+        await update(existingSubmission.id, JSON.parse(JSON.stringify({
           values,
-          projectId,
+          projectId: projectId || undefined,
           status: "submitted",
           updatedAt: now,
-        });
+          category: template.category,
+          ...linked,
+        })));
       } else {
-        const submission: FormSubmission = {
+        const submission = JSON.parse(JSON.stringify({
           id: `sub-${crypto.randomUUID().slice(0, 10)}`,
           templateId: template.id,
           templateName: template.name,
-          projectId,
+          projectId: projectId || undefined,
           submittedById: user?.uid || "",
           submittedByName: employee?.name || "Unknown",
           status: "submitted",
@@ -345,13 +848,15 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
           date: now.slice(0, 10),
           createdAt: now,
           updatedAt: now,
-        };
+          category: template.category,
+          ...linked,
+        })) as FormSubmission;
         await add(submission);
       }
-      toast.success("Form submitted!");
+      toast.success("Form saved!");
       onBack();
     } catch {
-      toast.error("Failed to submit form.");
+      toast.error("Failed to save form.");
     } finally {
       setSaving(false);
     }
@@ -395,73 +900,86 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
 
       {/* Sections & Fields */}
       <div className="space-y-6">
-        {template.sections.map((section) => (
-          <div key={section.id} className="space-y-4">
-            {section.title && (
-              <>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  {section.title}
-                </h3>
-                <Separator />
-              </>
-            )}
+        {template.sections.map((section) =>
+          section.repeatable ? (
+            <RepeatableSection
+              key={section.id}
+              section={section}
+              entries={(values[`__repeatable_${section.id}`] as Record<string, unknown>[] | undefined) ?? [{}]}
+              onChange={(entries) => setValue(`__repeatable_${section.id}`, entries)}
+              getFieldOptions={getFieldOptions}
+            />
+          ) : (
+            <div key={section.id} className="space-y-4">
+              {section.title && (
+                <>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    {section.title}
+                  </h3>
+                  <Separator />
+                </>
+              )}
 
-            <div className="space-y-4">
-              {section.fields.map((field) => {
-                if (!isFieldVisible(field, values)) return null;
+              <div className="space-y-4">
+                {section.fields.map((field) => {
+                  if (!isFieldVisible(field, values)) return null;
 
-                if (field.type === "section-header") {
+                  if (field.type === "section-header") {
+                    return (
+                      <div key={field.id} className="pt-2">
+                        <h4 className="text-sm font-bold">{field.label}</h4>
+                      </div>
+                    );
+                  }
+
+                  if (field.type === "label") {
+                    return (
+                      <p key={field.id} className="text-sm text-muted-foreground">
+                        {field.label}
+                      </p>
+                    );
+                  }
+
                   return (
-                    <div key={field.id} className="pt-2">
-                      <h4 className="text-sm font-bold">{field.label}</h4>
+                    <div
+                      key={field.id}
+                      className={field.width === "half" ? "w-1/2 inline-block pr-2 align-top" : ""}
+                    >
+                      <Label className="text-xs font-medium mb-1 block">
+                        {field.label}
+                        {field.required && <span className="text-destructive ml-0.5">*</span>}
+                      </Label>
+                      <RenderField
+                        field={field}
+                        value={values[field.id]}
+                        onChange={(v) => setValue(field.id, v)}
+                        resolvedOptions={getFieldOptions(field)}
+                      />
                     </div>
                   );
-                }
-
-                if (field.type === "label") {
-                  return (
-                    <p key={field.id} className="text-sm text-muted-foreground">
-                      {field.label}
-                    </p>
-                  );
-                }
-
-                return (
-                  <div
-                    key={field.id}
-                    className={field.width === "half" ? "w-1/2 inline-block pr-2 align-top" : ""}
-                  >
-                    <Label className="text-xs font-medium mb-1 block">
-                      {field.label}
-                      {field.required && <span className="text-destructive ml-0.5">*</span>}
-                    </Label>
-                    <RenderField
-                      field={field}
-                      value={values[field.id]}
-                      onChange={(v) => setValue(field.id, v)}
-                    />
-                  </div>
-                );
-              })}
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        )}
       </div>
 
       {/* Submit Footer */}
       <div className="fixed bottom-20 left-0 right-0 border-t bg-background/95 backdrop-blur px-4 py-3 safe-area-bottom z-40">
-        <Button
-          className="w-full gap-1.5 cursor-pointer"
-          onClick={handleSubmit}
-          disabled={saving}
-        >
-          {saving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          {saving ? "Submitting…" : "Submit Form"}
-        </Button>
+        <div className="max-w-md mx-auto">
+          <Button
+            className="w-full gap-1.5 cursor-pointer"
+            onClick={handleSubmit}
+            disabled={saving}
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {saving ? "Saving…" : "Save Form"}
+          </Button>
+        </div>
       </div>
     </div>
   );

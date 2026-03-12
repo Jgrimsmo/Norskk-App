@@ -14,7 +14,6 @@ import {
   attachments,
   tools,
   sampleTimeEntries,
-  safetyForms,
   sampleDispatches,
   sampleDailyReports,
 } from "@/lib/data/time-tracking-data";
@@ -35,7 +34,6 @@ const steps: SeedStep[] = [
   { label: "Attachments", collection: Collections.ATTACHMENTS, data: attachments },
   { label: "Tools", collection: Collections.TOOLS, data: tools },
   { label: "Time Entries", collection: Collections.TIME_ENTRIES, data: sampleTimeEntries },
-  { label: "Safety Forms", collection: Collections.SAFETY_FORMS, data: safetyForms },
   { label: "Dispatches", collection: Collections.DISPATCHES, data: sampleDispatches },
   { label: "Daily Reports", collection: Collections.DAILY_REPORTS, data: sampleDailyReports },
 ];

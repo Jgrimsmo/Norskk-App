@@ -1,16 +1,49 @@
 "use client";
 
 import * as React from "react";
+import { Plus } from "lucide-react";
 import { RequirePermission } from "@/components/require-permission";
 import { FormsTemplatesTable } from "@/components/forms/forms-templates-table";
 import { SubmissionsTable } from "@/components/forms/submissions-table";
 import { TemplateBuilder } from "@/components/forms/template-builder";
+import { FormRenderer } from "@/components/forms/form-renderer";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useFormTemplates } from "@/hooks/use-firestore";
+import type { FormTemplate, FormSubmission } from "@/lib/types/time-tracking";
 
-type View = { mode: "list" } | { mode: "builder"; templateId?: string };
+type View =
+  | { mode: "list" }
+  | { mode: "builder"; templateId?: string }
+  | { mode: "fill"; template: FormTemplate; existingSubmission?: FormSubmission };
 
 export default function FormsPage() {
   const [view, setView] = React.useState<View>({ mode: "list" });
-  const [tab, setTab] = React.useState<"templates" | "submissions">("templates");
+  const [tab, setTab] = React.useState<"entries" | "templates">("entries");
+  const { data: templates } = useFormTemplates();
+
+  const activeTemplates = React.useMemo(
+    () => templates.filter((t) => t.status === "active"),
+    [templates]
+  );
+
+  // ── Fill view ──
+  if (view.mode === "fill") {
+    return (
+      <RequirePermission permission="forms.view">
+        <FormRenderer
+          template={view.template}
+          existingSubmission={view.existingSubmission}
+          onBack={() => setView({ mode: "list" })}
+        />
+      </RequirePermission>
+    );
+  }
 
   return (
     <RequirePermission permission="forms.view">
@@ -23,19 +56,52 @@ export default function FormsPage() {
                   Forms
                 </h1>
                 <p className="text-muted-foreground">
-                  Manage form templates and view submissions.
+                  Manage form templates and view entries.
                 </p>
               </div>
+
+              {activeTemplates.length === 1 ? (
+                <Button
+                  size="sm"
+                  className="gap-1.5 cursor-pointer"
+                  onClick={() => setView({ mode: "fill", template: activeTemplates[0] })}
+                >
+                  <Plus className="h-4 w-4" />
+                  New {activeTemplates[0].name}
+                </Button>
+              ) : activeTemplates.length > 1 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" className="gap-1.5 cursor-pointer">
+                      <Plus className="h-4 w-4" />
+                      New Form
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {activeTemplates.map((t) => (
+                      <DropdownMenuItem
+                        key={t.id}
+                        className="cursor-pointer"
+                        onClick={() => setView({ mode: "fill", template: t })}
+                      >
+                        {t.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
             </div>
 
             {/* Tabs */}
             <div className="flex rounded-md border bg-muted/30 overflow-hidden text-sm w-fit">
-              {(["templates", "submissions"] as const).map((t) => (
+              {(["entries", "templates"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
                   className={`px-4 py-2 capitalize transition-colors cursor-pointer ${
-                    tab === t ? "bg-background shadow-sm font-medium" : "hover:bg-muted/50"
+                    tab === t
+                      ? "bg-foreground text-background font-medium shadow-sm"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                   }`}
                 >
                   {t}

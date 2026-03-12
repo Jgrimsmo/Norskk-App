@@ -123,7 +123,9 @@ export function FormsTemplatesTable({ onCreateTemplate, onEditTemplate }: FormsT
                 key={s}
                 onClick={() => setStatusFilter(s)}
                 className={`px-3 py-1.5 capitalize transition-colors cursor-pointer ${
-                  statusFilter === s ? "bg-background shadow-sm font-medium" : "hover:bg-muted/50"
+                  statusFilter === s
+                    ? "bg-foreground text-background font-medium shadow-sm"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 }`}
               >
                 {s}

@@ -15,7 +15,6 @@ import type {
   Attachment,
   Tool,
   CostCode,
-  SafetyForm,
   DailyReport,
   Developer,
 } from "@/lib/types/time-tracking";
@@ -280,55 +279,6 @@ export function toolPDFRows(data: Tool[]): Record<string, string | number>[] {
     number: r.number,
     name: r.name,
     category: r.category,
-    status: capitalize(r.status),
-  }));
-}
-
-// ── Safety Forms ──
-export function safetyFormCSVColumns(
-  employees: Employee[],
-  projects: Project[]
-): Column<SafetyForm>[] {
-  return [
-    { id: "date", header: "Date", accessor: (r) => r.date },
-    { id: "type", header: "Type", accessor: (r) => r.formType.toUpperCase().replace("-", " ") },
-    {
-      id: "project",
-      header: "Project",
-      accessor: (r) => {
-        const p = projects.find((x) => x.id === r.projectId);
-        return p?.name || r.projectId;
-      },
-    },
-    { id: "submittedBy", header: "Submitted By", accessor: (r) => lookup(r.submittedById, employees) },
-    { id: "title", header: "Title", accessor: (r) => r.title || "" },
-    { id: "status", header: "Status", accessor: (r) => capitalize(r.status) },
-  ];
-}
-
-export const safetyFormPDFColumns: PDFColumn[] = [
-  { header: "Date", dataKey: "date", width: 22 },
-  { header: "Type", dataKey: "type", width: 25 },
-  { header: "Project", dataKey: "project", width: 40 },
-  { header: "Submitted By", dataKey: "submittedBy", width: 30 },
-  { header: "Title", dataKey: "title" },
-  { header: "Status", dataKey: "status", width: 20 },
-];
-
-export function safetyFormPDFRows(
-  data: SafetyForm[],
-  employees: Employee[],
-  projects: Project[]
-): Record<string, string | number>[] {
-  return data.map((r) => ({
-    date: r.date,
-    type: r.formType.toUpperCase().replace("-", " "),
-    project: (() => {
-      const p = projects.find((x) => x.id === r.projectId);
-      return p?.name || r.projectId;
-    })(),
-    submittedBy: lookup(r.submittedById, employees),
-    title: r.title || "",
     status: capitalize(r.status),
   }));
 }

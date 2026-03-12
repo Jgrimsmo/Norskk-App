@@ -4,8 +4,6 @@ import type {
   EquipmentStatus,
   AttachmentStatus,
   ToolStatus,
-  SafetyFormStatus,
-  SafetyFormType,
   DailyReportStatus,
   ApprovalStatus,
   InvoiceStatus,
@@ -49,8 +47,8 @@ export const toolStatusColors: Record<ToolStatus, string> = {
   retired: "bg-gray-100 text-gray-800 border-gray-200",
 };
 
-// ── Safety Form Status ──
-export const safetyStatusColors: Record<SafetyFormStatus, string> = {
+// ── Safety Status (used by custom form submissions) ──
+export const safetyStatusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-800 border-gray-200",
   submitted: "bg-yellow-100 text-yellow-800 border-yellow-200",
   reviewed: "bg-green-100 text-green-800 border-green-200",
@@ -78,11 +76,3 @@ export const invoiceStatusColors: Record<InvoiceStatus, string> = {
   rejected: "bg-red-100 text-red-800 border-red-200",
 };
 
-// ── Safety Form Type ──
-export const formTypeColors: Record<SafetyFormType, string> = {
-  flha: "bg-blue-100 text-blue-800 border-blue-200",
-  "toolbox-talk": "bg-purple-100 text-purple-800 border-purple-200",
-  "near-miss": "bg-orange-100 text-orange-800 border-orange-200",
-  "incident-report": "bg-red-100 text-red-800 border-red-200",
-  "safety-inspection": "bg-teal-100 text-teal-800 border-teal-200",
-};

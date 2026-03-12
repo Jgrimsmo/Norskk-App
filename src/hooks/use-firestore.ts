@@ -11,7 +11,6 @@ import type {
   Attachment,
   Tool,
   TimeEntry,
-  SafetyForm,
   DispatchAssignment,
   DailyReport,
   RolePermissions,
@@ -56,10 +55,6 @@ export function useTools() {
 
 export function useTimeEntries() {
   return useCollection<TimeEntry>(Collections.TIME_ENTRIES);
-}
-
-export function useSafetyForms() {
-  return useCollection<SafetyForm>(Collections.SAFETY_FORMS);
 }
 
 export function useDispatches() {

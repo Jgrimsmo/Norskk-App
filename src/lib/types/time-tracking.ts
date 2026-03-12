@@ -324,70 +324,6 @@ export interface DailyReport {
   approverId?: string;
 }
 
-// ── Safety ──────────────────────────────────
-export type SafetyFormType =
-  | "flha"
-  | "toolbox-talk"
-  | "near-miss"
-  | "incident-report"
-  | "safety-inspection";
-
-export type SafetyFormStatus = "draft" | "submitted" | "reviewed" | "closed";
-
-export interface SafetyForm {
-  id: string;
-  date: string; // ISO date string YYYY-MM-DD
-  formType: SafetyFormType;
-  projectId: string;
-  submittedById: string; // employee id
-  title: string;
-  description: string;
-  status: SafetyFormStatus;
-  // FLHA-specific data (populated when formType === "flha")
-  flha?: FLHAData;
-}
-
-// ── FLHA (Field Level Hazard Assessment) ────
-export type HazardRating = "low" | "medium" | "high" | "na";
-export type CheckValue = "yes" | "no" | "na";
-
-export interface HazardItem {
-  id: string;
-  category: string;
-  hazard: string;
-  identified: boolean; // is this hazard present?
-  rating: HazardRating;
-  controls: string; // control measures if identified
-}
-
-export interface PPEItem {
-  id: string;
-  name: string;
-  required: CheckValue;
-}
-
-export interface CrewMember {
-  employeeId: string;
-  signatureDataUrl: string; // base64 data URL from signature pad
-}
-
-export interface FLHAData {
-  // Section 1 — Job info
-  taskDescription: string;
-  location: string;
-  // Section 2 — Hazard identification
-  hazards: HazardItem[];
-  // Section 3 — PPE requirements
-  ppe: PPEItem[];
-  // Section 4 — Additional controls / comments
-  additionalControls: string;
-  // Section 5 — Crew acknowledgment
-  crewMembers: CrewMember[];
-  // Section 6 — Supervisor sign-off
-  supervisorId: string;
-  supervisorSignature: string; // base64 data URL
-}
-
 // ── Vendors ─────────────────────────────────
 export type VendorType = "vendor" | "subcontractor";
 
@@ -499,6 +435,13 @@ export interface FormFieldConditional {
   value: string;
 }
 
+export type FormFieldOptionsSource =
+  | "employees"
+  | "projects"
+  | "equipment"
+  | "attachments"
+  | "tools";
+
 export interface FormField {
   id: string;
   type: FormFieldType;
@@ -506,6 +449,7 @@ export interface FormField {
   placeholder?: string;
   required?: boolean;
   options?: FormFieldOption[];    // for select, multiselect, radio, checkbox
+  optionsSource?: FormFieldOptionsSource; // auto-populate options from data
   defaultValue?: string;
   conditional?: FormFieldConditional; // show only when condition is met
   width?: "full" | "half";       // layout hint
@@ -515,6 +459,7 @@ export interface FormSection {
   id: string;
   title: string;
   fields: FormField[];
+  repeatable?: boolean;          // allow user to add multiple instances
 }
 
 export type FormTemplateStatus = "active" | "archived";
@@ -548,4 +493,11 @@ export interface FormSubmission {
   date: string;                  // ISO date
   createdAt: string;
   updatedAt: string;
+  // Auto-linked entities (extracted from data-source fields on submit)
+  category?: string;             // denormalized from template category
+  linkedProjectIds?: string[];   // from project data-source fields
+  linkedEquipmentIds?: string[]; // from equipment data-source fields
+  linkedEmployeeIds?: string[];  // from employee data-source fields
+  linkedAttachmentIds?: string[];// from attachment data-source fields
+  linkedToolIds?: string[];      // from tool data-source fields
 }

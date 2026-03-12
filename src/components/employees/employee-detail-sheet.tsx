@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   CalendarDays,
+  ClipboardList,
   DollarSign,
   FileText,
   Loader2,
@@ -39,6 +40,7 @@ import {
 
 import type { Employee, Certificate } from "@/lib/types/time-tracking";
 import { uploadFile, deleteFile } from "@/lib/firebase/storage";
+import { useFormSubmissions } from "@/hooks/use-firestore";
 import { toast } from "sonner";
 
 // ── Helpers ──
@@ -83,6 +85,7 @@ export function EmployeeDetailSheet({
   onUpdate,
 }: EmployeeDetailSheetProps) {
   // Local draft — changes are buffered here until Save is clicked
+  const { data: formSubmissions } = useFormSubmissions();
   const [draft, setDraft] = React.useState<Employee | null>(null);
 
   // Reset draft whenever a new employee is opened
@@ -164,6 +167,9 @@ export function EmployeeDetailSheet({
               <TabsTrigger value="notes" className="text-xs flex-1 cursor-pointer">
                 Notes
               </TabsTrigger>
+              <TabsTrigger value="forms" className="text-xs flex-1 cursor-pointer">
+                Forms
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -177,6 +183,53 @@ export function EmployeeDetailSheet({
             </TabsContent>
             <TabsContent value="notes">
               <NotesTab employee={draft} onUpdate={localUpdate} />
+            </TabsContent>
+            <TabsContent value="forms">
+              {(() => {
+                const linked = employee
+                  ? formSubmissions
+                      .filter(
+                        (fs) =>
+                          fs.linkedEmployeeIds?.includes(employee.id) ||
+                          fs.submittedById === employee.id
+                      )
+                      .sort((a, b) => b.date.localeCompare(a.date))
+                  : [];
+                if (linked.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center text-center py-16 gap-3">
+                      <ClipboardList className="h-10 w-10 text-muted-foreground/40" />
+                      <h3 className="text-sm font-semibold text-muted-foreground">
+                        No Forms Yet
+                      </h3>
+                      <p className="text-xs text-muted-foreground/70 max-w-[260px]">
+                        Form submissions linked to this employee will appear here.
+                      </p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2 pt-2">
+                    {linked.map((fs) => (
+                      <div key={fs.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium truncate">{fs.templateName}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {fs.date}{fs.category ? ` · ${fs.category}` : ""}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className={`text-[10px] capitalize shrink-0 ml-2 ${
+                          fs.status === "submitted" ? "border-blue-300 text-blue-700"
+                            : fs.status === "reviewed" ? "border-green-300 text-green-700"
+                            : ""
+                        }`}>
+                          {fs.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </TabsContent>
           </Tabs>
         </div>

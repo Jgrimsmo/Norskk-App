@@ -29,7 +29,7 @@ import {
   useEmployees,
   useProjects,
   useEquipment,
-  useSafetyForms,
+  useFormSubmissions,
   useDailyReports,
   useDevelopers,
 } from "@/hooks/use-firestore";
@@ -179,7 +179,7 @@ function SearchResults({ navigate }: { navigate: (path: string) => void }) {
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
   const { data: equipment } = useEquipment();
-  const { data: safetyForms } = useSafetyForms();
+  const { data: formSubmissions } = useFormSubmissions();
   const { data: dailyReports } = useDailyReports();
   const { data: developers } = useDevelopers();
 
@@ -260,19 +260,19 @@ function SearchResults({ navigate }: { navigate: (path: string) => void }) {
 
       <CommandSeparator />
 
-      {safetyForms.length > 0 && (
+      {formSubmissions.filter((fs) => fs.category === "safety").length > 0 && (
         <CommandGroup heading="Safety Forms">
-          {safetyForms.slice(0, 10).map((form) => (
+          {formSubmissions.filter((fs) => fs.category === "safety").slice(0, 10).map((form) => (
             <CommandItem
               key={form.id}
-              value={`safety ${form.title} ${form.formType} ${form.date}`}
+              value={`safety ${form.templateName} ${form.date}`}
               onSelect={() => navigate("/safety")}
             >
               <ShieldCheck className="mr-2 h-4 w-4 text-muted-foreground" />
               <div className="flex flex-col">
-                <span className="text-sm">{form.title}</span>
+                <span className="text-sm">{form.templateName}</span>
                 <span className="text-xs text-muted-foreground">
-                  {form.formType} · {form.date} · {form.status}
+                  {form.date} · {form.status}
                 </span>
               </div>
             </CommandItem>

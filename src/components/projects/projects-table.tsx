@@ -47,7 +47,7 @@ import {
   useDevelopers,
   useTimeEntries,
   useDailyReports,
-  useSafetyForms,
+  useFormSubmissions,
   useInvoices,
 } from "@/hooks/use-firestore";
 
@@ -176,7 +176,7 @@ export function ProjectsTable({
   const { data: developers } = useDevelopers();
   const { data: timeEntries } = useTimeEntries();
   const { data: dailyReports } = useDailyReports();
-  const { data: safetyForms } = useSafetyForms();
+  const { data: formSubmissions } = useFormSubmissions();
   const { data: invoices } = useInvoices();
 
   // ── Add form state ──
@@ -333,12 +333,17 @@ export function ProjectsTable({
       const photos = (dr.morningPhotoUrls?.length ?? 0) + (dr.workPhotoUrls?.length ?? 0) + (dr.endOfDayPhotoUrls?.length ?? 0);
       stats.set(dr.projectId, { ...s, reportCount: s.reportCount + 1, photoCount: s.photoCount + photos });
     }
-    for (const sf of safetyForms) {
-      const s = get(sf.projectId);
-      stats.set(sf.projectId, { ...s, safetyCount: s.safetyCount + 1 });
+    for (const fs of formSubmissions) {
+      if (fs.category !== "safety") continue;
+      const ids = fs.linkedProjectIds ?? [];
+      if (fs.projectId) ids.push(fs.projectId);
+      for (const pid of ids) {
+        const s = get(pid);
+        stats.set(pid, { ...s, safetyCount: s.safetyCount + 1 });
+      }
     }
     return stats;
-  }, [timeEntries, dailyReports, safetyForms]);
+  }, [timeEntries, dailyReports, formSubmissions]);
 
   // ── Filtered projects ──
   const filteredProjects = React.useMemo(() => {

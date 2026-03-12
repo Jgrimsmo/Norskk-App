@@ -10,7 +10,6 @@ export const Collections = {
   ATTACHMENTS: "attachments",
   TOOLS: "tools",
   TIME_ENTRIES: "timeEntries",
-  SAFETY_FORMS: "safetyForms",
   DISPATCHES: "dispatches",
   DAILY_REPORTS: "dailyReports",
   COMPANY_PROFILE: "companyProfile",

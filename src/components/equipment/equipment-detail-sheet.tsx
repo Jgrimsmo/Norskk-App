@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
 import { uploadFile, deleteFile } from "@/lib/firebase/storage";
+import { useFormSubmissions } from "@/hooks/use-firestore";
 import type { Equipment, ServiceHistoryEntry } from "@/lib/types/time-tracking";
 
 // ── Status colours (matching table) ──
@@ -60,6 +61,7 @@ export function EquipmentDetailSheet({
   onOpenChange,
   onUpdate,
 }: EquipmentDetailSheetProps) {
+  const { data: formSubmissions } = useFormSubmissions();
   const [draft, setDraft] = React.useState<Equipment | null>(null);
 
   // PDF uploading flags
@@ -367,17 +369,49 @@ export function EquipmentDetailSheet({
             </div>
           </TabsContent>
 
-          {/* ── Inspections tab (future) ── */}
+          {/* ── Inspections tab ── */}
           <TabsContent value="inspections" className="flex-1 overflow-y-auto px-4 pb-4 pt-2 mt-0">
-            <div className="flex flex-col items-center justify-center text-center py-16 gap-3">
-              <ClipboardCheck className="h-10 w-10 text-muted-foreground/40" />
-              <h3 className="text-sm font-semibold text-muted-foreground">
-                Inspections — Coming Soon
-              </h3>
-              <p className="text-xs text-muted-foreground/70 max-w-[260px]">
-                Equipment inspection forms and history will appear here in a future update.
-              </p>
-            </div>
+            {(() => {
+              const linked = equipment
+                ? formSubmissions.filter((fs) =>
+                    fs.linkedEquipmentIds?.includes(equipment.id)
+                  ).sort((a, b) => b.date.localeCompare(a.date))
+                : [];
+              if (linked.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center text-center py-16 gap-3">
+                    <ClipboardCheck className="h-10 w-10 text-muted-foreground/40" />
+                    <h3 className="text-sm font-semibold text-muted-foreground">
+                      No Inspections Yet
+                    </h3>
+                    <p className="text-xs text-muted-foreground/70 max-w-[260px]">
+                      Forms linked to this equipment will appear here automatically.
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {linked.map((fs) => (
+                    <div key={fs.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium truncate">{fs.templateName}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {fs.date} · {fs.submittedByName}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className={`text-[10px] capitalize shrink-0 ml-2 ${
+                        fs.status === "submitted" ? "border-blue-300 text-blue-700"
+                          : fs.status === "reviewed" ? "border-green-300 text-green-700"
+                          : ""
+                      }`}>
+                        {fs.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </TabsContent>
         </Tabs>
 

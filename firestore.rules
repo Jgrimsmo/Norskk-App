@@ -25,10 +25,6 @@ service cloud.firestore {
       return role() in ["admin", "pm", "foreman"];
     }
 
-    function isSafetyManager() {
-      return role() in ["admin", "pm", "foreman", "safety officer"];
-    }
-
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
@@ -104,13 +100,6 @@ service cloud.firestore {
       allow create: if isOpsManager() || canManageOwnDailyReport();
       allow update: if isOpsManager() || canManageOwnDailyReport();
       allow delete: if isOpsManager() || (isSignedIn() && resource.data.authorId == request.auth.uid);
-    }
-
-    match /safetyForms/{docId} {
-      allow read: if isSignedIn();
-      allow create: if isSafetyManager() || (isSignedIn() && request.resource.data.submittedById == request.auth.uid);
-      allow update: if isSafetyManager() || (isSignedIn() && resource.data.submittedById == request.auth.uid);
-      allow delete: if isSafetyManager();
     }
 
     match /vendors/{docId} {

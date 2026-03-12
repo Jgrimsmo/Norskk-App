@@ -632,46 +632,50 @@ export default function DailyReportFormDialog({
 
               {/* Search + checkboxes */}
               {!isLocked && (
-                <div className="rounded-lg border">
+                <div className="relative">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                       value={staffSearch}
                       onChange={(e) => setStaffSearch(e.target.value)}
                       placeholder="Search employees…"
-                      className="h-9 text-xs pl-8 border-0 border-b rounded-b-none focus-visible:ring-0"
+                      className="h-9 text-xs pl-8 rounded-lg focus-visible:ring-1"
                     />
                   </div>
-                  <div className="max-h-[180px] overflow-y-auto p-1.5 space-y-0.5">
-                    {filteredEmployees.map((emp) => {
-                      const checked = (form.onSiteStaff ?? []).includes(emp.id);
-                      return (
-                        <label
-                          key={emp.id}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-xs"
-                        >
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={() => toggleStaff(emp.id)}
-                            className="h-3.5 w-3.5"
-                          />
-                          <span className={checked ? "font-medium" : ""}>
-                            {emp.name}
-                          </span>
-                          {emp.role && (
-                            <span className="text-muted-foreground ml-auto">
-                              {emp.role}
-                            </span>
-                          )}
-                        </label>
-                      );
-                    })}
-                    {filteredEmployees.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-3">
-                        No employees found
-                      </p>
-                    )}
-                  </div>
+                  {staffSearch.trim().length > 0 && (
+                    <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg border bg-popover shadow-md">
+                      <div className="max-h-[180px] overflow-y-auto p-1.5 space-y-0.5">
+                        {filteredEmployees.map((emp) => {
+                          const checked = (form.onSiteStaff ?? []).includes(emp.id);
+                          return (
+                            <label
+                              key={emp.id}
+                              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-xs"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={() => toggleStaff(emp.id)}
+                                className="h-3.5 w-3.5"
+                              />
+                              <span className={checked ? "font-medium" : ""}>
+                                {emp.name}
+                              </span>
+                              {emp.role && (
+                                <span className="text-muted-foreground ml-auto">
+                                  {emp.role}
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                        {filteredEmployees.length === 0 && (
+                          <p className="text-xs text-muted-foreground text-center py-3">
+                            No employees found
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -716,49 +720,53 @@ export default function DailyReportFormDialog({
 
               {/* Search + checkboxes */}
               {!isLocked && (
-                <div className="rounded-lg border">
+                <div className="relative">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                       value={equipSearch}
                       onChange={(e) => setEquipSearch(e.target.value)}
                       placeholder="Search equipment…"
-                      className="h-9 text-xs pl-8 border-0 border-b rounded-b-none focus-visible:ring-0"
+                      className="h-9 text-xs pl-8 rounded-lg focus-visible:ring-1"
                     />
                   </div>
-                  <div className="max-h-[180px] overflow-y-auto p-1.5 space-y-0.5">
-                    {filteredEquipment.map((eq) => {
-                      const checked = (form.onSiteEquipment ?? []).includes(eq.id);
-                      return (
-                        <label
-                          key={eq.id}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-xs"
-                        >
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={() => toggleEquipment(eq.id)}
-                            className="h-3.5 w-3.5"
-                          />
-                          <span className={checked ? "font-medium" : ""}>
-                            {eq.name}
-                          </span>
-                          {eq.number && (
-                            <span className="text-muted-foreground">#{eq.number}</span>
-                          )}
-                          {eq.category && (
-                            <span className="text-muted-foreground ml-auto">
-                              {eq.category}
-                            </span>
-                          )}
-                        </label>
-                      );
-                    })}
-                    {filteredEquipment.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-3">
-                        No equipment found
-                      </p>
-                    )}
-                  </div>
+                  {equipSearch.trim().length > 0 && (
+                    <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg border bg-popover shadow-md">
+                      <div className="max-h-[180px] overflow-y-auto p-1.5 space-y-0.5">
+                        {filteredEquipment.map((eq) => {
+                          const checked = (form.onSiteEquipment ?? []).includes(eq.id);
+                          return (
+                            <label
+                              key={eq.id}
+                              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-xs"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={() => toggleEquipment(eq.id)}
+                                className="h-3.5 w-3.5"
+                              />
+                              <span className={checked ? "font-medium" : ""}>
+                                {eq.name}
+                              </span>
+                              {eq.number && (
+                                <span className="text-muted-foreground">#{eq.number}</span>
+                              )}
+                              {eq.category && (
+                                <span className="text-muted-foreground ml-auto">
+                                  {eq.category}
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                        {filteredEquipment.length === 0 && (
+                          <p className="text-xs text-muted-foreground text-center py-3">
+                            No equipment found
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </section>

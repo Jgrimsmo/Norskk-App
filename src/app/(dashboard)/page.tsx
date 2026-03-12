@@ -29,7 +29,7 @@ import {
   useEmployees,
   useProjects,
   useTimeEntries,
-  useSafetyForms,
+  useFormSubmissions,
   useDispatches,
   useCostCodes,
   useEquipment,
@@ -49,7 +49,6 @@ import {
 } from "@/lib/constants/status-colors";
 import {
   workTypeLabels,
-  formTypeLabels,
   invoiceStatusLabels,
 } from "@/lib/constants/labels";
 import { RequirePermission } from "@/components/require-permission";
@@ -60,7 +59,7 @@ export default function DashboardPage() {
   const { data: employees, loading: l1 } = useEmployees();
   const { data: projects, loading: l2 } = useProjects();
   const { data: timeEntries, loading: l3 } = useTimeEntries();
-  const { data: safetyForms, loading: l4 } = useSafetyForms();
+  const { data: formSubmissions, loading: l4 } = useFormSubmissions();
   const { data: dispatches, loading: l5 } = useDispatches();
   const { data: costCodes, loading: l6 } = useCostCodes();
   const { data: equipment, loading: l7 } = useEquipment();
@@ -102,10 +101,13 @@ export default function DashboardPage() {
     [invoices]
   );
 
-  // ── Recent safety forms (last 5) ──
+  // ── Recent safety form submissions (last 5) ──
   const recentSafety = React.useMemo(
-    () => [...safetyForms].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
-    [safetyForms]
+    () => formSubmissions
+      .filter((fs) => fs.category === "safety")
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 5),
+    [formSubmissions]
   );
 
   // Greeting
@@ -309,12 +311,12 @@ export default function DashboardPage() {
                       {recentSafety.map((form) => (
                         <div key={form.id} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/40 transition-colors">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{form.title}</p>
+                            <p className="text-sm font-medium truncate">{form.templateName}</p>
                             <p className="text-xs text-muted-foreground truncate">
-                              {lookupName(form.submittedById, employees)} · {formTypeLabels[form.formType] ?? form.formType}
+                              {form.submittedByName || lookupName(form.submittedById, employees)}
                             </p>
                           </div>
-                          <Badge variant="outline" className={`text-[10px] capitalize shrink-0 ${safetyStatusColors[form.status]}`}>
+                          <Badge variant="outline" className={`text-[10px] capitalize shrink-0 ${safetyStatusColors[form.status] || ""}`}>
                             {form.status}
                           </Badge>
                           <span className="shrink-0 text-xs text-muted-foreground w-[70px] text-right">
