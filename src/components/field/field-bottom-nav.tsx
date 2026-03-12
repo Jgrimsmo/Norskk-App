@@ -18,7 +18,7 @@ export function FieldBottomNav() {
 
   return (
     <nav className="sticky bottom-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t safe-area-bottom">
-      <div className="flex items-center justify-around h-16 px-2 max-w-lg mx-auto">
+      <div className="flex items-center justify-around min-h-16 px-2 max-w-lg mx-auto">
         {navItems.map((item) => {
           const isActive = item.href === "/field"
             ? pathname === "/field"
