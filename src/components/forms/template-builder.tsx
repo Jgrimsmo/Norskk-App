@@ -90,6 +90,7 @@ const FIELD_TYPES: { type: FormFieldType; label: string; description: string }[]
   { type: "toggle", label: "Yes / No", description: "Toggle switch" },
   { type: "photo", label: "Photo", description: "Camera / photo upload" },
   { type: "signature", label: "Signature", description: "Touch signature pad" },
+  { type: "weather", label: "Weather", description: "Auto-fill weather from project location" },
   { type: "section-header", label: "Section Header", description: "Visual divider with title" },
   { type: "label", label: "Info Text", description: "Read-only label / instructions" },
 ];
@@ -550,6 +551,8 @@ function sampleForField(f: FormField): unknown {
       return f.options?.slice(0, 2).map((o) => o.label || o.value) || ["Option 1"];
     case "toggle":
       return true;
+    case "weather":
+      return { conditions: ["sunny"], temperature: "5°C – 12°C", windSpeed: "15 km/h", precipitation: "None" };
     default:
       return undefined;
   }
@@ -562,6 +565,7 @@ function FormPreviewDialog({
   description,
   sections,
   requireProject,
+  requireEquipment,
   requireSignature,
 }: {
   open: boolean;
@@ -570,6 +574,7 @@ function FormPreviewDialog({
   description: string;
   sections: FormSection[];
   requireProject: boolean;
+  requireEquipment: boolean;
   requireSignature: boolean;
 }) {
   const { profile: company } = useCompanyProfile();
@@ -600,6 +605,9 @@ function FormPreviewDialog({
           values: sampleValues,
           requireSignature,
           company,
+          projectName: requireProject ? "Sample Project" : undefined,
+          projectAddress: requireProject ? "123 Main St, Calgary, AB" : undefined,
+          equipmentName: requireEquipment ? "Excavator #EX-001" : undefined,
         });
         setPdfUrl(url);
       } catch (e) {
@@ -754,6 +762,18 @@ function FormPreviewDialog({
             </div>
           )}
 
+          {/* Equipment selector preview */}
+          {requireEquipment && (
+            <div>
+              <Label className="text-xs font-medium">Equipment</Label>
+              <Select disabled>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select equipment…" />
+                </SelectTrigger>
+              </Select>
+            </div>
+          )}
+
           {/* Sections */}
           {sections.map((section) => (
             <div key={section.id} className="space-y-4">
@@ -888,6 +908,7 @@ export function TemplateBuilder({ templateId, onBack }: TemplateBuilderProps) {
   const [description, setDescription] = React.useState("");
   const [category, setCategory] = React.useState("general");
   const [requireProject, setRequireProject] = React.useState(true);
+  const [requireEquipment, setRequireEquipment] = React.useState(false);
   const [requireSignature, setRequireSignature] = React.useState(false);
   const [sections, setSections] = React.useState<FormSection[]>([createBlankSection()]);
 
@@ -904,6 +925,7 @@ export function TemplateBuilder({ templateId, onBack }: TemplateBuilderProps) {
       setDescription(existing.description || "");
       setCategory(existing.category);
       setRequireProject(existing.requireProject ?? true);
+      setRequireEquipment(existing.requireEquipment ?? false);
       setRequireSignature(existing.requireSignature ?? false);
       setSections(existing.sections.length > 0 ? existing.sections : [createBlankSection()]);
     }
@@ -1043,6 +1065,7 @@ export function TemplateBuilder({ templateId, onBack }: TemplateBuilderProps) {
         sections,
         status: "active" as const,
         requireProject,
+        requireEquipment,
         requireSignature,
         updatedAt: now,
       });
@@ -1135,6 +1158,10 @@ export function TemplateBuilder({ templateId, onBack }: TemplateBuilderProps) {
           <div className="flex items-center gap-2">
             <Switch checked={requireProject} onCheckedChange={setRequireProject} />
             <Label className="text-xs">Require project selection</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={requireEquipment} onCheckedChange={setRequireEquipment} />
+            <Label className="text-xs">Require equipment selection</Label>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={requireSignature} onCheckedChange={setRequireSignature} />
@@ -1247,6 +1274,7 @@ export function TemplateBuilder({ templateId, onBack }: TemplateBuilderProps) {
         description={description}
         sections={sections}
         requireProject={requireProject}
+        requireEquipment={requireEquipment}
         requireSignature={requireSignature}
       />
     </div>

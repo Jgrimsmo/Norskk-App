@@ -289,16 +289,26 @@ export function SubmissionsTable() {
     ),
   }), [employees, projects, allEquipment, allAttachments, allTools]);
 
-  const pdfOpts = (sub: FormSubmission, tpl: FormTemplate) => ({
-    name: sub.templateName,
-    description: tpl.description,
-    sections: tpl.sections,
-    values: sub.values,
-    requireSignature: tpl.requireSignature,
-    signatureDataUrl: sub.signatureUrl,
-    company,
-    sourceLabelMap,
-  });
+  const pdfOpts = (sub: FormSubmission, tpl: FormTemplate) => {
+    const proj = sub.projectId ? projects.find((p) => p.id === sub.projectId) : undefined;
+    const equip = sub.equipmentId ? allEquipment.find((e) => e.id === sub.equipmentId) : undefined;
+    const projectAddress = proj
+      ? [proj.address, proj.city, proj.province].filter(Boolean).join(", ")
+      : undefined;
+    return {
+      name: sub.templateName,
+      description: tpl.description,
+      sections: tpl.sections,
+      values: sub.values,
+      requireSignature: tpl.requireSignature,
+      signatureDataUrl: sub.signatureUrl,
+      company,
+      sourceLabelMap,
+      projectName: proj?.name,
+      projectAddress,
+      equipmentName: equip ? (equip.number ? `${equip.name} #${equip.number}` : equip.name) : undefined,
+    };
+  };
 
   const filtered = React.useMemo(() => {
     let list = submissions;

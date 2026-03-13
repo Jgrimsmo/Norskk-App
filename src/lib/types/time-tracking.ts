@@ -421,6 +421,7 @@ export type FormFieldType =
   | "toggle"
   | "photo"
   | "signature"
+  | "weather"
   | "section-header"
   | "label";
 
@@ -472,6 +473,7 @@ export interface FormTemplate {
   sections: FormSection[];
   status: FormTemplateStatus;
   requireProject?: boolean;      // must select a project when filling
+  requireEquipment?: boolean;    // must select equipment when filling
   requireSignature?: boolean;    // require signature on submission
   createdBy: string;             // employee ID
   createdAt: string;
@@ -485,6 +487,7 @@ export interface FormSubmission {
   templateId: string;
   templateName: string;          // denormalized for display
   projectId?: string;
+  equipmentId?: string;
   submittedById: string;         // employee ID
   submittedByName: string;       // denormalized
   status: FormSubmissionStatus;

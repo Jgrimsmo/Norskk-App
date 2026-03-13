@@ -183,6 +183,12 @@ export interface FormSubmissionPDFOptions {
   sourceLabelMap?: Record<string, Record<string, string>>;
   /** Pre-resolved photo data URLs (keyed by original URL) */
   photoDataUrls?: Map<string, string>;
+  /** Selected project name */
+  projectName?: string;
+  /** Selected project address */
+  projectAddress?: string;
+  /** Selected equipment name */
+  equipmentName?: string;
 }
 
 // ── Helpers ──
@@ -261,6 +267,9 @@ function FormSubmissionDocument({
   company,
   sourceLabelMap,
   photoDataUrls,
+  projectName,
+  projectAddress,
+  equipmentName,
 }: FormSubmissionPDFOptions) {
 
   /** Render a single field row */
@@ -320,6 +329,28 @@ function FormSubmissionDocument({
           ) : (
             <View style={s.signatureLine} />
           )}
+        </View>
+      );
+    }
+
+    if (field.type === "checkbox" && field.options?.length) {
+      const selected = Array.isArray(values[field.id]) ? (values[field.id] as string[]) : [];
+      return (
+        <View key={field.id}>
+          <View style={s.fieldRow}>
+            <Text style={s.fieldLabel}>{field.label || "(No label)"}</Text>
+            <Text style={s.fieldValue}> </Text>
+          </View>
+          {field.options.map((opt) => {
+            const checked = selected.includes(opt.value);
+            return (
+              <View key={opt.value} style={[s.fieldRow, { paddingLeft: 20 }]}>
+                <Text style={[s.fieldValue, { fontSize: 8 }]}>
+                  {checked ? "☑" : "☐"}  {opt.label || opt.value}
+                </Text>
+              </View>
+            );
+          })}
         </View>
       );
     }
@@ -424,6 +455,29 @@ function FormSubmissionDocument({
               );
             }
 
+            // Checkbox field → show each option checked/unchecked
+            if (field.type === "checkbox" && field.options?.length) {
+              const selected = Array.isArray(raw) ? (raw as string[]) : [];
+              return (
+                <View key={field.id}>
+                  <View style={s.fieldRow}>
+                    <Text style={s.fieldLabel}>{field.label || "(No label)"}</Text>
+                    <Text style={s.fieldValue}> </Text>
+                  </View>
+                  {field.options.map((opt) => {
+                    const checked = selected.includes(opt.value);
+                    return (
+                      <View key={opt.value} style={[s.fieldRow, { paddingLeft: 20 }]}>
+                        <Text style={[s.fieldValue, { fontSize: 8 }]}>
+                          {checked ? "☑" : "☐"}  {opt.label || opt.value}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            }
+
             const display = resolveValue(field, raw, sourceLabelMap);
             return (
               <View key={field.id} style={s.fieldRow}>
@@ -454,6 +508,24 @@ function FormSubmissionDocument({
           <View style={s.fieldRow}>
             <Text style={s.fieldLabel}>Description</Text>
             <Text style={s.fieldValue}>{description}</Text>
+          </View>
+        )}
+
+        {/* ── Project ── */}
+        {projectName && (
+          <View style={s.fieldRow}>
+            <Text style={s.fieldLabel}>Project</Text>
+            <Text style={s.fieldValue}>
+              {projectName}{projectAddress ? `  —  ${projectAddress}` : ""}
+            </Text>
+          </View>
+        )}
+
+        {/* ── Equipment ── */}
+        {equipmentName && (
+          <View style={s.fieldRow}>
+            <Text style={s.fieldLabel}>Equipment</Text>
+            <Text style={s.fieldValue}>{equipmentName}</Text>
           </View>
         )}
 

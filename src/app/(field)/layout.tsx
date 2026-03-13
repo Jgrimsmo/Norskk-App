@@ -23,7 +23,11 @@ function UserMenu({ name, onSignOut }: { name: string; onSignOut: () => void }) 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // Keep menu open if click is inside the menu or inside a Radix portal (e.g. ThemeToggle dropdown)
+      if (ref.current?.contains(target)) return;
+      if ((target as Element).closest?.("[data-radix-popper-content-wrapper]")) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);

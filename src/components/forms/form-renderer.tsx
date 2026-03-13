@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { ArrowLeft, Loader2, Save, Camera, X, Plus, Trash2, Search, Eraser } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Camera, X, Plus, Trash2, Search, Eraser, Sun, CloudSun, Cloud, CloudOff, CloudRain, CloudSnow, CloudFog, Wind, CloudLightning, RefreshCw } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,9 @@ import type {
   FormFieldOption,
   FormFieldOptionsSource,
   FormSubmission,
+  WeatherCondition,
 } from "@/lib/types/time-tracking";
+import { fetchWeatherForProject } from "@/lib/utils/weather";
 import {
   useFormSubmissions,
   useProjects,
@@ -263,6 +265,224 @@ function DataSourceField({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Signature field with explicit save button ──
+function SignatureField({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  const sigRef = React.useRef<SignatureCanvas>(null);
+  const [hasStrokes, setHasStrokes] = React.useState(false);
+
+  return (
+    <div className="border rounded-lg p-3 space-y-2">
+      {value ? (
+        <div className="text-center space-y-2">
+          <img src={String(value)} alt="Signature" className="max-h-24 mx-auto" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="cursor-pointer gap-1.5"
+            onClick={() => onChange("")}
+          >
+            <Eraser className="h-3.5 w-3.5" /> Clear & Re-sign
+          </Button>
+        </div>
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground text-center">Draw your signature below</p>
+          <div className="border rounded bg-white">
+            <SignatureCanvas
+              ref={sigRef}
+              penColor="black"
+              canvasProps={{ className: "w-full h-32" }}
+              onEnd={() => setHasStrokes(true)}
+            />
+          </div>
+          <div className="flex justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="cursor-pointer gap-1.5 text-xs"
+              onClick={() => {
+                sigRef.current?.clear();
+                setHasStrokes(false);
+              }}
+            >
+              <Eraser className="h-3.5 w-3.5" /> Clear
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="cursor-pointer gap-1.5 text-xs"
+              disabled={!hasStrokes}
+              onClick={() => {
+                const dataUrl = sigRef.current?.getTrimmedCanvas().toDataURL("image/png");
+                if (dataUrl) onChange(dataUrl);
+              }}
+            >
+              <Save className="h-3.5 w-3.5" /> Save Signature
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Weather helpers ──
+const WEATHER_CONDITIONS: { key: WeatherCondition; label: string; Icon: React.ElementType }[] = [
+  { key: "sunny", label: "Sunny", Icon: Sun },
+  { key: "partly-cloudy", label: "Partly Cloudy", Icon: CloudSun },
+  { key: "cloudy", label: "Cloudy", Icon: Cloud },
+  { key: "overcast", label: "Overcast", Icon: CloudOff },
+  { key: "rain", label: "Rain", Icon: CloudRain },
+  { key: "snow", label: "Snow", Icon: CloudSnow },
+  { key: "fog", label: "Fog", Icon: CloudFog },
+  { key: "windy", label: "Windy", Icon: Wind },
+  { key: "thunderstorm", label: "Storm", Icon: CloudLightning },
+];
+
+interface WeatherValue {
+  conditions: WeatherCondition[];
+  temperature: string;
+  windSpeed: string;
+  precipitation: string;
+}
+
+// ── Weather field with auto-fill ──
+function WeatherField({
+  value,
+  onChange,
+  projectId,
+  projects,
+}: {
+  value: unknown;
+  onChange: (v: unknown) => void;
+  projectId: string;
+  projects: { id: string; city?: string; province?: string }[];
+}) {
+  const wx: WeatherValue = (value as WeatherValue) || {
+    conditions: [],
+    temperature: "",
+    windSpeed: "",
+    precipitation: "",
+  };
+  const [loading, setLoading] = React.useState(false);
+
+  const update = (patch: Partial<WeatherValue>) => onChange({ ...wx, ...patch });
+
+  const toggleCondition = (c: WeatherCondition) => {
+    const next = wx.conditions.includes(c)
+      ? wx.conditions.filter((x) => x !== c)
+      : [...wx.conditions, c];
+    update({ conditions: next });
+  };
+
+  const autoFill = async () => {
+    const proj = projects.find((p) => p.id === projectId);
+    if (!proj?.city) {
+      toast.error("Select a project with a city to auto-fill weather");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await fetchWeatherForProject(
+        proj.city,
+        proj.province ?? "",
+        format(new Date(), "yyyy-MM-dd")
+      );
+      if (result) {
+        onChange({
+          conditions: result.conditions,
+          temperature: result.temperature,
+          windSpeed: result.windSpeed,
+          precipitation: result.precipitation,
+        });
+        toast.success("Weather auto-filled");
+      } else {
+        toast.error("Could not fetch weather data");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="border rounded-lg p-3 space-y-3">
+      {/* Auto-fill button */}
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-xs cursor-pointer"
+          disabled={loading || !projectId}
+          onClick={autoFill}
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Auto-fill Weather
+        </Button>
+      </div>
+
+      {/* Condition buttons */}
+      <div className="grid grid-cols-3 gap-1.5">
+        {WEATHER_CONDITIONS.map(({ key, label, Icon }) => {
+          const active = wx.conditions.includes(key);
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggleCondition(key)}
+              className={`flex flex-col items-center gap-0.5 rounded-lg border p-2 text-xs transition-colors cursor-pointer ${
+                active
+                  ? "border-primary bg-primary/10 text-primary font-medium"
+                  : "border-muted hover:bg-muted/50 text-muted-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Detail inputs */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-xs text-muted-foreground">Temperature</Label>
+          <Input
+            value={wx.temperature}
+            onChange={(e) => update({ temperature: e.target.value })}
+            placeholder="-5°C – 3°C"
+            className="h-8 text-sm"
+          />
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground">Wind Speed</Label>
+          <Input
+            value={wx.windSpeed}
+            onChange={(e) => update({ windSpeed: e.target.value })}
+            placeholder="15 km/h"
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="col-span-2">
+          <Label className="text-xs text-muted-foreground">Precipitation</Label>
+          <Input
+            value={wx.precipitation}
+            onChange={(e) => update({ precipitation: e.target.value })}
+            placeholder="None"
+            className="h-8 text-sm"
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -503,50 +723,11 @@ function RenderField({
     }
 
     case "signature": {
-      const sigRef = React.createRef<SignatureCanvas>();
-      return (
-        <div className="border rounded-lg p-3 space-y-2">
-          {value ? (
-            <div className="text-center space-y-2">
-              <img src={String(value)} alt="Signature" className="max-h-24 mx-auto" />
-              <Button
-                variant="outline"
-                size="sm"
-                className="cursor-pointer gap-1.5"
-                onClick={() => onChange("")}
-              >
-                <Eraser className="h-3.5 w-3.5" /> Clear & Re-sign
-              </Button>
-            </div>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground text-center">Draw your signature below</p>
-              <div className="border rounded bg-white">
-                <SignatureCanvas
-                  ref={sigRef}
-                  penColor="black"
-                  canvasProps={{ className: "w-full h-32" }}
-                  onEnd={() => {
-                    const dataUrl = sigRef.current?.getTrimmedCanvas().toDataURL("image/png");
-                    if (dataUrl) onChange(dataUrl);
-                  }}
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="cursor-pointer gap-1.5 text-xs"
-                  onClick={() => sigRef.current?.clear()}
-                >
-                  <Eraser className="h-3.5 w-3.5" /> Clear
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      );
+      return <SignatureField value={value} onChange={onChange} />;
     }
+
+    case "weather":
+      return null; // rendered by WeatherField wrapper in form sections
 
     case "section-header":
       return null; // rendered separately
@@ -777,6 +958,7 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
     existingSubmission?.values || {}
   );
   const [projectId, setProjectId] = React.useState(existingSubmission?.projectId || "");
+  const [equipmentId, setEquipmentId] = React.useState(existingSubmission?.equipmentId || "");
 
   const setValue = (fieldId: string, value: unknown) => {
     setValues((prev) => ({ ...prev, [fieldId]: value }));
@@ -785,6 +967,9 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
   const validate = (): string | null => {
     if (template.requireProject && !projectId) {
       return "Please select a project.";
+    }
+    if (template.requireEquipment && !equipmentId) {
+      return "Please select equipment.";
     }
     for (const section of template.sections) {
       if (section.repeatable) {
@@ -798,6 +983,9 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
             if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) {
               return `"${field.label}" is required (entry #${eIdx + 1}).`;
             }
+            if (field.type === "weather" && v && typeof v === "object" && (!("conditions" in v) || !(v as WeatherValue).conditions?.length)) {
+              return `"${field.label}" requires at least one weather condition (entry #${eIdx + 1}).`;
+            }
           }
         }
       } else {
@@ -807,6 +995,9 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
           const v = values[field.id];
           if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) {
             return `"${field.label}" is required.`;
+          }
+          if (field.type === "weather" && v && typeof v === "object" && (!("conditions" in v) || !(v as WeatherValue).conditions?.length)) {
+            return `"${field.label}" requires at least one weather condition.`;
           }
         }
       }
@@ -830,6 +1021,7 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
         await update(existingSubmission.id, JSON.parse(JSON.stringify({
           values,
           projectId: projectId || undefined,
+          equipmentId: equipmentId || undefined,
           status: "submitted",
           updatedAt: now,
           category: template.category,
@@ -841,6 +1033,7 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
           templateId: template.id,
           templateName: template.name,
           projectId: projectId || undefined,
+          equipmentId: equipmentId || undefined,
           submittedById: user?.uid || "",
           submittedByName: employee?.name || "Unknown",
           status: "submitted",
@@ -898,6 +1091,27 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
         </div>
       )}
 
+      {/* Equipment Selector */}
+      {template.requireEquipment && (
+        <div className="mb-4">
+          <Label className="text-xs font-medium">Equipment</Label>
+          <Select value={equipmentId} onValueChange={setEquipmentId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select equipment…" />
+            </SelectTrigger>
+            <SelectContent>
+              {equipment
+                .filter((e) => e.status !== "retired" && e.id !== EQUIPMENT_NONE_ID)
+                .map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.number ? `${e.name} #${e.number}` : e.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* Sections & Fields */}
       <div className="space-y-6">
         {template.sections.map((section) =>
@@ -937,6 +1151,23 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
                       <p key={field.id} className="text-sm text-muted-foreground">
                         {field.label}
                       </p>
+                    );
+                  }
+
+                  if (field.type === "weather") {
+                    return (
+                      <div key={field.id}>
+                        <Label className="text-xs font-medium mb-1 block">
+                          {field.label}
+                          {field.required && <span className="text-destructive ml-0.5">*</span>}
+                        </Label>
+                        <WeatherField
+                          value={values[field.id]}
+                          onChange={(v) => setValue(field.id, v)}
+                          projectId={projectId}
+                          projects={projects}
+                        />
+                      </div>
                     );
                   }
 
