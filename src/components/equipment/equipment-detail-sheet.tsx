@@ -33,8 +33,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
 import { uploadFile, deleteFile } from "@/lib/firebase/storage";
-import { useFormSubmissions } from "@/hooks/use-firestore";
-import type { Equipment, ServiceHistoryEntry } from "@/lib/types/time-tracking";
+import { useFormSubmissions, useFormTemplates } from "@/hooks/use-firestore";
+import { SubmissionDetailDialog } from "@/components/shared/submission-detail-dialog";
+import type { Equipment, ServiceHistoryEntry, FormSubmission } from "@/lib/types/time-tracking";
 
 // ── Status colours (matching table) ──
 
@@ -62,7 +63,15 @@ export function EquipmentDetailSheet({
   onUpdate,
 }: EquipmentDetailSheetProps) {
   const { data: formSubmissions } = useFormSubmissions();
+  const { data: formTemplates } = useFormTemplates();
   const [draft, setDraft] = React.useState<Equipment | null>(null);
+  const [viewingSub, setViewingSub] = React.useState<FormSubmission | null>(null);
+
+  const templateMap = React.useMemo(() => {
+    const m = new Map<string, (typeof formTemplates)[number]>();
+    for (const t of formTemplates) m.set(t.id, t);
+    return m;
+  }, [formTemplates]);
 
   // PDF uploading flags
   const [uploadingManual, setUploadingManual] = React.useState(false);
@@ -180,6 +189,7 @@ export function EquipmentDetailSheet({
   if (!equipment || !draft) return null;
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
@@ -374,7 +384,7 @@ export function EquipmentDetailSheet({
             {(() => {
               const linked = equipment
                 ? formSubmissions.filter((fs) =>
-                    fs.linkedEquipmentIds?.includes(equipment.id)
+                    fs.linkedEquipmentIds?.includes(equipment.id) || fs.equipmentId === equipment.id
                   ).sort((a, b) => b.date.localeCompare(a.date))
                 : [];
               if (linked.length === 0) {
@@ -393,7 +403,11 @@ export function EquipmentDetailSheet({
               return (
                 <div className="space-y-2">
                   {linked.map((fs) => (
-                    <div key={fs.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <button
+                      key={fs.id}
+                      onClick={() => setViewingSub(fs)}
+                      className="w-full flex items-center justify-between rounded-lg border px-3 py-2 text-left hover:bg-muted/40 transition-colors cursor-pointer"
+                    >
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium truncate">{fs.templateName}</p>
                         <p className="text-[10px] text-muted-foreground">
@@ -407,7 +421,7 @@ export function EquipmentDetailSheet({
                       }`}>
                         {fs.status}
                       </Badge>
-                    </div>
+                    </button>
                   ))}
                 </div>
               );
@@ -440,6 +454,16 @@ export function EquipmentDetailSheet({
         </SheetFooter>
       </SheetContent>
     </Sheet>
+
+    {viewingSub && (
+      <SubmissionDetailDialog
+        submission={viewingSub}
+        template={templateMap.get(viewingSub.templateId)}
+        open={!!viewingSub}
+        onClose={() => setViewingSub(null)}
+      />
+    )}
+    </>
   );
 }
 

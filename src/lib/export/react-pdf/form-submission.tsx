@@ -218,6 +218,14 @@ function resolveValue(
     return labels.join(", ") || "—";
   }
 
+  // Object values (e.g. weather: {conditions, temperature, …})
+  if (typeof raw === "object" && raw !== null) {
+    const entries = Object.entries(raw as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined && v !== null && v !== "")
+      .map(([, v]) => (Array.isArray(v) ? v.join(", ") : String(v)));
+    return entries.join(" · ") || "—";
+  }
+
   const str = String(raw);
 
   // Data source resolution

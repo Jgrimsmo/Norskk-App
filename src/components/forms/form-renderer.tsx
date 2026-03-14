@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { ArrowLeft, Loader2, Save, Camera, X, Plus, Trash2, Search, Eraser, Sun, CloudSun, Cloud, CloudOff, CloudRain, CloudSnow, CloudFog, Wind, CloudLightning, RefreshCw } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Camera, X, Plus, Trash2, Search, Eraser, Sun, CloudSun, Cloud, CloudOff, CloudRain, CloudSnow, CloudFog, Wind, CloudLightning, RefreshCw, Share2, CheckCircle2 } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,9 @@ import {
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { useCurrentEmployee } from "@/hooks/use-current-employee";
+import { useCompanyProfile } from "@/hooks/use-company-profile";
+import { useSharePDF } from "@/hooks/use-share-pdf";
+import { generateFormSubmissionPDFBlobUrl } from "@/lib/export/react-pdf/form-submission";
 
 // ── Conditional visibility check ──
 function isFieldVisible(
@@ -279,6 +282,7 @@ function SignatureField({
 }) {
   const sigRef = React.useRef<SignatureCanvas>(null);
   const [hasStrokes, setHasStrokes] = React.useState(false);
+  const [padOpen, setPadOpen] = React.useState(false);
 
   return (
     <div className="border rounded-lg p-3 space-y-2">
@@ -289,15 +293,15 @@ function SignatureField({
             variant="outline"
             size="sm"
             className="cursor-pointer gap-1.5"
-            onClick={() => onChange("")}
+            onClick={() => { onChange(""); setPadOpen(false); }}
           >
             <Eraser className="h-3.5 w-3.5" /> Clear & Re-sign
           </Button>
         </div>
-      ) : (
+      ) : padOpen ? (
         <>
           <p className="text-xs text-muted-foreground text-center">Draw your signature below</p>
-          <div className="border rounded bg-white">
+          <div className="border rounded bg-white touch-none">
             <SignatureCanvas
               ref={sigRef}
               penColor="black"
@@ -313,9 +317,10 @@ function SignatureField({
               onClick={() => {
                 sigRef.current?.clear();
                 setHasStrokes(false);
+                setPadOpen(false);
               }}
             >
-              <Eraser className="h-3.5 w-3.5" /> Clear
+              <X className="h-3.5 w-3.5" /> Cancel
             </Button>
             <Button
               variant="default"
@@ -325,12 +330,25 @@ function SignatureField({
               onClick={() => {
                 const dataUrl = sigRef.current?.getTrimmedCanvas().toDataURL("image/png");
                 if (dataUrl) onChange(dataUrl);
+                setPadOpen(false);
               }}
             >
               <Save className="h-3.5 w-3.5" /> Save Signature
             </Button>
           </div>
         </>
+      ) : (
+        <div className="flex flex-col items-center gap-2 py-4">
+          <p className="text-xs text-muted-foreground">No signature yet</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="cursor-pointer gap-1.5"
+            onClick={() => setPadOpen(true)}
+          >
+            <Save className="h-3.5 w-3.5" /> Tap to Sign
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -928,7 +946,10 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
   const { data: attachments } = useAttachments();
   const { data: tools } = useTools();
   const { add, update } = useFormSubmissions();
+  const { profile: company } = useCompanyProfile();
+  const { sharePDF, sharing } = useSharePDF();
   const [saving, setSaving] = React.useState(false);
+  const [saved, setSaved] = React.useState(false);
 
   // Resolve data-source options for fields that use optionsSource
   const sourceOptions = React.useMemo<Record<FormFieldOptionsSource, FormFieldOption[]>>(() => ({
@@ -1017,6 +1038,13 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
       const now = new Date().toISOString();
       const linked = extractLinkedIds(template.sections, values);
 
+      // Ensure top-level equipmentId is included in linkedEquipmentIds
+      if (equipmentId) {
+        const eqIds = new Set(linked.linkedEquipmentIds ?? []);
+        eqIds.add(equipmentId);
+        linked.linkedEquipmentIds = Array.from(eqIds);
+      }
+
       if (existingSubmission) {
         await update(existingSubmission.id, JSON.parse(JSON.stringify({
           values,
@@ -1047,13 +1075,84 @@ export function FormRenderer({ template, existingSubmission, onBack }: FormRende
         await add(submission);
       }
       toast.success("Form saved!");
-      onBack();
+      setSaved(true);
     } catch {
       toast.error("Failed to save form.");
     } finally {
       setSaving(false);
     }
   };
+
+  const buildPdfOpts = () => {
+    const proj = projectId ? projects.find((p) => p.id === projectId) : undefined;
+    const equip = equipmentId ? equipment.find((e) => e.id === equipmentId) : undefined;
+    const projectAddress = proj
+      ? [proj.address, proj.city, proj.province].filter(Boolean).join(", ")
+      : undefined;
+    const sourceLabelMap: Record<string, Record<string, string>> = {
+      employees: Object.fromEntries(employees.map((e) => [e.id, e.name])),
+      projects: Object.fromEntries(projects.map((p) => [p.id, p.name])),
+      equipment: Object.fromEntries(
+        equipment
+          .filter((e) => e.id !== EQUIPMENT_NONE_ID)
+          .map((e) => [e.id, e.number ? `${e.name} #${e.number}` : e.name])
+      ),
+      attachments: Object.fromEntries(
+        attachments.map((a) => [a.id, a.number ? `${a.name} #${a.number}` : a.name])
+      ),
+      tools: Object.fromEntries(
+        tools.map((t) => [t.id, t.number ? `${t.name} #${t.number}` : t.name])
+      ),
+    };
+    return {
+      name: template.name,
+      description: template.description,
+      sections: template.sections,
+      values,
+      requireSignature: template.requireSignature,
+      company,
+      sourceLabelMap,
+      projectName: proj?.name,
+      projectAddress,
+      equipmentName: equip ? (equip.number ? `${equip.name} #${equip.number}` : equip.name) : undefined,
+    };
+  };
+
+  const handleSharePDF = () => {
+    const safeName = (template.name || "form").replace(/[^a-zA-Z0-9-_]/g, "_");
+    sharePDF(
+      () => generateFormSubmissionPDFBlobUrl(buildPdfOpts()),
+      `${safeName}-${format(new Date(), "yyyy-MM-dd")}.pdf`,
+    );
+  };
+
+  if (saved) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center space-y-6">
+        <CheckCircle2 className="h-16 w-16 text-green-500" />
+        <div>
+          <h2 className="text-xl font-bold">Form Saved!</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {template.name} has been submitted successfully.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <Button
+            variant="outline"
+            className="gap-2 cursor-pointer"
+            onClick={handleSharePDF}
+            disabled={sharing}
+          >
+            {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+            Share PDF
+          </Button>
+          <Button className="cursor-pointer" onClick={onBack}>
+            Done
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-36">

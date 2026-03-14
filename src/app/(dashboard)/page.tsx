@@ -81,33 +81,32 @@ export default function DashboardPage() {
     };
   }, [dispatches, today]);
 
-  // ── Recent time entries (last 5) ──
-  const recentEntries = React.useMemo(
-    () => [...timeEntries].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
-    [timeEntries]
+  // ── Today's time entries ──
+  const todayEntries = React.useMemo(
+    () => timeEntries.filter((e) => e.date === today).sort((a, b) => b.date.localeCompare(a.date)),
+    [timeEntries, today]
   );
 
-  // ── Recent daily reports (last 5) ──
-  const recentDailyReports = React.useMemo(
-    () => [...dailyReports]
-      .sort((a, b) => b.date.localeCompare(a.date) || (b.time ?? "").localeCompare(a.time ?? ""))
-      .slice(0, 5),
-    [dailyReports]
+  // ── Today's daily reports ──
+  const todayDailyReports = React.useMemo(
+    () => dailyReports
+      .filter((r) => r.date === today)
+      .sort((a, b) => (b.time ?? "").localeCompare(a.time ?? "")),
+    [dailyReports, today]
   );
 
-  // ── Recent invoices (last 5) ──
-  const recentInvoices = React.useMemo(
-    () => [...invoices].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
-    [invoices]
+  // ── Today's invoices ──
+  const todayInvoices = React.useMemo(
+    () => invoices.filter((inv) => inv.date === today).sort((a, b) => b.date.localeCompare(a.date)),
+    [invoices, today]
   );
 
-  // ── Recent safety form submissions (last 5) ──
-  const recentSafety = React.useMemo(
+  // ── Today's safety form submissions ──
+  const todaySafety = React.useMemo(
     () => formSubmissions
-      .filter((fs) => fs.category === "safety")
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 5),
-    [formSubmissions]
+      .filter((fs) => fs.category === "safety" && fs.date === today)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+    [formSubmissions, today]
   );
 
   // Greeting
@@ -176,7 +175,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between p-5 pb-3">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-sm font-semibold">Recent Time Entries</h2>
+                  <h2 className="text-sm font-semibold">Today&apos;s Time Entries</h2>
                 </div>
                 <Link href="/time-tracking">
                   <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
@@ -200,12 +199,12 @@ export default function DashboardPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentEntries.length === 0 ? (
+                    {todayEntries.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="h-24 text-center text-sm text-muted-foreground">No time entries yet</TableCell>
+                        <TableCell colSpan={9} className="h-24 text-center text-sm text-muted-foreground">No time entries today</TableCell>
                       </TableRow>
                     ) : (
-                      recentEntries.map((entry) => (
+                      todayEntries.map((entry) => (
                         <TableRow key={entry.id} className="h-[36px] hover:bg-muted/20">
                           <TableCell className="text-xs px-3 whitespace-nowrap">{format(parseISO(entry.date), "MM/dd/yyyy")}</TableCell>
                           <TableCell className="text-xs px-3 truncate max-w-[140px]">{lookupName(entry.employeeId, employees)}</TableCell>
@@ -242,7 +241,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between p-5 pb-3">
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-muted-foreground" />
-                    <h2 className="text-sm font-semibold">Recent Daily Reports</h2>
+                    <h2 className="text-sm font-semibold">Today&apos;s Daily Reports</h2>
                   </div>
                   <Link href="/daily-reports">
                     <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
@@ -264,12 +263,12 @@ export default function DashboardPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {recentDailyReports.length === 0 ? (
+                      {todayDailyReports.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">No daily reports yet</TableCell>
+                          <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">No daily reports today</TableCell>
                         </TableRow>
                       ) : (
-                        recentDailyReports.map((report) => (
+                        todayDailyReports.map((report) => (
                           <TableRow key={report.id} className="h-[36px] hover:bg-muted/20">
                             <TableCell className="text-xs px-3 whitespace-nowrap">{format(parseISO(report.date), "MM/dd/yyyy")}</TableCell>
                             <TableCell className="text-xs px-3 font-medium">#{report.reportNumber}</TableCell>
@@ -292,10 +291,10 @@ export default function DashboardPage() {
 
             {can("safety.view") && (
               <div className="rounded-xl border bg-card shadow-sm">
-                <div className="flex items-center justify-between p-5 pb-0">
+                <div className="flex items-center justify-between p-5 pb-3">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                    <h2 className="text-sm font-semibold">Recent Safety Forms</h2>
+                    <h2 className="text-sm font-semibold">Today&apos;s Safety Forms</h2>
                   </div>
                   <Link href="/safety">
                     <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
@@ -303,29 +302,39 @@ export default function DashboardPage() {
                     </Button>
                   </Link>
                 </div>
-                <div className="p-5 pt-3">
-                  {recentSafety.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-muted-foreground">No safety forms yet</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {recentSafety.map((form) => (
-                        <div key={form.id} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/40 transition-colors">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{form.templateName}</p>
-                            <p className="text-xs text-muted-foreground truncate">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50 h-[36px]">
+                        <TableHead className="text-xs font-semibold px-3">Date</TableHead>
+                        <TableHead className="text-xs font-semibold px-3">Form</TableHead>
+                        <TableHead className="text-xs font-semibold px-3">Submitted By</TableHead>
+                        <TableHead className="text-xs font-semibold px-3">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {todaySafety.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="h-24 text-center text-sm text-muted-foreground">No safety forms today</TableCell>
+                        </TableRow>
+                      ) : (
+                        todaySafety.map((form) => (
+                          <TableRow key={form.id} className="h-[36px] hover:bg-muted/20">
+                            <TableCell className="text-xs px-3 whitespace-nowrap">{format(parseISO(form.date), "MM/dd/yyyy")}</TableCell>
+                            <TableCell className="text-xs px-3 font-medium truncate max-w-[200px]">{form.templateName}</TableCell>
+                            <TableCell className="text-xs px-3 truncate max-w-[140px]">
                               {form.submittedByName || lookupName(form.submittedById, employees)}
-                            </p>
-                          </div>
-                          <Badge variant="outline" className={`text-[10px] capitalize shrink-0 ${safetyStatusColors[form.status] || ""}`}>
-                            {form.status}
-                          </Badge>
-                          <span className="shrink-0 text-xs text-muted-foreground w-[70px] text-right">
-                            {format(parseISO(form.date), "MM/dd/yyyy")}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                            </TableCell>
+                            <TableCell className="px-3">
+                              <Badge variant="outline" className={`text-[10px] capitalize ${safetyStatusColors[form.status] || ""}`}>
+                                {form.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
             )}
@@ -340,7 +349,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between p-5 pb-3">
                 <div className="flex items-center gap-2">
                   <Receipt className="h-4 w-4 text-muted-foreground" />
-                  <h2 className="text-sm font-semibold">Recent Payables</h2>
+                  <h2 className="text-sm font-semibold">Today&apos;s Payables</h2>
                 </div>
                 <Link href="/payables">
                   <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
@@ -361,12 +370,12 @@ export default function DashboardPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentInvoices.length === 0 ? (
+                    {todayInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-24 text-center text-sm text-muted-foreground">No invoices yet</TableCell>
+                        <TableCell colSpan={6} className="h-24 text-center text-sm text-muted-foreground">No invoices today</TableCell>
                       </TableRow>
                     ) : (
-                      recentInvoices.map((inv) => (
+                      todayInvoices.map((inv) => (
                         <TableRow key={inv.id} className="h-[36px] hover:bg-muted/20">
                           <TableCell className="text-xs px-3 whitespace-nowrap">{format(parseISO(inv.date), "MM/dd/yyyy")}</TableCell>
                           <TableCell className="text-xs px-3 truncate max-w-[140px]">

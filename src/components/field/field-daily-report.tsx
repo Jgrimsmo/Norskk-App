@@ -26,6 +26,8 @@ import {
   RefreshCw,
   Wrench,
   CalendarIcon,
+  Share2,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -68,6 +70,9 @@ import { useFirestoreState } from "@/hooks/use-firestore-state";
 import { useCurrentEmployee } from "@/hooks/use-current-employee";
 import { Collections, EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { SavingIndicator } from "@/components/shared/saving-indicator";
+import { useCompanyProfile } from "@/hooks/use-company-profile";
+import { useSharePDF } from "@/hooks/use-share-pdf";
+import { generateDailyReportPDFBlobUrl } from "@/lib/export/react-pdf/daily-report";
 
 import { fetchWeatherForProject } from "@/lib/utils/weather";
 
@@ -147,6 +152,8 @@ export function FieldDailyReport() {
   const [reports, setReports, , saving] = useFirestoreState<DailyReport>(
     Collections.DAILY_REPORTS
   );
+  const { profile: company } = useCompanyProfile();
+  const { sharePDF, sharing } = useSharePDF();
 
   const [mode, setMode] = React.useState<"list" | "edit">("list");
   const [activeReport, setActiveReport] = React.useState<DailyReport | null>(null);
@@ -361,6 +368,23 @@ export function FieldDailyReport() {
     0
   );
 
+  const handleShareReport = (report: DailyReport) => {
+    sharePDF(
+      () => generateDailyReportPDFBlobUrl({
+        report,
+        employees,
+        projects,
+        equipment,
+        timeEntries,
+        costCodes,
+        attachments,
+        tools,
+        company,
+      }),
+      `daily-report-${report.reportNumber}-${report.date}.pdf`,
+    );
+  };
+
   // ─── LIST VIEW ───
   if (mode === "list") {
     // Reusable report card renderer
@@ -369,37 +393,46 @@ export function FieldDailyReport() {
       const author = employees.find((e) => e.id === r.authorId);
       const isOwn = r.authorId === employeeId;
       return (
-        <button
-          key={r.id}
-          onClick={() => handleOpen(r)}
-          className={`w-full rounded-xl border shadow-sm p-4 text-left cursor-pointer transition-colors ${
-            isOwn
-              ? "bg-card hover:bg-muted/40 active:bg-muted/60"
-              : "bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
-          }`}
-        >
-          <div className="flex items-start justify-between mb-1">
-            <span className="text-sm font-semibold">
-              {proj ? proj.name : "No project"}
-            </span>
-            {isOwn && (
-              <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                You
+        <div key={r.id} className="flex items-stretch gap-2">
+          <button
+            onClick={() => handleOpen(r)}
+            className={`flex-1 rounded-xl border shadow-sm p-4 text-left cursor-pointer transition-colors min-w-0 ${
+              isOwn
+                ? "bg-card hover:bg-muted/40 active:bg-muted/60"
+                : "bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
+            }`}
+          >
+            <div className="flex items-start justify-between mb-1">
+              <span className="text-sm font-semibold">
+                {proj ? proj.name : "No project"}
               </span>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {showAuthor && (author ? `${author.name} · ` : "")}
-            {format(parseISO(r.date), "MMM d, yyyy")}
-            {r.time && ` · ${r.time}`}
-            {r.onSiteStaff.length > 0 && ` · ${r.onSiteStaff.length} staff`}
-          </p>
-          {r.workDescription && (
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-              {r.workDescription}
+              {isOwn && (
+                <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                  You
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {showAuthor && (author ? `${author.name} · ` : "")}
+              {format(parseISO(r.date), "MMM d, yyyy")}
+              {r.time && ` · ${r.time}`}
+              {r.onSiteStaff.length > 0 && ` · ${r.onSiteStaff.length} staff`}
             </p>
-          )}
-        </button>
+            {r.workDescription && (
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                {r.workDescription}
+              </p>
+            )}
+          </button>
+          <button
+            onClick={() => handleShareReport(r)}
+            disabled={sharing}
+            className="shrink-0 flex items-center justify-center w-10 rounded-xl border bg-card hover:bg-muted/50 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            title="Share PDF"
+          >
+            {sharing ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Share2 className="h-4 w-4 text-muted-foreground" />}
+          </button>
+        </div>
       );
     };
 
@@ -877,7 +910,7 @@ export function FieldDailyReport() {
                       >
                         <Checkbox
                           checked={checked}
-                          onCheckedChange={() => toggleStaff(emp.id)}
+                          onCheckedChange={() => { toggleStaff(emp.id); setStaffSearch(""); }}
                           className="h-4 w-4"
                         />
                         <span className={checked ? "font-medium" : ""}>
@@ -963,7 +996,7 @@ export function FieldDailyReport() {
                       >
                         <Checkbox
                           checked={checked}
-                          onCheckedChange={() => toggleEquipment(eq.id)}
+                          onCheckedChange={() => { toggleEquipment(eq.id); setEquipSearch(""); }}
                           className="h-4 w-4"
                         />
                         <span className={checked ? "font-medium" : ""}>
@@ -1066,6 +1099,16 @@ export function FieldDailyReport() {
 
       {/* ─── Sticky Footer ─── */}
       <div className="fixed bottom-20 left-0 right-0 bg-background/95 backdrop-blur border-t p-4 flex items-center gap-3 max-w-lg mx-auto safe-area-bottom z-40">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0 cursor-pointer"
+          onClick={() => activeReport && handleShareReport(activeReport)}
+          disabled={sharing || !activeReport}
+          title="Share PDF"
+        >
+          {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+        </Button>
         <Button
           className="flex-1 h-10 text-sm cursor-pointer"
           onClick={handleSave}

@@ -11,6 +11,8 @@ import {
   Wrench,
   User,
   FolderOpen,
+  Share2,
+  Loader2,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +24,15 @@ import {
   useFormSubmissions,
   useProjects,
   useEquipment,
+  useEmployees,
+  useAttachments,
+  useTools,
 } from "@/hooks/use-firestore";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { useAuth } from "@/lib/firebase/auth-context";
+import { useCompanyProfile } from "@/hooks/use-company-profile";
+import { useSharePDF } from "@/hooks/use-share-pdf";
+import { generateFormSubmissionPDFBlobUrl } from "@/lib/export/react-pdf/form-submission";
 import type { FormTemplate, FormSubmission } from "@/lib/types/time-tracking";
 
 type View =
@@ -39,6 +47,11 @@ export function FieldForms() {
   const { data: submissions, refresh: refreshS } = useFormSubmissions();
   const { data: projects } = useProjects();
   const { data: allEquipment } = useEquipment();
+  const { data: employees } = useEmployees();
+  const { data: allAttachments } = useAttachments();
+  const { data: allTools } = useTools();
+  const { profile: company } = useCompanyProfile();
+  const { sharePDF, sharing } = useSharePDF();
   const [view, setView] = React.useState<View>({ mode: "list" });
   const [subTab, setSubTab] = React.useState<SubTab>("my-forms");
 
@@ -131,6 +144,7 @@ export function FieldForms() {
   const linkedEquipment = React.useMemo(() => {
     const ids = new Set<string>();
     for (const s of equipmentSubmissions) {
+      if (s.equipmentId) ids.add(s.equipmentId);
       if (s.linkedEquipmentIds) for (const id of s.linkedEquipmentIds) ids.add(id);
     }
     return Array.from(ids)
@@ -155,12 +169,56 @@ export function FieldForms() {
   const formsForEquipment = React.useMemo(
     () =>
       selectedEquipmentId
-        ? equipmentSubmissions.filter((s) => s.linkedEquipmentIds?.includes(selectedEquipmentId))
+        ? equipmentSubmissions.filter((s) => s.equipmentId === selectedEquipmentId || s.linkedEquipmentIds?.includes(selectedEquipmentId))
         : [],
     [equipmentSubmissions, selectedEquipmentId]
   );
 
   const projectName = (id: string) => projectMap.get(id) || "";
+
+  /** Source-label map for PDF export */
+  const sourceLabelMap = React.useMemo<Record<string, Record<string, string>>>(() => ({
+    employees: Object.fromEntries(employees.map((e) => [e.id, e.name])),
+    projects: Object.fromEntries(projects.map((p) => [p.id, p.name])),
+    equipment: Object.fromEntries(
+      allEquipment
+        .filter((e) => e.id !== EQUIPMENT_NONE_ID)
+        .map((e) => [e.id, e.number ? `${e.name} #${e.number}` : e.name])
+    ),
+    attachments: Object.fromEntries(
+      allAttachments.map((a) => [a.id, a.number ? `${a.name} #${a.number}` : a.name])
+    ),
+    tools: Object.fromEntries(
+      allTools.map((t) => [t.id, t.number ? `${t.name} #${t.number}` : t.name])
+    ),
+  }), [employees, projects, allEquipment, allAttachments, allTools]);
+
+  const handleShareSubmission = (sub: FormSubmission) => {
+    const tpl = templateMap.get(sub.templateId);
+    if (!tpl) return;
+    const proj = sub.projectId ? projects.find((p) => p.id === sub.projectId) : undefined;
+    const equip = sub.equipmentId ? allEquipment.find((e) => e.id === sub.equipmentId) : undefined;
+    const projectAddress = proj
+      ? [proj.address, proj.city, proj.province].filter(Boolean).join(", ")
+      : undefined;
+    const safeName = (sub.templateName || "form").replace(/[^a-zA-Z0-9-_]/g, "_");
+    sharePDF(
+      () => generateFormSubmissionPDFBlobUrl({
+        name: sub.templateName,
+        description: tpl.description,
+        sections: tpl.sections,
+        values: sub.values,
+        requireSignature: tpl.requireSignature,
+        signatureDataUrl: sub.signatureUrl,
+        company,
+        sourceLabelMap,
+        projectName: proj?.name,
+        projectAddress,
+        equipmentName: equip ? (equip.number ? `${equip.name} #${equip.number}` : equip.name) : undefined,
+      }),
+      `${safeName}-${sub.date}.pdf`,
+    );
+  };
 
   const handleRefresh = async () => {
     await Promise.all([refreshT(), refreshS()]);
@@ -183,21 +241,31 @@ export function FieldForms() {
 
   // ── Helpers for rendering submission cards ──
   const SubmissionCard = ({ sub }: { sub: FormSubmission }) => (
-    <button
-      onClick={() => handleOpenSubmission(sub)}
-      className="w-full flex items-center gap-3 rounded-xl border bg-card px-4 py-3 text-left hover:bg-muted/50 active:scale-[0.99] transition-all cursor-pointer"
-    >
-      <FileText className="h-4 w-4 text-primary shrink-0" />
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium">{sub.templateName}</div>
-        <div className="text-xs text-muted-foreground">
-          {sub.date ? format(parseISO(sub.date), "MMM d, yyyy") : ""}
-          {sub.projectId ? ` · ${projectName(sub.projectId)}` : ""}
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => handleOpenSubmission(sub)}
+        className="flex-1 flex items-center gap-3 rounded-xl border bg-card px-4 py-3 text-left hover:bg-muted/50 active:scale-[0.99] transition-all cursor-pointer min-w-0"
+      >
+        <FileText className="h-4 w-4 text-primary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium">{sub.templateName}</div>
+          <div className="text-xs text-muted-foreground">
+            {sub.date ? format(parseISO(sub.date), "MMM d, yyyy") : ""}
+            {sub.projectId ? ` · ${projectName(sub.projectId)}` : ""}
+          </div>
         </div>
-      </div>
-      <div className="text-xs text-muted-foreground">{sub.submittedByName}</div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-    </button>
+        <div className="text-xs text-muted-foreground">{sub.submittedByName}</div>
+        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+      </button>
+      <button
+        onClick={() => handleShareSubmission(sub)}
+        disabled={sharing}
+        className="shrink-0 flex items-center justify-center h-10 w-10 rounded-lg border bg-card hover:bg-muted/50 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+        title="Share PDF"
+      >
+        {sharing ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Share2 className="h-4 w-4 text-muted-foreground" />}
+      </button>
+    </div>
   );
 
   const BackButton = ({ onClick, label }: { onClick: () => void; label: string }) => (

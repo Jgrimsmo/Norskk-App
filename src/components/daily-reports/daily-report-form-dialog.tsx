@@ -654,7 +654,7 @@ export default function DailyReportFormDialog({
                             >
                               <Checkbox
                                 checked={checked}
-                                onCheckedChange={() => toggleStaff(emp.id)}
+                                onCheckedChange={() => { toggleStaff(emp.id); setStaffSearch(""); }}
                                 className="h-3.5 w-3.5"
                               />
                               <span className={checked ? "font-medium" : ""}>
@@ -742,7 +742,7 @@ export default function DailyReportFormDialog({
                             >
                               <Checkbox
                                 checked={checked}
-                                onCheckedChange={() => toggleEquipment(eq.id)}
+                                onCheckedChange={() => { toggleEquipment(eq.id); setEquipSearch(""); }}
                                 className="h-3.5 w-3.5"
                               />
                               <span className={checked ? "font-medium" : ""}>
