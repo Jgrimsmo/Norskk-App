@@ -1,8 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions, type TableAction } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import {
   Table,
@@ -50,6 +57,15 @@ function newBlankVendor(): Vendor {
   };
 }
 
+// ── Column definitions for settings ──
+const VENDOR_COLUMN_DEFS: ColumnDef[] = [
+  { id: "name", label: "Name", alwaysVisible: true },
+  { id: "type", label: "Type" },
+  { id: "contact", label: "Contact" },
+  { id: "phone", label: "Phone" },
+  { id: "email", label: "Email" },
+];
+
 // ────────────────────────────────────────────
 // Props
 // ────────────────────────────────────────────
@@ -65,6 +81,45 @@ interface VendorsTableProps {
 
 export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
   const [unlockedIds, setUnlockedIds] = React.useState<Set<string>>(new Set());
+
+  // ── Column settings ──
+  const { columns, toggleColumn, reorderColumns, reset: resetColumns } =
+    useTableColumns("vendors-columns", VENDOR_COLUMN_DEFS);
+
+  // ── Row selection ──
+  const {
+    selected,
+    count: selectedCount,
+    isSelected,
+    toggle: toggleSelection,
+    selectAll,
+    deselectAll,
+    allSelected,
+  } = useRowSelection();
+
+  // ── Pagination ──
+  const { paginatedData, pageSize, setPageSize, totalItems } =
+    useTablePagination(vendors);
+
+  // ── Table actions ──
+  const handleBulkDelete = React.useCallback(() => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} vendor(s)?`)) return;
+    onVendorsChange((prev) => prev.filter((v) => !selected.has(v.id)));
+    deselectAll();
+  }, [selected, onVendorsChange, deselectAll]);
+
+  const tableActions: TableAction[] = React.useMemo(
+    () => [
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
 
   const updateVendor = React.useCallback(
     (id: string, field: keyof Vendor, value: string) => {
@@ -93,7 +148,7 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Button
           size="sm"
           variant="outline"
@@ -103,6 +158,15 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
           <Plus className="h-3.5 w-3.5" />
           Add Vendor
         </Button>
+        <div className="flex items-center gap-2">
+          <ColumnSettings
+            columns={columns}
+            onToggle={toggleColumn}
+            onReorder={reorderColumns}
+            onReset={resetColumns}
+          />
+          <TableActions actions={tableActions} selectedCount={selectedCount} />
+        </div>
       </div>
 
       {/* Table */}
@@ -111,23 +175,47 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[200px] text-xs font-semibold px-3">Name</TableHead>
-                <TableHead className="w-[120px] text-xs font-semibold px-3">Type</TableHead>
-                <TableHead className="w-[160px] text-xs font-semibold px-3">Contact</TableHead>
-                <TableHead className="w-[150px] text-xs font-semibold px-3">Phone</TableHead>
-                <TableHead className="text-xs font-semibold px-3">Email</TableHead>
+                <TableHead className="w-[40px] px-3">
+                  <Checkbox
+                    checked={
+                      paginatedData.length > 0 &&
+                      allSelected(paginatedData.map((v) => v.id))
+                    }
+                    onCheckedChange={(checked) => {
+                      if (checked) selectAll(paginatedData.map((v) => v.id));
+                      else deselectAll();
+                    }}
+                    aria-label="Select all"
+                  />
+                </TableHead>
+                {columns.filter((c) => c.visible).map((col) => {
+                  switch (col.id) {
+                    case "name":
+                      return <TableHead key="name" className="w-[200px] text-xs font-semibold px-3">Name</TableHead>;
+                    case "type":
+                      return <TableHead key="type" className="w-[120px] text-xs font-semibold px-3">Type</TableHead>;
+                    case "contact":
+                      return <TableHead key="contact" className="w-[160px] text-xs font-semibold px-3">Contact</TableHead>;
+                    case "phone":
+                      return <TableHead key="phone" className="w-[150px] text-xs font-semibold px-3">Phone</TableHead>;
+                    case "email":
+                      return <TableHead key="email" className="text-xs font-semibold px-3">Email</TableHead>;
+                    default:
+                      return null;
+                  }
+                })}
                 <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {vendors.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={columns.filter(c => c.visible).length + 2} className="h-32 text-center text-muted-foreground">
                     No vendors yet. Click &quot;Add Vendor&quot; to get started.
                   </TableCell>
                 </TableRow>
               )}
-              {vendors.map((vendor) => {
+              {paginatedData.map((vendor) => {
                 const isLocked = !unlockedIds.has(vendor.id);
                 return (
                   <TableRow
@@ -141,80 +229,77 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
                     onClick={isLocked ? (e) => unlockRow(vendor.id, e) : undefined}
                     title={isLocked ? "Click to edit" : undefined}
                   >
-                    {/* Name */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <span className="text-xs px-2 font-medium">{vendor.name || "—"}</span>
-                      ) : (
-                        <CellInput
-                          value={vendor.name}
-                          onChange={(v) => updateVendor(vendor.id, "name", v)}
-                          placeholder="Vendor name"
-                        />
-                      )}
+                    {/* Checkbox */}
+                    <TableCell className="px-3" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected(vendor.id)}
+                        onCheckedChange={() => toggleSelection(vendor.id)}
+                        aria-label={`Select ${vendor.name}`}
+                      />
                     </TableCell>
 
-                    {/* Type */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        vendor.type ? (
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] font-medium capitalize ${typeColors[vendor.type]}`}
-                          >
-                            {vendor.type}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs px-2 text-muted-foreground">—</span>
-                        )
-                      ) : (
-                        <CellSelect
-                          value={vendor.type ?? "vendor"}
-                          onChange={(v) => updateVendor(vendor.id, "type", v)}
-                          options={typeOptions}
-                          placeholder="Type"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Contact */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <span className="text-xs px-2 text-muted-foreground">{vendor.contact || "—"}</span>
-                      ) : (
-                        <CellInput
-                          value={vendor.contact ?? ""}
-                          onChange={(v) => updateVendor(vendor.id, "contact", v)}
-                          placeholder="Contact name"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Phone */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <span className="text-xs px-2 text-muted-foreground">{vendor.phone || "—"}</span>
-                      ) : (
-                        <CellInput
-                          value={vendor.phone ?? ""}
-                          onChange={(v) => updateVendor(vendor.id, "phone", v)}
-                          placeholder="Phone"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Email */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <span className="text-xs px-2 text-muted-foreground">{vendor.email || "—"}</span>
-                      ) : (
-                        <CellInput
-                          value={vendor.email ?? ""}
-                          onChange={(v) => updateVendor(vendor.id, "email", v)}
-                          placeholder="Email"
-                        />
-                      )}
-                    </TableCell>
+                    {columns.filter((c) => c.visible).map((col) => {
+                      switch (col.id) {
+                        case "name":
+                          return (
+                            <TableCell key="name" className="p-0 px-1">
+                              {isLocked ? (
+                                <span className="text-xs px-2 font-medium">{vendor.name || "—"}</span>
+                              ) : (
+                                <CellInput value={vendor.name} onChange={(v) => updateVendor(vendor.id, "name", v)} placeholder="Vendor name" />
+                              )}
+                            </TableCell>
+                          );
+                        case "type":
+                          return (
+                            <TableCell key="type" className="p-0 px-1">
+                              {isLocked ? (
+                                vendor.type ? (
+                                  <Badge variant="outline" className={`text-[10px] font-medium capitalize ${typeColors[vendor.type]}`}>
+                                    {vendor.type}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-xs px-2 text-muted-foreground">—</span>
+                                )
+                              ) : (
+                                <CellSelect value={vendor.type ?? "vendor"} onChange={(v) => updateVendor(vendor.id, "type", v)} options={typeOptions} placeholder="Type" />
+                              )}
+                            </TableCell>
+                          );
+                        case "contact":
+                          return (
+                            <TableCell key="contact" className="p-0 px-1">
+                              {isLocked ? (
+                                <span className="text-xs px-2 text-muted-foreground">{vendor.contact || "—"}</span>
+                              ) : (
+                                <CellInput value={vendor.contact ?? ""} onChange={(v) => updateVendor(vendor.id, "contact", v)} placeholder="Contact name" />
+                              )}
+                            </TableCell>
+                          );
+                        case "phone":
+                          return (
+                            <TableCell key="phone" className="p-0 px-1">
+                              {isLocked ? (
+                                <span className="text-xs px-2 text-muted-foreground">{vendor.phone || "—"}</span>
+                              ) : (
+                                <CellInput value={vendor.phone ?? ""} onChange={(v) => updateVendor(vendor.id, "phone", v)} placeholder="Phone" />
+                              )}
+                            </TableCell>
+                          );
+                        case "email":
+                          return (
+                            <TableCell key="email" className="p-0 px-1">
+                              {isLocked ? (
+                                <span className="text-xs px-2 text-muted-foreground">{vendor.email || "—"}</span>
+                              ) : (
+                                <CellInput value={vendor.email ?? ""} onChange={(v) => updateVendor(vendor.id, "email", v)} placeholder="Email" />
+                              )}
+                            </TableCell>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
@@ -248,10 +333,15 @@ export function VendorsTable({ vendors, onVendorsChange }: VendorsTableProps) {
             </TableBody>
           </Table>
         </div>
-        <div className="border-t px-3 py-2 text-xs text-muted-foreground">
-          {vendors.length} vendor{vendors.length !== 1 ? "s" : ""}
-        </div>
       </div>
+
+      {/* Pagination footer */}
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

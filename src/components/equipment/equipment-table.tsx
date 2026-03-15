@@ -1,13 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, X, Check } from "lucide-react";
+import { Plus, Pencil, X, Check, Download, Trash2 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { EquipmentDetailSheet } from "@/components/equipment/equipment-detail-sheet";
-import { TableExport } from "@/components/shared/table-export";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
-import type { ExportColumnDef } from "@/components/shared/export-dialog";
+import { ExportDialog, type ExportColumnDef, type ExportConfig } from "@/components/shared/export-dialog";
 import { equipmentCSVColumns, equipmentPDFColumns, equipmentPDFRows } from "@/lib/export/columns";
+import { useCompanyProfile } from "@/hooks/use-company-profile";
+import { exportToExcel, exportToCSV } from "@/lib/export/csv";
+import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions, type TableAction } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import {
   Table,
@@ -59,6 +68,29 @@ function newBlankEquipment(): Equipment {
   };
 }
 
+// ── Column definitions for settings ──
+const EQUIPMENT_COLUMN_DEFS: ColumnDef[] = [
+  { id: "number", label: "Equipment #" },
+  { id: "name", label: "Name" },
+  { id: "category", label: "Category" },
+  { id: "lastService", label: "Last Service" },
+  { id: "status", label: "Status" },
+];
+
+// ── Export column definitions ──
+const EQUIPMENT_EXPORT_COLUMNS: ExportColumnDef[] = [
+  { id: "number", header: "Number" },
+  { id: "name", header: "Name" },
+  { id: "category", header: "Category" },
+  { id: "lastServiceHours", header: "Last Service" },
+  { id: "status", header: "Status" },
+];
+
+const EQUIPMENT_GROUP_OPTIONS = [
+  { value: "category", label: "Category" },
+  { value: "status", label: "Status" },
+];
+
 // ────────────────────────────────────────────
 // Main table component
 // ────────────────────────────────────────────
@@ -93,6 +125,26 @@ export function EquipmentTable({
     },
     [onEquipmentChange]
   );
+
+  // ── Column settings ──
+  const { columns, toggleColumn, reorderColumns, isVisible, reset: resetColumns } =
+    useTableColumns("equipment-columns", EQUIPMENT_COLUMN_DEFS);
+
+  // ── Row selection ──
+  const {
+    selected,
+    count: selectedCount,
+    isSelected,
+    toggle: toggleSelection,
+    selectAll,
+    deselectAll,
+    allSelected,
+    someSelected,
+  } = useRowSelection();
+
+  // ── Export ──
+  const { profile } = useCompanyProfile();
+  const [exportOpen, setExportOpen] = React.useState(false);
 
   // ── Filter state ──
   const [categoryFilter, setCategoryFilter] = React.useState<Set<string>>(
@@ -140,6 +192,76 @@ export function EquipmentTable({
       return true;
     });
   }, [equipmentList, categoryFilter, statusFilter]);
+
+  // ── Pagination ──
+  const { paginatedData, pageSize, setPageSize, totalItems } =
+    useTablePagination(filteredEquipment);
+
+  // ── Export callbacks ──
+  const handleExport = React.useCallback(
+    (config: ExportConfig) => {
+      const datestamp = new Date().toISOString().slice(0, 10);
+      const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
+      if (config.format === "excel") {
+        exportToExcel(filteredEquipment, equipmentCSVColumns, filename, config.selectedColumns);
+      } else if (config.format === "csv") {
+        exportToCSV(filteredEquipment, equipmentCSVColumns, filename, config.selectedColumns);
+      } else {
+        generatePDF({
+          title: config.title,
+          filename,
+          company: profile,
+          columns: equipmentPDFColumns,
+          rows: equipmentPDFRows(filteredEquipment),
+          orientation: config.orientation,
+          selectedColumns: config.selectedColumns,
+          groupBy: config.groupBy,
+        });
+      }
+    },
+    [filteredEquipment, profile]
+  );
+
+  const handlePreview = React.useCallback(
+    (config: ExportConfig) =>
+      generatePDFBlobUrl({
+        title: config.title,
+        filename: "preview",
+        company: profile,
+        columns: equipmentPDFColumns,
+        rows: equipmentPDFRows(filteredEquipment),
+        orientation: config.orientation,
+        selectedColumns: config.selectedColumns,
+        groupBy: config.groupBy,
+      }),
+    [filteredEquipment, profile]
+  );
+
+  const handleBulkDelete = React.useCallback(() => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} equipment item(s)?`)) return;
+    onEquipmentChange((prev) => prev.filter((e) => !selected.has(e.id)));
+    deselectAll();
+  }, [selected, onEquipmentChange, deselectAll]);
+
+  const tableActions: TableAction[] = React.useMemo(
+    () => [
+      {
+        label: "Export",
+        icon: <Download className="h-3.5 w-3.5" />,
+        onClick: () => setExportOpen(true),
+        alwaysEnabled: true,
+      },
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+        separatorBefore: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
 
   // ── Mutations ──
   const updateEquipment = React.useCallback(
@@ -192,7 +314,7 @@ export function EquipmentTable({
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Button
           size="sm"
           variant="outline"
@@ -203,7 +325,15 @@ export function EquipmentTable({
           <Plus className="h-3.5 w-3.5" />
           Add Equipment
         </Button>
-        <EquipmentExport equipment={filteredEquipment} />
+        <div className="flex items-center gap-2">
+          <ColumnSettings
+            columns={columns}
+            onToggle={toggleColumn}
+            onReorder={reorderColumns}
+            onReset={resetColumns}
+          />
+          <TableActions actions={tableActions} selectedCount={selectedCount} />
+        </div>
       </div>
 
       {/* Add form */}
@@ -253,46 +383,58 @@ export function EquipmentTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[120px] text-xs font-semibold px-3">
-                  Equipment #
-                </TableHead>
-                <TableHead className="w-[220px] text-xs font-semibold px-3">
-                  Name
-                </TableHead>
-                <TableHead className="w-[160px] text-xs font-semibold px-3">
-                  <ColumnFilter
-                    title="Category"
-                    options={categoryOptions}
-                    selected={categoryFilter}
-                    onChange={setCategoryFilter}
+                <TableHead className="w-[40px] px-3">
+                  <Checkbox
+                    checked={
+                      paginatedData.length > 0 &&
+                      allSelected(paginatedData.map((e) => e.id))
+                    }
+                    onCheckedChange={(checked) => {
+                      if (checked) selectAll(paginatedData.map((e) => e.id));
+                      else deselectAll();
+                    }}
+                    aria-label="Select all"
                   />
                 </TableHead>
-                <TableHead className="w-[120px] text-xs font-semibold px-3">
-                  Last Service
-                </TableHead>
-                <TableHead className="w-[130px] text-xs font-semibold px-3">
-                  <ColumnFilter
-                    title="Status"
-                    options={statusOptions}
-                    selected={statusFilter}
-                    onChange={setStatusFilter}
-                  />
-                </TableHead>
+                {columns.filter((c) => c.visible).map((col) => {
+                  switch (col.id) {
+                    case "number":
+                      return <TableHead key="number" className="w-[120px] text-xs font-semibold px-3">Equipment #</TableHead>;
+                    case "name":
+                      return <TableHead key="name" className="w-[220px] text-xs font-semibold px-3">Name</TableHead>;
+                    case "category":
+                      return (
+                        <TableHead key="category" className="w-[160px] text-xs font-semibold px-3">
+                          <ColumnFilter title="Category" options={categoryOptions} selected={categoryFilter} onChange={setCategoryFilter} />
+                        </TableHead>
+                      );
+                    case "lastService":
+                      return <TableHead key="lastService" className="w-[120px] text-xs font-semibold px-3">Last Service</TableHead>;
+                    case "status":
+                      return (
+                        <TableHead key="status" className="w-[130px] text-xs font-semibold px-3">
+                          <ColumnFilter title="Status" options={statusOptions} selected={statusFilter} onChange={setStatusFilter} />
+                        </TableHead>
+                      );
+                    default:
+                      return null;
+                  }
+                })}
                 <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEquipment.length === 0 && (
+              {paginatedData.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={columns.filter((c) => c.visible).length + 2}
                     className="h-32 text-center text-muted-foreground"
                   >
                     No equipment matches the current filters.
                   </TableCell>
                 </TableRow>
               )}
-              {filteredEquipment.map((eq) => {
+              {paginatedData.map((eq) => {
                 const isLocked = !unlockedIds.has(eq.id);
 
                 return (
@@ -303,97 +445,85 @@ export function EquipmentTable({
                       isLocked ? "" : "hover:bg-muted/20"
                     }`}
                   >
-                    {/* Equipment # */}
-                    <TableCell className="text-xs p-0 px-1">
-                      {isLocked ? (
-                        <span className="px-2 text-muted-foreground font-medium">
-                          {eq.number}
-                        </span>
-                      ) : (
-                        <CellInput
-                          value={eq.number}
-                          onChange={(v) =>
-                            updateEquipment(eq.id, "number", v)
-                          }
-                          placeholder="e.g. EQ-008"
-                        />
-                      )}
+                    {/* Checkbox */}
+                    <TableCell className="p-0 px-3">
+                      <Checkbox
+                        checked={isSelected(eq.id)}
+                        onCheckedChange={() => toggleSelection(eq.id)}
+                        aria-label={`Select ${eq.name}`}
+                      />
                     </TableCell>
 
-                    {/* Name */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <button
-                          className="text-xs px-2 font-medium text-foreground hover:text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left transition-colors"
-                          onClick={() => setSelectedEqId(eq.id)}
-                        >
-                          {eq.name}
-                        </button>
-                      ) : (
-                        <CellInput
-                          value={eq.name}
-                          onChange={(v) =>
-                            updateEquipment(eq.id, "name", v)
-                          }
-                          placeholder="Equipment name"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Category */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <span className="text-xs px-2 text-muted-foreground">
-                          {eq.category}
-                        </span>
-                      ) : (
-                        <CellSelect
-                          value={eq.category}
-                          onChange={(v) =>
-                            updateEquipment(eq.id, "category", v)
-                          }
-                          options={categorySelectOptions}
-                          placeholder="Category"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Last Service */}
-                    <TableCell className="p-0 px-1">
-                      <span className="text-xs px-2 text-muted-foreground">
-                        {(() => {
-                          const maxHours = (eq.serviceHistory || []).reduce(
-                            (max, e) => {
-                              const h = parseFloat(e.hours);
-                              return !isNaN(h) && h > max ? h : max;
-                            },
-                            -1
+                    {columns.filter((c) => c.visible).map((col) => {
+                      switch (col.id) {
+                        case "number":
+                          return (
+                            <TableCell key="number" className="text-xs p-0 px-1">
+                              {isLocked ? (
+                                <span className="px-2 text-muted-foreground font-medium">{eq.number}</span>
+                              ) : (
+                                <CellInput value={eq.number} onChange={(v) => updateEquipment(eq.id, "number", v)} placeholder="e.g. EQ-008" />
+                              )}
+                            </TableCell>
                           );
-                          return maxHours >= 0 ? String(maxHours) : eq.lastServiceHours || "—";
-                        })()}
-                      </span>
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-medium capitalize ${statusColors[eq.status]}`}
-                        >
-                          {statusLabels[eq.status]}
-                        </Badge>
-                      ) : (
-                        <CellSelect
-                          value={eq.status}
-                          onChange={(v) =>
-                            updateEquipment(eq.id, "status", v)
-                          }
-                          options={statusOptions}
-                          placeholder="Status"
-                        />
-                      )}
-                    </TableCell>
+                        case "name":
+                          return (
+                            <TableCell key="name" className="p-0 px-1">
+                              {isLocked ? (
+                                <button
+                                  className="text-xs px-2 font-medium text-foreground hover:text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left transition-colors"
+                                  onClick={() => setSelectedEqId(eq.id)}
+                                >
+                                  {eq.name}
+                                </button>
+                              ) : (
+                                <CellInput value={eq.name} onChange={(v) => updateEquipment(eq.id, "name", v)} placeholder="Equipment name" />
+                              )}
+                            </TableCell>
+                          );
+                        case "category":
+                          return (
+                            <TableCell key="category" className="p-0 px-1">
+                              {isLocked ? (
+                                <span className="text-xs px-2 text-muted-foreground">{eq.category}</span>
+                              ) : (
+                                <CellSelect value={eq.category} onChange={(v) => updateEquipment(eq.id, "category", v)} options={categorySelectOptions} placeholder="Category" />
+                              )}
+                            </TableCell>
+                          );
+                        case "lastService":
+                          return (
+                            <TableCell key="lastService" className="p-0 px-1">
+                              <span className="text-xs px-2 text-muted-foreground">
+                                {(() => {
+                                  const maxHours = (eq.serviceHistory || []).reduce(
+                                    (max, e) => {
+                                      const h = parseFloat(e.hours);
+                                      return !isNaN(h) && h > max ? h : max;
+                                    },
+                                    -1
+                                  );
+                                  return maxHours >= 0 ? String(maxHours) : eq.lastServiceHours || "—";
+                                })()}
+                              </span>
+                            </TableCell>
+                          );
+                        case "status":
+                          return (
+                            <TableCell key="status" className="p-0 px-1">
+                              {isLocked ? (
+                                <Badge variant="outline" className={`text-[10px] font-medium capitalize ${statusColors[eq.status]}`}>
+                                  {statusLabels[eq.status]}
+                                </Badge>
+                              ) : (
+                                <CellSelect value={eq.status} onChange={(v) => updateEquipment(eq.id, "status", v)} options={statusOptions} placeholder="Status" />
+                              )}
+                            </TableCell>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
@@ -462,16 +592,25 @@ export function EquipmentTable({
         </div>
       </div>
 
-      {/* Summary footer */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
-        <span>
-          {filteredEquipment.length} of{" "}
-          {equipmentList.filter((e) => e.id !== EQUIPMENT_NONE_ID).length} equipment
-        </span>
-        <span className="font-medium text-foreground">
-          {equipmentList.filter((e) => e.status === "available" && e.id !== EQUIPMENT_NONE_ID).length} available
-        </span>
-      </div>
+      {/* Pagination footer */}
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
+      {/* Export dialog (controlled) */}
+      <ExportDialog
+        controlledOpen={exportOpen}
+        onControlledOpenChange={setExportOpen}
+        trigger={null}
+        columns={EQUIPMENT_EXPORT_COLUMNS}
+        groupOptions={EQUIPMENT_GROUP_OPTIONS}
+        defaultTitle="Equipment"
+        onExport={handleExport}
+        onGeneratePDFPreview={handlePreview}
+        recordCount={filteredEquipment.length}
+      />
       {/* Equipment detail sheet */}
       <EquipmentDetailSheet
         equipment={selectedEquipment}
@@ -480,33 +619,5 @@ export function EquipmentTable({
         onUpdate={handleDetailUpdate}
       />
     </div>
-  );
-}
-
-// ── Export sub-component ──
-const EQUIPMENT_EXPORT_COLUMNS: ExportColumnDef[] = [
-  { id: "number", header: "Number" },
-  { id: "name", header: "Name" },
-  { id: "category", header: "Category" },
-  { id: "lastServiceHours", header: "Last Service" },
-  { id: "status", header: "Status" },
-];
-
-const EQUIPMENT_GROUP_OPTIONS = [
-  { value: "category", label: "Category" },
-  { value: "status", label: "Status" },
-];
-
-function EquipmentExport({ equipment }: { equipment: Equipment[] }) {
-  return (
-    <TableExport
-      items={equipment}
-      csvColumns={equipmentCSVColumns}
-      pdfColumns={equipmentPDFColumns}
-      pdfRows={equipmentPDFRows(equipment)}
-      exportColumns={EQUIPMENT_EXPORT_COLUMNS}
-      groupOptions={EQUIPMENT_GROUP_OPTIONS}
-      defaultTitle="Equipment"
-    />
   );
 }

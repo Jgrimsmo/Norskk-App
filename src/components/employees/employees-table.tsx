@@ -1,10 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, Check, Users, X } from "lucide-react";
+import { Plus, Pencil, Check, Users, X, Trash2 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { EmployeeDetailSheet } from "@/components/employees/employee-detail-sheet";
 import { DEFAULT_ROLE_TEMPLATES } from "@/lib/constants/permissions";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions, type TableAction } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 import {
@@ -51,6 +58,16 @@ function newBlankEmployee(): Employee {
   };
 }
 
+// ── Column definitions for settings ──
+const EMPLOYEE_COLUMN_DEFS: ColumnDef[] = [
+  { id: "name", label: "Name", alwaysVisible: true },
+  { id: "role", label: "Role / Title" },
+  { id: "permLevel", label: "Permission Level" },
+  { id: "phone", label: "Phone" },
+  { id: "email", label: "Email" },
+  { id: "status", label: "Status" },
+];
+
 // ────────────────────────────────────────────
 // Main table component
 // ────────────────────────────────────────────
@@ -83,6 +100,22 @@ export function EmployeesTable({
     },
     [onEmployeesChange]
   );
+
+  // ── Column settings ──
+  const { columns, toggleColumn, reorderColumns, isVisible, reset: resetColumns } =
+    useTableColumns("employees-columns", EMPLOYEE_COLUMN_DEFS);
+
+  // ── Row selection ──
+  const {
+    selected,
+    count: selectedCount,
+    isSelected,
+    toggle: toggleSelection,
+    selectAll,
+    deselectAll,
+    allSelected,
+    someSelected,
+  } = useRowSelection();
 
   // ── Filter state ──
   const [roleFilter, setRoleFilter] = React.useState<Set<string>>(new Set());
@@ -124,6 +157,30 @@ export function EmployeesTable({
       return true;
     });
   }, [employeeList, roleFilter, permLevelFilter, statusFilter]);
+
+  // ── Pagination ──
+  const { paginatedData, pageSize, setPageSize, totalItems } =
+    useTablePagination(filteredEmployees);
+
+  // ── Table actions ──
+  const handleBulkDelete = React.useCallback(() => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} employee(s)?`)) return;
+    onEmployeesChange((prev) => prev.filter((e) => !selected.has(e.id)));
+    deselectAll();
+  }, [selected, onEmployeesChange, deselectAll]);
+
+  const tableActions: TableAction[] = React.useMemo(
+    () => [
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
 
   // ── Mutations ──
   const updateEmployee = React.useCallback(
@@ -184,7 +241,7 @@ export function EmployeesTable({
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Button
           size="sm"
           variant="outline"
@@ -195,6 +252,15 @@ export function EmployeesTable({
           <Plus className="h-3.5 w-3.5" />
           Add Employee
         </Button>
+        <div className="flex items-center gap-2">
+          <ColumnSettings
+            columns={columns}
+            onToggle={toggleColumn}
+            onReorder={reorderColumns}
+            onReset={resetColumns}
+          />
+          <TableActions actions={tableActions} selectedCount={selectedCount} />
+        </div>
       </div>
 
       {/* Add form */}
@@ -283,46 +349,56 @@ export function EmployeesTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[170px] text-xs font-semibold px-3">
-                  Name
-                </TableHead>
-                <TableHead className="w-[140px] text-xs font-semibold px-3">
-                  <ColumnFilter
-                    title="Role / Title"
-                    options={roleOptions}
-                    selected={roleFilter}
-                    onChange={setRoleFilter}
+                <TableHead className="w-[40px] px-3">
+                  <Checkbox
+                    checked={
+                      paginatedData.length > 0 &&
+                      allSelected(paginatedData.map((e) => e.id))
+                    }
+                    onCheckedChange={(checked) => {
+                      if (checked) selectAll(paginatedData.map((e) => e.id));
+                      else deselectAll();
+                    }}
+                    aria-label="Select all"
                   />
                 </TableHead>
-                <TableHead className="w-[150px] text-xs font-semibold px-3">
-                  <ColumnFilter
-                    title="Permission Level"
-                    options={permLevelOptions}
-                    selected={permLevelFilter}
-                    onChange={setPermLevelFilter}
-                  />
-                </TableHead>
-                <TableHead className="w-[140px] text-xs font-semibold px-3">
-                  Phone
-                </TableHead>
-                <TableHead className="w-[180px] text-xs font-semibold px-3">
-                  Email
-                </TableHead>
-                <TableHead className="w-[110px] text-xs font-semibold px-3">
-                  <ColumnFilter
-                    title="Status"
-                    options={statusOptions}
-                    selected={statusFilter}
-                    onChange={setStatusFilter}
-                  />
-                </TableHead>
+                {columns.filter((c) => c.visible).map((col) => {
+                  switch (col.id) {
+                    case "name":
+                      return <TableHead key="name" className="w-[170px] text-xs font-semibold px-3">Name</TableHead>;
+                    case "role":
+                      return (
+                        <TableHead key="role" className="w-[140px] text-xs font-semibold px-3">
+                          <ColumnFilter title="Role / Title" options={roleOptions} selected={roleFilter} onChange={setRoleFilter} />
+                        </TableHead>
+                      );
+                    case "permLevel":
+                      return (
+                        <TableHead key="permLevel" className="w-[150px] text-xs font-semibold px-3">
+                          <ColumnFilter title="Permission Level" options={permLevelOptions} selected={permLevelFilter} onChange={setPermLevelFilter} />
+                        </TableHead>
+                      );
+                    case "phone":
+                      return <TableHead key="phone" className="w-[140px] text-xs font-semibold px-3">Phone</TableHead>;
+                    case "email":
+                      return <TableHead key="email" className="w-[180px] text-xs font-semibold px-3">Email</TableHead>;
+                    case "status":
+                      return (
+                        <TableHead key="status" className="w-[110px] text-xs font-semibold px-3">
+                          <ColumnFilter title="Status" options={statusOptions} selected={statusFilter} onChange={setStatusFilter} />
+                        </TableHead>
+                      );
+                    default:
+                      return null;
+                  }
+                })}
                 <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredEmployees.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-40 text-center">
+                  <TableCell colSpan={columns.filter(c => c.visible).length + 2} className="h-40 text-center">
                     {employeeList.length === 0 ? (
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Users className="h-8 w-8 opacity-30" />
@@ -343,7 +419,7 @@ export function EmployeesTable({
                   </TableCell>
                 </TableRow>
               )}
-              {filteredEmployees.map((emp) => {
+              {paginatedData.map((emp) => {
                 const isLocked = !unlockedIds.has(emp.id);
 
                 return (
@@ -351,97 +427,107 @@ export function EmployeesTable({
                     key={emp.id}
                     className="group h-[36px] hover:bg-muted/20"
                   >
-                    {/* Name */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <button
-                          className="text-xs px-2 font-medium text-foreground hover:text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left transition-colors"
-                          onClick={() => setSelectedEmpId(emp.id)}
-                        >
-                          {emp.name}
-                        </button>
-                      ) : (
-                        <CellInput
-                          value={emp.name}
-                          onChange={(v) => updateEmployee(emp.id, "name", v)}
-                          placeholder="Full name"
-                        />
-                      )}
+                    {/* Checkbox */}
+                    <TableCell className="px-3">
+                      <Checkbox
+                        checked={isSelected(emp.id)}
+                        onCheckedChange={() => toggleSelection(emp.id)}
+                        aria-label={`Select ${emp.name}`}
+                      />
                     </TableCell>
 
-                    {/* Role / Title */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <span className="text-xs px-2 text-muted-foreground">
-                          {emp.role || "—"}
-                        </span>
-                      ) : (
-                        <CellInput
-                          value={emp.role}
-                          onChange={(v) => updateEmployee(emp.id, "role", v)}
-                          placeholder="e.g. Director"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Permission Level (read-only — editable in Settings → User Management) */}
-                    <TableCell className="p-0 px-1">
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-medium"
-                      >
-                        {emp.permissionLevel || emp.role}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Phone */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <span className="text-xs px-2 text-muted-foreground">
-                          {emp.phone || "—"}
-                        </span>
-                      ) : (
-                        <CellInput
-                          value={emp.phone}
-                          onChange={(v) => updateEmployee(emp.id, "phone", v)}
-                          placeholder="(555) 000-0000"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Email */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <span className="text-xs px-2 text-muted-foreground">
-                          {emp.email || "—"}
-                        </span>
-                      ) : (
-                        <CellInput
-                          value={emp.email}
-                          onChange={(v) => updateEmployee(emp.id, "email", v)}
-                          placeholder="email@company.com"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-medium capitalize ${statusColors[emp.status]}`}
-                        >
-                          {statusLabels[emp.status]}
-                        </Badge>
-                      ) : (
-                        <CellSelect
-                          value={emp.status}
-                          onChange={(v) => updateEmployee(emp.id, "status", v)}
-                          options={statusOptions}
-                          placeholder="Status"
-                        />
-                      )}
-                    </TableCell>
+                    {columns.filter((c) => c.visible).map((col) => {
+                      switch (col.id) {
+                        case "name":
+                          return (
+                            <TableCell key="name" className="p-0 px-1">
+                              {isLocked ? (
+                                <button
+                                  className="text-xs px-2 font-medium text-foreground hover:text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left transition-colors"
+                                  onClick={() => setSelectedEmpId(emp.id)}
+                                >
+                                  {emp.name}
+                                </button>
+                              ) : (
+                                <CellInput
+                                  value={emp.name}
+                                  onChange={(v) => updateEmployee(emp.id, "name", v)}
+                                  placeholder="Full name"
+                                />
+                              )}
+                            </TableCell>
+                          );
+                        case "role":
+                          return (
+                            <TableCell key="role" className="p-0 px-1">
+                              {isLocked ? (
+                                <span className="text-xs px-2 text-muted-foreground">{emp.role || "—"}</span>
+                              ) : (
+                                <CellInput
+                                  value={emp.role}
+                                  onChange={(v) => updateEmployee(emp.id, "role", v)}
+                                  placeholder="e.g. Director"
+                                />
+                              )}
+                            </TableCell>
+                          );
+                        case "permLevel":
+                          return (
+                            <TableCell key="permLevel" className="p-0 px-1">
+                              <Badge variant="outline" className="text-[10px] font-medium">
+                                {emp.permissionLevel || emp.role}
+                              </Badge>
+                            </TableCell>
+                          );
+                        case "phone":
+                          return (
+                            <TableCell key="phone" className="p-0 px-1">
+                              {isLocked ? (
+                                <span className="text-xs px-2 text-muted-foreground">{emp.phone || "—"}</span>
+                              ) : (
+                                <CellInput
+                                  value={emp.phone}
+                                  onChange={(v) => updateEmployee(emp.id, "phone", v)}
+                                  placeholder="(555) 000-0000"
+                                />
+                              )}
+                            </TableCell>
+                          );
+                        case "email":
+                          return (
+                            <TableCell key="email" className="p-0 px-1">
+                              {isLocked ? (
+                                <span className="text-xs px-2 text-muted-foreground">{emp.email || "—"}</span>
+                              ) : (
+                                <CellInput
+                                  value={emp.email}
+                                  onChange={(v) => updateEmployee(emp.id, "email", v)}
+                                  placeholder="email@company.com"
+                                />
+                              )}
+                            </TableCell>
+                          );
+                        case "status":
+                          return (
+                            <TableCell key="status" className="p-0 px-1">
+                              {isLocked ? (
+                                <Badge variant="outline" className={`text-[10px] font-medium capitalize ${statusColors[emp.status]}`}>
+                                  {statusLabels[emp.status]}
+                                </Badge>
+                              ) : (
+                                <CellSelect
+                                  value={emp.status}
+                                  onChange={(v) => updateEmployee(emp.id, "status", v)}
+                                  options={statusOptions}
+                                  placeholder="Status"
+                                />
+                              )}
+                            </TableCell>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
@@ -510,15 +596,13 @@ export function EmployeesTable({
         </div>
       </div>
 
-      {/* Summary footer */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
-        <span>
-          {filteredEmployees.length} of {employeeList.length} employees
-        </span>
-        <span className="font-medium text-foreground">
-          {employeeList.filter((e) => e.status === "active").length} active
-        </span>
-      </div>
+      {/* Pagination footer */}
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
       {/* Employee detail sheet */}
       <EmployeeDetailSheet
         employee={selectedEmployee}

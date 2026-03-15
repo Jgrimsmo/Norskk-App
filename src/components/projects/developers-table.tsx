@@ -9,6 +9,7 @@ import {
   Check,
   X,
   Search,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,12 +26,42 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions, type TableAction } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { useDevelopers } from "@/hooks/use-firestore";
 import type { Developer } from "@/lib/types/time-tracking";
 
+// ── Column definitions for settings ──
+const DEVELOPER_COLUMN_DEFS: ColumnDef[] = [
+  { id: "name", label: "Company Name", alwaysVisible: true },
+  { id: "contact", label: "Contact" },
+  { id: "phone", label: "Phone" },
+  { id: "email", label: "Email" },
+];
+
 export function DevelopersTable() {
   const { data: developers, loading, add, update, remove } = useDevelopers();
+
+  // ── Column settings ──
+  const { columns, toggleColumn, reorderColumns, reset: resetColumns } =
+    useTableColumns("developers-columns", DEVELOPER_COLUMN_DEFS);
+
+  // ── Row selection ──
+  const {
+    selected,
+    count: selectedCount,
+    isSelected,
+    toggle: toggleSelection,
+    selectAll,
+    deselectAll,
+    allSelected,
+  } = useRowSelection();
 
   const [searchQuery, setSearchQuery] = React.useState("");
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -60,6 +91,32 @@ export function DevelopersTable() {
   });
 
   const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+
+  // ── Pagination ──
+  const { paginatedData, pageSize, setPageSize, totalItems } =
+    useTablePagination(sorted);
+
+  // ── Table actions ──
+  const handleBulkDelete = React.useCallback(async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} developer(s)?`)) return;
+    for (const id of selected) {
+      try { await remove(id); } catch { /* skip */ }
+    }
+    deselectAll();
+  }, [selected, remove, deselectAll]);
+
+  const tableActions: TableAction[] = React.useMemo(
+    () => [
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
 
   // ── Edit ──────────────────────────────────
   const startEdit = (d: Developer) => {
@@ -167,14 +224,20 @@ export function DevelopersTable() {
       <Separator />
 
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-        <Input
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search developers…"
-          className="h-8 text-xs pl-8"
-        />
+      <div className="flex items-center justify-between gap-2">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search developers…"
+            className="h-8 text-xs pl-8"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <ColumnSettings columns={columns} onToggle={toggleColumn} onReorder={reorderColumns} onReset={resetColumns} />
+          <TableActions actions={tableActions} selectedCount={selectedCount} />
+        </div>
       </div>
 
       {/* Add form */}
@@ -246,70 +309,88 @@ export function DevelopersTable() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-              <TableHead className="text-xs font-semibold px-3">Company Name</TableHead>
-              <TableHead className="text-xs font-semibold px-3">Contact</TableHead>
-              <TableHead className="text-xs font-semibold px-3">Phone</TableHead>
-              <TableHead className="text-xs font-semibold px-3">Email</TableHead>
+              <TableHead className="w-[40px] px-3">
+                <Checkbox
+                  checked={paginatedData.length > 0 && allSelected(paginatedData.map((d) => d.id))}
+                  onCheckedChange={(checked) => { if (checked) selectAll(paginatedData.map((d) => d.id)); else deselectAll(); }}
+                  aria-label="Select all"
+                />
+              </TableHead>
+              {columns.filter((c) => c.visible).map((col) => {
+                switch (col.id) {
+                  case "name":
+                    return <TableHead key="name" className="text-xs font-semibold px-3">Company Name</TableHead>;
+                  case "contact":
+                    return <TableHead key="contact" className="text-xs font-semibold px-3">Contact</TableHead>;
+                  case "phone":
+                    return <TableHead key="phone" className="text-xs font-semibold px-3">Phone</TableHead>;
+                  case "email":
+                    return <TableHead key="email" className="text-xs font-semibold px-3">Email</TableHead>;
+                  default:
+                    return null;
+                }
+              })}
               <TableHead className="text-xs font-semibold px-3 w-[80px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((d) => {
+            {paginatedData.map((d) => {
               const isEditing = editingId === d.id;
               return (
                 <TableRow key={d.id} className="group h-[36px] hover:bg-muted/30">
-                  <TableCell className="text-xs font-medium">
+                  <TableCell className="px-3">
+                    <Checkbox
+                      checked={isSelected(d.id)}
+                      onCheckedChange={() => toggleSelection(d.id)}
+                      aria-label={`Select ${d.name}`}
+                    />
+                  </TableCell>
+                  {columns.filter((c) => c.visible).map((col) => {
+                    switch (col.id) {
+                      case "name":
+                        return (
+                          <TableCell key="name" className="text-xs font-medium">
                     {isEditing ? (
-                      <Input
-                        value={editForm.name}
-                        onChange={(e) =>
-                          setEditForm((p) => ({ ...p, name: e.target.value }))
-                        }
-                        className="h-7 text-xs"
-                      />
+                      <Input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} className="h-7 text-xs" />
                     ) : (
                       <span className="font-semibold">{d.name}</span>
                     )}
-                  </TableCell>
-                  <TableCell className="text-xs">
+                          </TableCell>
+                        );
+                      case "contact":
+                        return (
+                          <TableCell key="contact" className="text-xs">
                     {isEditing ? (
-                      <Input
-                        value={editForm.contact}
-                        onChange={(e) =>
-                          setEditForm((p) => ({ ...p, contact: e.target.value }))
-                        }
-                        className="h-7 text-xs"
-                      />
+                      <Input value={editForm.contact} onChange={(e) => setEditForm((p) => ({ ...p, contact: e.target.value }))} className="h-7 text-xs" />
                     ) : (
                       <span className="text-muted-foreground">{d.contact ?? "—"}</span>
                     )}
-                  </TableCell>
-                  <TableCell className="text-xs">
+                          </TableCell>
+                        );
+                      case "phone":
+                        return (
+                          <TableCell key="phone" className="text-xs">
                     {isEditing ? (
-                      <Input
-                        value={editForm.phone}
-                        onChange={(e) =>
-                          setEditForm((p) => ({ ...p, phone: e.target.value }))
-                        }
-                        className="h-7 text-xs"
-                      />
+                      <Input value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} className="h-7 text-xs" />
                     ) : (
                       <span className="text-muted-foreground">{d.phone ?? "—"}</span>
                     )}
-                  </TableCell>
-                  <TableCell className="text-xs">
+                          </TableCell>
+                        );
+                      case "email":
+                        return (
+                          <TableCell key="email" className="text-xs">
                     {isEditing ? (
-                      <Input
-                        value={editForm.email}
-                        onChange={(e) =>
-                          setEditForm((p) => ({ ...p, email: e.target.value }))
-                        }
-                        className="h-7 text-xs"
-                      />
+                      <Input value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} className="h-7 text-xs" />
                     ) : (
                       <span className="text-muted-foreground">{d.email ?? "—"}</span>
                     )}
-                  </TableCell>
+                          </TableCell>
+                        );
+                      default:
+                        return null;
+                    }
+                  })}
                   <TableCell>
                     <div className="flex items-center gap-0.5">
                       {isEditing ? (
@@ -352,7 +433,7 @@ export function DevelopersTable() {
             {sorted.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={columns.filter(c => c.visible).length + 2}
                   className="h-32 text-center text-muted-foreground"
                 >
                   {searchQuery
@@ -365,9 +446,12 @@ export function DevelopersTable() {
         </Table>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        {developers.length} developer{developers.length !== 1 ? "s" : ""} total
-      </p>
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

@@ -1,12 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { FileText, Pencil, MessageSquare } from "lucide-react";
+import { FileText, Pencil, MessageSquare, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { DateRange } from "react-day-picker";
 
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
 import { DateColumnFilter } from "@/components/time-tracking/date-column-filter";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions, type TableAction } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -116,6 +123,19 @@ const statusOptions = [
   { id: "rejected",     label: "Rejected" },
 ];
 
+// ── Column definitions for settings ──
+const PAYABLE_COLUMN_DEFS: ColumnDef[] = [
+  { id: "date", label: "Date", alwaysVisible: true },
+  { id: "project", label: "Project" },
+  { id: "vendor", label: "Vendor" },
+  { id: "amount", label: "Amount" },
+  { id: "costCode", label: "Cost Code" },
+  { id: "billingType", label: "Billing Type" },
+  { id: "status", label: "Status" },
+  { id: "file", label: "File" },
+  { id: "note", label: "Note" },
+];
+
 // ────────────────────────────────────────────
 // Props
 // ────────────────────────────────────────────
@@ -149,6 +169,21 @@ export function PayablesTable({
   onDelete,
 }: PayablesTableProps) {
   const [editingInvoice, setEditingInvoice] = React.useState<Invoice | null>(null);
+
+  // ── Column settings ──
+  const { columns, toggleColumn, reorderColumns, reset: resetColumns } =
+    useTableColumns("payables-columns", PAYABLE_COLUMN_DEFS);
+
+  // ── Row selection ──
+  const {
+    selected,
+    count: selectedCount,
+    isSelected,
+    toggle: toggleSelection,
+    selectAll,
+    deselectAll,
+    allSelected,
+  } = useRowSelection();
 
   // Filters
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
@@ -207,144 +242,168 @@ export function PayablesTable({
     });
   }, [invoices, dateRange, projectFilter, vendorFilter, costCodeFilter, billingTypeFilter]);
 
+  // ── Pagination ──
+  const { paginatedData, pageSize, setPageSize, totalItems } =
+    useTablePagination(filteredInvoices);
+
+  // ── Table actions ──
+  const handleBulkDelete = React.useCallback(() => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} payable(s)?`)) return;
+    for (const id of selected) onDelete(id);
+    deselectAll();
+  }, [selected, onDelete, deselectAll]);
+
+  const tableActions: TableAction[] = React.useMemo(
+    () => [
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
+
   return (
+    <div className="space-y-3">
+      {/* Toolbar */}
+      <div className="flex items-center justify-end gap-2">
+        <ColumnSettings columns={columns} onToggle={toggleColumn} onReorder={reorderColumns} onReset={resetColumns} />
+        <TableActions actions={tableActions} selectedCount={selectedCount} />
+      </div>
+
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-              <TableHead className="w-[120px] px-3">
-                <DateColumnFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+              <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
+              <TableHead className="w-[40px] px-3">
+                <Checkbox
+                  checked={paginatedData.length > 0 && allSelected(paginatedData.map((i) => i.id))}
+                  onCheckedChange={(checked) => { if (checked) selectAll(paginatedData.map((i) => i.id)); else deselectAll(); }}
+                  aria-label="Select all"
+                />
               </TableHead>
-              <TableHead className="w-[200px] px-3">
-                <ColumnFilter title="Project" options={projectOptions} selected={projectFilter} onChange={setProjectFilter} />
-              </TableHead>
-              <TableHead className="w-[180px] px-3">
-                <ColumnFilter title="Vendor" options={vendorOptions} selected={vendorFilter} onChange={setVendorFilter} />
-              </TableHead>
-              <TableHead className="w-[110px] text-xs font-semibold px-3">Amount</TableHead>
-              <TableHead className="w-[130px] px-3">
-                <ColumnFilter title="Cost Code" options={costCodeOptions} selected={costCodeFilter} onChange={setCostCodeFilter} />
-              </TableHead>
-              <TableHead className="w-[120px] px-3">
-                <ColumnFilter title="Billing Type" options={billingTypeOptions} selected={billingTypeFilter} onChange={setBillingTypeFilter} />
-              </TableHead>
-              <TableHead className="w-[140px] text-xs font-semibold px-3">Status</TableHead>
-              <TableHead className="w-[60px] text-xs font-semibold px-3">File</TableHead>
-              <TableHead className="w-[50px] text-xs font-semibold px-3">Note</TableHead>
+              {columns.filter((c) => c.visible).map((col) => {
+                switch (col.id) {
+                  case "date":
+                    return <TableHead key="date" className="w-[120px] px-3"><DateColumnFilter dateRange={dateRange} onDateRangeChange={setDateRange} /></TableHead>;
+                  case "project":
+                    return <TableHead key="project" className="w-[200px] px-3"><ColumnFilter title="Project" options={projectOptions} selected={projectFilter} onChange={setProjectFilter} /></TableHead>;
+                  case "vendor":
+                    return <TableHead key="vendor" className="w-[180px] px-3"><ColumnFilter title="Vendor" options={vendorOptions} selected={vendorFilter} onChange={setVendorFilter} /></TableHead>;
+                  case "amount":
+                    return <TableHead key="amount" className="w-[110px] text-xs font-semibold px-3">Amount</TableHead>;
+                  case "costCode":
+                    return <TableHead key="costCode" className="w-[130px] px-3"><ColumnFilter title="Cost Code" options={costCodeOptions} selected={costCodeFilter} onChange={setCostCodeFilter} /></TableHead>;
+                  case "billingType":
+                    return <TableHead key="billingType" className="w-[120px] px-3"><ColumnFilter title="Billing Type" options={billingTypeOptions} selected={billingTypeFilter} onChange={setBillingTypeFilter} /></TableHead>;
+                  case "status":
+                    return <TableHead key="status" className="w-[140px] text-xs font-semibold px-3">Status</TableHead>;
+                  case "file":
+                    return <TableHead key="file" className="w-[60px] text-xs font-semibold px-3">File</TableHead>;
+                  case "note":
+                    return <TableHead key="note" className="w-[50px] text-xs font-semibold px-3">Note</TableHead>;
+                  default:
+                    return null;
+                }
+              })}
               <TableHead className="w-[100px] text-xs font-semibold px-3">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredInvoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={columns.filter(c => c.visible).length + 2} className="h-32 text-center text-muted-foreground">
                   No invoices found.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredInvoices.map((inv) => {
+              paginatedData.map((inv) => {
                 const isReview = inv.status === "needs-review";
                 return (
                 <TableRow
                   key={inv.id}
                   className="h-[36px] group"
                 >
-                  {/* Date */}
-                  <TableCell className="p-0 px-1">
+                  {/* Checkbox */}
+                  <TableCell className="px-3" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={isSelected(inv.id)}
+                      onCheckedChange={() => toggleSelection(inv.id)}
+                      aria-label="Select invoice"
+                    />
+                  </TableCell>
+
+                  {columns.filter((c) => c.visible).map((col) => {
+                    switch (col.id) {
+                      case "date":
+                        return (
+                          <TableCell key="date" className="p-0 px-1">
                     {isReview ? (
-                      <CellInput
-                        type="date"
-                        value={inv.date}
-                        onChange={(v) => onUpdate(inv.id, { date: v })}
-                      />
+                      <CellInput type="date" value={inv.date} onChange={(v) => onUpdate(inv.id, { date: v })} />
                     ) : (
                       <span className="text-xs px-2">{format(parseISO(inv.date), "MM/dd/yyyy")}</span>
                     )}
-                  </TableCell>
-                  {/* Project */}
-                  <TableCell className="p-0 px-1">
+                          </TableCell>
+                        );
+                      case "project":
+                        return (
+                          <TableCell key="project" className="p-0 px-1">
                     {isReview ? (
-                      <CellSelect
-                        value={inv.projectId}
-                        onChange={(v) => onUpdate(inv.id, { projectId: v })}
-                        options={projectOptions}
-                        placeholder="Project"
-                      />
+                      <CellSelect value={inv.projectId} onChange={(v) => onUpdate(inv.id, { projectId: v })} options={projectOptions} placeholder="Project" />
                     ) : (
                       <span className="text-xs px-2 font-medium">{projectMap[inv.projectId] ?? "—"}</span>
                     )}
-                  </TableCell>
-                  {/* Vendor */}
-                  <TableCell className="p-0 px-1">
+                          </TableCell>
+                        );
+                      case "vendor":
+                        return (
+                          <TableCell key="vendor" className="p-0 px-1">
                     {isReview ? (
-                      <CellSelect
-                        value={inv.vendorId}
-                        onChange={(v) => onUpdate(inv.id, { vendorId: v })}
-                        options={vendorOptions}
-                        placeholder="Vendor"
-                      />
+                      <CellSelect value={inv.vendorId} onChange={(v) => onUpdate(inv.id, { vendorId: v })} options={vendorOptions} placeholder="Vendor" />
                     ) : (
                       <span className="text-xs px-2">{vendorMap[inv.vendorId] ?? "—"}</span>
                     )}
-                  </TableCell>
-                  {/* Amount */}
-                  <TableCell className="p-0 px-1">
+                          </TableCell>
+                        );
+                      case "amount":
+                        return (
+                          <TableCell key="amount" className="p-0 px-1">
                     {isReview ? (
-                      <CellInput
-                        type="number"
-                        value={inv.amount}
-                        onChange={(v) => {
-                          const n = parseFloat(v);
-                          if (!isNaN(n)) onUpdate(inv.id, { amount: n });
-                        }}
-                        placeholder="0.00"
-                      />
+                      <CellInput type="number" value={inv.amount} onChange={(v) => { const n = parseFloat(v); if (!isNaN(n)) onUpdate(inv.id, { amount: n }); }} placeholder="0.00" />
                     ) : (
-                      <span className="text-xs px-2 font-medium">
-                        ${inv.amount.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
+                      <span className="text-xs px-2 font-medium">${inv.amount.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     )}
-                  </TableCell>
-                  {/* Cost Code */}
-                  <TableCell className="p-0 px-1">
+                          </TableCell>
+                        );
+                      case "costCode":
+                        return (
+                          <TableCell key="costCode" className="p-0 px-1">
                     {isReview ? (
-                      <CellSelect
-                        value={inv.costCodeId ?? ""}
-                        onChange={(v) => onUpdate(inv.id, { costCodeId: v || undefined })}
-                        options={costCodeOptions}
-                        placeholder="Cost Code"
-                      />
+                      <CellSelect value={inv.costCodeId ?? ""} onChange={(v) => onUpdate(inv.id, { costCodeId: v || undefined })} options={costCodeOptions} placeholder="Cost Code" />
                     ) : (
-                      <span className="text-xs px-2 text-muted-foreground">
-                        {inv.costCodeId ? costCodeMap[inv.costCodeId] ?? "—" : "—"}
-                      </span>
+                      <span className="text-xs px-2 text-muted-foreground">{inv.costCodeId ? costCodeMap[inv.costCodeId] ?? "—" : "—"}</span>
                     )}
-                  </TableCell>
-                  {/* Billing Type */}
-                  <TableCell className="p-0 px-1">
+                          </TableCell>
+                        );
+                      case "billingType":
+                        return (
+                          <TableCell key="billingType" className="p-0 px-1">
                     {isReview ? (
-                      <CellSelect
-                        value={inv.billingType ?? ""}
-                        onChange={(v) => onUpdate(inv.id, { billingType: v || undefined } as Partial<Invoice>)}
-                        options={billingTypeOptions}
-                        placeholder="Billing Type"
-                      />
+                      <CellSelect value={inv.billingType ?? ""} onChange={(v) => onUpdate(inv.id, { billingType: v || undefined } as Partial<Invoice>)} options={billingTypeOptions} placeholder="Billing Type" />
                     ) : (
-                      <span className="text-xs px-2 text-muted-foreground">
-                        {inv.billingType === "tm" ? "T&M" : inv.billingType === "lump-sum" ? "Lump Sum" : "—"}
-                      </span>
+                      <span className="text-xs px-2 text-muted-foreground">{inv.billingType === "tm" ? "T&M" : inv.billingType === "lump-sum" ? "Lump Sum" : "—"}</span>
                     )}
-                  </TableCell>
-                  {/* Status */}
-                  <TableCell className="p-0 px-1">
+                          </TableCell>
+                        );
+                      case "status":
+                        return (
+                          <TableCell key="status" className="p-0 px-1">
                     {isReview ? (
-                      <CellSelect
-                        value={inv.status}
-                        onChange={(v) => onUpdateStatus(inv.id, v as InvoiceStatus)}
-                        options={statusOptions}
-                        placeholder="Status"
-                      />
+                      <CellSelect value={inv.status} onChange={(v) => onUpdateStatus(inv.id, v as InvoiceStatus)} options={statusOptions} placeholder="Status" />
                     ) : (
                       <span className="text-xs px-2">
                         <span className={inv.status === "approved" ? "text-green-700" : "text-red-600"}>
@@ -358,32 +417,33 @@ export function PayablesTable({
                         )}
                       </span>
                     )}
-                  </TableCell>
-                  <TableCell className="px-3">
+                          </TableCell>
+                        );
+                      case "file":
+                        return (
+                          <TableCell key="file" className="px-3">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          asChild
-                        >
-                          <a href={inv.fileUrl} target="_blank" rel="noopener noreferrer">
-                            <FileText className="h-3.5 w-3.5" />
-                          </a>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" asChild>
+                          <a href={inv.fileUrl} target="_blank" rel="noopener noreferrer"><FileText className="h-3.5 w-3.5" /></a>
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="text-xs">Open PDF: {inv.fileName}</p>
-                      </TooltipContent>
+                      <TooltipContent><p className="text-xs">Open PDF: {inv.fileName}</p></TooltipContent>
                     </Tooltip>
-                  </TableCell>
-                  <TableCell className="px-1">
-                    <NotePopover
-                      note={inv.notes}
-                      onSave={(note) => onUpdate(inv.id, { notes: note || undefined } as Partial<Invoice>)}
-                    />
-                  </TableCell>
+                          </TableCell>
+                        );
+                      case "note":
+                        return (
+                          <TableCell key="note" className="px-1">
+                    <NotePopover note={inv.notes} onSave={(note) => onUpdate(inv.id, { notes: note || undefined } as Partial<Invoice>)} />
+                          </TableCell>
+                        );
+                      default:
+                        return null;
+                    }
+                  })}
+
+                  {/* Actions */}
                   <TableCell className="px-3">
                     <div className="flex items-center gap-0.5">
                       <Tooltip>
@@ -414,12 +474,15 @@ export function PayablesTable({
           </TableBody>
         </Table>
       </div>
-      <div className="border-t px-3 py-2 text-xs text-muted-foreground flex justify-between">
-        <span>{filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? "s" : ""}{filteredInvoices.length !== invoices.length ? ` (of ${invoices.length})` : ""}</span>
-        <span className="font-medium text-foreground">
-          Total: ${filteredInvoices.reduce((sum, inv) => sum + inv.amount, 0).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
       </div>
+
+      {/* Pagination footer */}
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
 
       <InvoiceEditDialog
         invoice={editingInvoice}

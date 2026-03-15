@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { format, parseISO } from "date-fns";
-import { Plus, Pencil, X } from "lucide-react";
+import { Plus, Pencil, X, Download, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -12,6 +12,13 @@ import {
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 import { TimeTrackingExport } from "@/components/time-tracking/time-tracking-export";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions, type TableAction } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 import {
@@ -58,6 +65,21 @@ import { workTypeLabels, workTypeOptions, approvalOptions } from "@/lib/constant
 // Helpers
 // ────────────────────────────────────────────
 import { lookupName } from "@/lib/utils/lookup";
+
+// ── Column definitions for settings ──
+const TIME_COLUMN_DEFS: ColumnDef[] = [
+  { id: "date", label: "Date", alwaysVisible: true },
+  { id: "employee", label: "Employee", alwaysVisible: true },
+  { id: "project", label: "Project" },
+  { id: "costCode", label: "Cost Code" },
+  { id: "equipment", label: "Equipment" },
+  { id: "attachment", label: "Attachment" },
+  { id: "tool", label: "Tool" },
+  { id: "workType", label: "Work Type" },
+  { id: "hours", label: "Hours" },
+  { id: "workTasks", label: "Work Tasks" },
+  { id: "approval", label: "Approval" },
+];
 
 /* ── Work Tasks Popover ── */
 function WorkTasksPopover({
@@ -235,6 +257,21 @@ export function TimeTrackingTable({
 
   const [unlockedIds, setUnlockedIds] = React.useState<Set<string>>(new Set());
 
+  // ── Column settings ──
+  const { columns, toggleColumn, reorderColumns, reset: resetColumns } =
+    useTableColumns("time-tracking-columns", TIME_COLUMN_DEFS);
+
+  // ── Row selection ──
+  const {
+    selected,
+    count: selectedCount,
+    isSelected,
+    toggle: toggleSelection,
+    selectAll,
+    deselectAll,
+    allSelected,
+  } = useRowSelection();
+
   // ── Add form state ──
   const [adding, setAdding] = React.useState(false);
   const [newForm, setNewForm] = React.useState(BLANK_NEW_ENTRY);
@@ -304,6 +341,40 @@ export function TimeTrackingTable({
     });
   }, [entries, employeeFilter, projectFilter, costCodeFilter, equipmentFilter, attachmentFilter, toolFilter, workTypeFilter, approvalFilter]);
 
+  // ── Pagination ──
+  const { paginatedData, pageSize, setPageSize, totalItems } =
+    useTablePagination(filteredEntries);
+
+  // ── Export ──
+  const [exportOpen, setExportOpen] = React.useState(false);
+
+  const handleBulkDelete = React.useCallback(() => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} time entr${selected.size === 1 ? "y" : "ies"}?`)) return;
+    onEntriesChange((prev) => prev.filter((e) => !selected.has(e.id)));
+    deselectAll();
+  }, [selected, onEntriesChange, deselectAll]);
+
+  // ── Table actions ──
+  const tableActions: TableAction[] = React.useMemo(
+    () => [
+      {
+        label: "Export",
+        icon: <Download className="h-3.5 w-3.5" />,
+        onClick: () => setExportOpen(true),
+        alwaysEnabled: true,
+      },
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+        separatorBefore: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
+
   // ── Update a field directly (instant save) ──
   const updateEntry = React.useCallback(
     (id: string, field: keyof TimeEntry, value: string | number) => {
@@ -369,7 +440,7 @@ export function TimeTrackingTable({
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Button
           size="sm"
           variant="outline"
@@ -380,15 +451,10 @@ export function TimeTrackingTable({
           <Plus className="h-3.5 w-3.5" />
           Add Entry
         </Button>
-        <TimeTrackingExport
-          entries={filteredEntries}
-          employees={employees}
-          projects={projects}
-          costCodes={costCodes}
-          equipment={equipment}
-          attachments={attachments}
-          tools={tools}
-        />
+        <div className="flex items-center gap-2">
+          <ColumnSettings columns={columns} onToggle={toggleColumn} onReorder={reorderColumns} onReset={resetColumns} />
+          <TableActions actions={tableActions} selectedCount={selectedCount} />
+        </div>
       </div>
 
       {/* Add Entry form — rendered as a mini table matching the main table columns */}
@@ -540,73 +606,53 @@ export function TimeTrackingTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[120px] text-xs font-semibold px-3">
-                  <SortableHeader label="Date" column="date" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                <TableHead className="w-[40px] px-3">
+                  <Checkbox
+                    checked={paginatedData.length > 0 && allSelected(paginatedData.map((e) => e.id))}
+                    onCheckedChange={(checked) => { if (checked) selectAll(paginatedData.map((e) => e.id)); else deselectAll(); }}
+                    aria-label="Select all"
+                  />
                 </TableHead>
-                <TableHead className="w-[160px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Employee" options={employeeOptions} selected={employeeFilter} onChange={setEmployeeFilter} />
-                    <SortableHeader label="" column="employee" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
-                <TableHead className="w-[200px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Project" options={projectOptions} selected={projectFilter} onChange={setProjectFilter} />
-                    <SortableHeader label="" column="project" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
-                <TableHead className="w-[200px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Cost Code" options={costCodeOptions} selected={costCodeFilter} onChange={setCostCodeFilter} />
-                    <SortableHeader label="" column="costCode" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
-                <TableHead className="w-[180px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Equipment" options={equipmentOptions} selected={equipmentFilter} onChange={setEquipmentFilter} />
-                    <SortableHeader label="" column="equipment" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
-                <TableHead className="w-[180px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Attachment" options={attachmentOptions} selected={attachmentFilter} onChange={setAttachmentFilter} />
-                    <SortableHeader label="" column="attachment" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
-                <TableHead className="w-[180px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Tool" options={toolOptions} selected={toolFilter} onChange={setToolFilter} />
-                    <SortableHeader label="" column="tool" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
-                <TableHead className="w-[130px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Work Type" options={workTypeOptions} selected={workTypeFilter} onChange={setWorkTypeFilter} />
-                    <SortableHeader label="" column="workType" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
-                <TableHead className="w-[80px] text-xs font-semibold px-3">
-                  <SortableHeader label="Hours" column="hours" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                </TableHead>
-                <TableHead className="min-w-[180px] text-xs font-semibold px-3">Work Tasks</TableHead>
-                <TableHead className="w-[110px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Approval" options={approvalOptions} selected={approvalFilter} onChange={setApprovalFilter} />
-                    <SortableHeader label="" column="approval" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
+                {columns.filter((c) => c.visible).map((col) => {
+                  switch (col.id) {
+                    case "date":
+                      return <TableHead key="date" className="w-[120px] text-xs font-semibold px-3"><SortableHeader label="Date" column="date" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></TableHead>;
+                    case "employee":
+                      return <TableHead key="employee" className="w-[160px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Employee" options={employeeOptions} selected={employeeFilter} onChange={setEmployeeFilter} /><SortableHeader label="" column="employee" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "project":
+                      return <TableHead key="project" className="w-[200px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Project" options={projectOptions} selected={projectFilter} onChange={setProjectFilter} /><SortableHeader label="" column="project" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "costCode":
+                      return <TableHead key="costCode" className="w-[200px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Cost Code" options={costCodeOptions} selected={costCodeFilter} onChange={setCostCodeFilter} /><SortableHeader label="" column="costCode" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "equipment":
+                      return <TableHead key="equipment" className="w-[180px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Equipment" options={equipmentOptions} selected={equipmentFilter} onChange={setEquipmentFilter} /><SortableHeader label="" column="equipment" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "attachment":
+                      return <TableHead key="attachment" className="w-[180px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Attachment" options={attachmentOptions} selected={attachmentFilter} onChange={setAttachmentFilter} /><SortableHeader label="" column="attachment" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "tool":
+                      return <TableHead key="tool" className="w-[180px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Tool" options={toolOptions} selected={toolFilter} onChange={setToolFilter} /><SortableHeader label="" column="tool" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "workType":
+                      return <TableHead key="workType" className="w-[130px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Work Type" options={workTypeOptions} selected={workTypeFilter} onChange={setWorkTypeFilter} /><SortableHeader label="" column="workType" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "hours":
+                      return <TableHead key="hours" className="w-[80px] text-xs font-semibold px-3"><SortableHeader label="Hours" column="hours" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></TableHead>;
+                    case "workTasks":
+                      return <TableHead key="workTasks" className="min-w-[180px] text-xs font-semibold px-3">Work Tasks</TableHead>;
+                    case "approval":
+                      return <TableHead key="approval" className="w-[110px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Approval" options={approvalOptions} selected={approvalFilter} onChange={setApprovalFilter} /><SortableHeader label="" column="approval" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    default:
+                      return null;
+                  }
+                })}
                 <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredEntries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={12} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={columns.filter(c => c.visible).length + 2} className="h-32 text-center text-muted-foreground">
                     No time entries match the current filters.
                   </TableCell>
                 </TableRow>
               )}
-              {sortData(filteredEntries, (entry, key) => {
+              {sortData(paginatedData, (entry, key) => {
                 switch (key) {
                   case "date": return entry.date;
                   case "employee": return lookupName(entry.employeeId, employees);
@@ -629,161 +675,129 @@ export function TimeTrackingTable({
                     data-row-id={entry.id}
                     className={`group h-[36px] ${isApproved ? "bg-green-50/30" : "hover:bg-muted/20"}`}
                   >
-                    {/* Date */}
-                    <TableCell className="text-xs p-0 px-1">
-                      {isApproved ? (
-                        <span className="px-2 text-muted-foreground">{format(parseISO(entry.date), "MM/dd/yyyy")}</span>
-                      ) : (
-                        <CellInput
-                          type="date"
-                          value={entry.date}
-                          onChange={(v) => updateEntry(entry.id, "date", v)}
-                          className="w-full"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Employee */}
-                    <TableCell className="p-0 px-1">
-                      {isApproved ? (
-                        <span className="text-xs px-2 text-muted-foreground">{lookupName(entry.employeeId, employees)}</span>
-                      ) : (
-                        <CellSelect
-                          value={entry.employeeId}
-                          onChange={(v) => updateEntry(entry.id, "employeeId", v)}
-                          options={employeeOptions}
-                          placeholder="Select..."
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Project */}
-                    <TableCell className="p-0 px-1">
-                      {isApproved ? (
-                        <span className="text-xs px-2 text-muted-foreground">{lookupName(entry.projectId, projects)}</span>
-                      ) : (
-                        <CellSelect
-                          value={entry.projectId}
-                          onChange={(v) => updateEntry(entry.id, "projectId", v)}
-                          options={projectOptions}
-                          placeholder="Select..."
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Cost Code */}
-                    <TableCell className="p-0 px-1">
-                      {isApproved ? (
-                        <span className="text-xs px-2 text-muted-foreground">{lookupName(entry.costCodeId, costCodes)}</span>
-                      ) : (
-                        <CellSelect
-                          value={entry.costCodeId}
-                          onChange={(v) => updateEntry(entry.id, "costCodeId", v)}
-                          options={costCodeOptions}
-                          placeholder="Select..."
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Equipment */}
-                    <TableCell className="p-0 px-1">
-                      {isApproved ? (
-                        <span className="text-xs px-2 text-muted-foreground">{lookupName(entry.equipmentId, equipment)}</span>
-                      ) : (
-                        <CellSelect
-                          value={entry.equipmentId}
-                          onChange={(v) => updateEntry(entry.id, "equipmentId", v)}
-                          options={equipmentOptions}
-                          placeholder="Select..."
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Attachment */}
-                    <TableCell className="p-0 px-1">
-                      {isApproved ? (
-                        <span className="text-xs px-2 text-muted-foreground">{entry.attachmentId ? lookupName(entry.attachmentId, attachments) : "—"}</span>
-                      ) : (
-                        <CellSelect
-                          value={entry.attachmentId || "none"}
-                          onChange={(v) => updateEntry(entry.id, "attachmentId", v === "none" ? "" : v)}
-                          options={attachmentOptions}
-                          placeholder="Select..."
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Tool */}
-                    <TableCell className="p-0 px-1">
-                      {isApproved ? (
-                        <span className="text-xs px-2 text-muted-foreground">{entry.toolId ? lookupName(entry.toolId, tools) : "—"}</span>
-                      ) : (
-                        <CellSelect
-                          value={entry.toolId || "none"}
-                          onChange={(v) => updateEntry(entry.id, "toolId", v === "none" ? "" : v)}
-                          options={toolOptions}
-                          placeholder="Select..."
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Work Type */}
-                    <TableCell className="p-0 px-1">
-                      {isApproved ? (
-                        <span className="text-xs px-2 text-muted-foreground">{workTypeLabels[entry.workType]}</span>
-                      ) : (
-                        <CellSelect
-                          value={entry.workType}
-                          onChange={(v) => updateEntry(entry.id, "workType", v)}
-                          options={workTypeOptions}
-                          placeholder="Select..."
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Hours */}
-                    <TableCell className="p-0 px-1">
-                      {isApproved ? (
-                        <span className="text-xs font-medium text-muted-foreground">{entry.hours}</span>
-                      ) : (
-                        <HoursInput
-                          value={entry.hours}
-                          onChange={(v) => updateEntry(entry.id, "hours", v)}
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Work Tasks (Notes) */}
-                    <TableCell className="p-0 px-1">
-                      <WorkTasksPopover
-                        notes={entry.notes}
-                        onChange={(v) => updateEntry(entry.id, "notes", v)}
-                        readOnly={isApproved}
+                    {/* Checkbox */}
+                    <TableCell className="px-3" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected(entry.id)}
+                        onCheckedChange={() => toggleSelection(entry.id)}
+                        aria-label="Select entry"
                       />
                     </TableCell>
 
-                    {/* Approval */}
-                    <TableCell className="p-0 px-1">
+                    {columns.filter((c) => c.visible).map((col) => {
+                      switch (col.id) {
+                        case "date":
+                          return (
+                            <TableCell key="date" className="text-xs p-0 px-1">
                       {isApproved ? (
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-medium capitalize ${approvalStatusColors[entry.approval]}`}
-                        >
+                        <span className="px-2 text-muted-foreground">{format(parseISO(entry.date), "MM/dd/yyyy")}</span>
+                      ) : (
+                        <CellInput type="date" value={entry.date} onChange={(v) => updateEntry(entry.id, "date", v)} className="w-full" />
+                      )}
+                            </TableCell>
+                          );
+                        case "employee":
+                          return (
+                            <TableCell key="employee" className="p-0 px-1">
+                      {isApproved ? (
+                        <span className="text-xs px-2 text-muted-foreground">{lookupName(entry.employeeId, employees)}</span>
+                      ) : (
+                        <CellSelect value={entry.employeeId} onChange={(v) => updateEntry(entry.id, "employeeId", v)} options={employeeOptions} placeholder="Select..." />
+                      )}
+                            </TableCell>
+                          );
+                        case "project":
+                          return (
+                            <TableCell key="project" className="p-0 px-1">
+                      {isApproved ? (
+                        <span className="text-xs px-2 text-muted-foreground">{lookupName(entry.projectId, projects)}</span>
+                      ) : (
+                        <CellSelect value={entry.projectId} onChange={(v) => updateEntry(entry.id, "projectId", v)} options={projectOptions} placeholder="Select..." />
+                      )}
+                            </TableCell>
+                          );
+                        case "costCode":
+                          return (
+                            <TableCell key="costCode" className="p-0 px-1">
+                      {isApproved ? (
+                        <span className="text-xs px-2 text-muted-foreground">{lookupName(entry.costCodeId, costCodes)}</span>
+                      ) : (
+                        <CellSelect value={entry.costCodeId} onChange={(v) => updateEntry(entry.id, "costCodeId", v)} options={costCodeOptions} placeholder="Select..." />
+                      )}
+                            </TableCell>
+                          );
+                        case "equipment":
+                          return (
+                            <TableCell key="equipment" className="p-0 px-1">
+                      {isApproved ? (
+                        <span className="text-xs px-2 text-muted-foreground">{lookupName(entry.equipmentId, equipment)}</span>
+                      ) : (
+                        <CellSelect value={entry.equipmentId} onChange={(v) => updateEntry(entry.id, "equipmentId", v)} options={equipmentOptions} placeholder="Select..." />
+                      )}
+                            </TableCell>
+                          );
+                        case "attachment":
+                          return (
+                            <TableCell key="attachment" className="p-0 px-1">
+                      {isApproved ? (
+                        <span className="text-xs px-2 text-muted-foreground">{entry.attachmentId ? lookupName(entry.attachmentId, attachments) : "—"}</span>
+                      ) : (
+                        <CellSelect value={entry.attachmentId || "none"} onChange={(v) => updateEntry(entry.id, "attachmentId", v === "none" ? "" : v)} options={attachmentOptions} placeholder="Select..." />
+                      )}
+                            </TableCell>
+                          );
+                        case "tool":
+                          return (
+                            <TableCell key="tool" className="p-0 px-1">
+                      {isApproved ? (
+                        <span className="text-xs px-2 text-muted-foreground">{entry.toolId ? lookupName(entry.toolId, tools) : "—"}</span>
+                      ) : (
+                        <CellSelect value={entry.toolId || "none"} onChange={(v) => updateEntry(entry.id, "toolId", v === "none" ? "" : v)} options={toolOptions} placeholder="Select..." />
+                      )}
+                            </TableCell>
+                          );
+                        case "workType":
+                          return (
+                            <TableCell key="workType" className="p-0 px-1">
+                      {isApproved ? (
+                        <span className="text-xs px-2 text-muted-foreground">{workTypeLabels[entry.workType]}</span>
+                      ) : (
+                        <CellSelect value={entry.workType} onChange={(v) => updateEntry(entry.id, "workType", v)} options={workTypeOptions} placeholder="Select..." />
+                      )}
+                            </TableCell>
+                          );
+                        case "hours":
+                          return (
+                            <TableCell key="hours" className="p-0 px-1">
+                      {isApproved ? (
+                        <span className="text-xs font-medium text-muted-foreground">{entry.hours}</span>
+                      ) : (
+                        <HoursInput value={entry.hours} onChange={(v) => updateEntry(entry.id, "hours", v)} />
+                      )}
+                            </TableCell>
+                          );
+                        case "workTasks":
+                          return (
+                            <TableCell key="workTasks" className="p-0 px-1">
+                      <WorkTasksPopover notes={entry.notes} onChange={(v) => updateEntry(entry.id, "notes", v)} readOnly={isApproved} />
+                            </TableCell>
+                          );
+                        case "approval":
+                          return (
+                            <TableCell key="approval" className="p-0 px-1">
+                      {isApproved ? (
+                        <Badge variant="outline" className={`text-[10px] font-medium capitalize ${approvalStatusColors[entry.approval]}`}>
                           {entry.approval}
                         </Badge>
                       ) : (
-                        <CellSelect
-                          value={entry.approval}
-                          onChange={(v) => updateEntry(entry.id, "approval", v)}
-                          options={[
-                            { id: "pending", label: "Pending" },
-                            { id: "approved", label: "Approved" },
-                            { id: "rejected", label: "Rejected" },
-                          ]}
-                          placeholder="Status"
-                        />
+                        <CellSelect value={entry.approval} onChange={(v) => updateEntry(entry.id, "approval", v)} options={[{ id: "pending", label: "Pending" }, { id: "approved", label: "Approved" }, { id: "rejected", label: "Rejected" }]} placeholder="Status" />
                       )}
-                    </TableCell>
+                            </TableCell>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
@@ -822,13 +836,27 @@ export function TimeTrackingTable({
         </div>
       </div>
 
-      {/* Summary footer */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
-        <span>{filteredEntries.length} of {entries.length} entries</span>
-        <span className="font-medium text-foreground">
-          Total: {filteredEntries.reduce((sum, e) => sum + e.hours, 0)} hours
-        </span>
-      </div>
+      {/* Pagination footer */}
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
+
+      {/* Export dialog */}
+      <TimeTrackingExport
+        entries={filteredEntries}
+        employees={employees}
+        projects={projects}
+        costCodes={costCodes}
+        equipment={equipment}
+        attachments={attachments}
+        tools={tools}
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        trigger={null}
+      />
     </div>
   );
 }

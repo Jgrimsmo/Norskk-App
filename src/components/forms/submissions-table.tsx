@@ -37,6 +37,12 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { DateColumnFilter } from "@/components/time-tracking/date-column-filter";
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions } from "@/components/shared/table-actions";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { useSourceLabelMap } from "@/hooks/use-source-label-map";
 import { PdfPreviewDialog } from "@/components/shared/pdf-preview-dialog";
@@ -62,6 +68,13 @@ import type {
   FormFieldOption,
   FormFieldOptionsSource,
 } from "@/lib/types/time-tracking";
+
+const SUBMISSION_COLUMN_DEFS: ColumnDef[] = [
+  { id: "date", label: "Date", alwaysVisible: true },
+  { id: "form", label: "Form" },
+  { id: "project", label: "Project" },
+  { id: "submittedBy", label: "Submitted By" },
+];
 
 // ── Submission Detail Dialog ──
 function SubmissionDetailDialog({
@@ -224,8 +237,9 @@ export function SubmissionsTable() {
   const [submittedByFilter, setSubmittedByFilter] = React.useState<Set<string>>(new Set());
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
 
-  // Selection for bulk export
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  // Column settings + selection + pagination
+  const { columns, toggleColumn, reorderColumns, reset: resetColumns } = useTableColumns("submissions-columns", SUBMISSION_COLUMN_DEFS);
+  const { selected: selectedIds, count: selectedCount, isSelected, toggle: toggleOne, selectAll, deselectAll, allSelected, someSelected } = useRowSelection<string>();
 
   // PDF preview state
   const [pdfPreviewUrl, setPdfPreviewUrl] = React.useState<string | null>(null);
@@ -318,9 +332,10 @@ export function SubmissionsTable() {
     return list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [submissions, formFilter, projectFilter, submittedByFilter, dateRange]);
 
+  const { pageSize, setPageSize, paginatedData, totalItems } = useTablePagination(filtered);
+
   const handleDelete = async (id: string) => {
     await remove(id);
-    setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
     toast.success("Submission deleted.");
   };
 
@@ -364,7 +379,7 @@ export function SubmissionsTable() {
       } catch { /* skip */ }
     }
     toast.success(`Downloaded ${success} PDF${success !== 1 ? "s" : ""}.`);
-    setSelectedIds(new Set());
+    deselectAll();
   };
 
   const closePdfPreview = () => {
@@ -373,53 +388,37 @@ export function SubmissionsTable() {
     setPdfPreviewName("");
   };
 
-  // Selection helpers
-  const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id));
-  const someSelected = selectedIds.size > 0;
-
-  const toggleAll = () => {
-    if (allFilteredSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filtered.map((s) => s.id)));
+  const handleBulkDelete = React.useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} submission(s)?`)) return;
+    for (const id of selectedIds) {
+      try { await remove(id); } catch { /* skip */ }
     }
-  };
+    deselectAll();
+  }, [selectedIds, remove, deselectAll]);
 
-  const toggleOne = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const tableActions = [
+    {
+      label: "Export PDFs",
+      icon: <FileDown className="h-3.5 w-3.5" />,
+      onClick: handleBulkExport,
+    },
+    {
+      label: "Delete",
+      icon: <Trash2 className="h-3.5 w-3.5" />,
+      onClick: handleBulkDelete,
+      destructive: true,
+      separatorBefore: true,
+    },
+  ];
 
   return (
     <div className="space-y-3">
-      {/* Bulk action bar */}
-      {someSelected && (
-        <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
-          <span className="text-xs font-medium">
-            {selectedIds.size} selected
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 text-xs h-7 cursor-pointer"
-            onClick={handleBulkExport}
-          >
-            <FileDown className="h-3.5 w-3.5" /> Export {selectedIds.size} PDF{selectedIds.size !== 1 ? "s" : ""}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-xs h-7 cursor-pointer"
-            onClick={() => setSelectedIds(new Set())}
-          >
-            Clear
-          </Button>
-        </div>
-      )}
+      {/* Toolbar */}
+      <div className="flex items-center justify-end gap-2">
+        <ColumnSettings columns={columns} onToggle={toggleColumn} onReorder={reorderColumns} onReset={resetColumns} />
+        <TableActions actions={tableActions} selectedCount={selectedCount} />
+      </div>
 
       {/* Table */}
       {filtered.length === 0 && submissions.length === 0 ? (
@@ -438,46 +437,64 @@ export function SubmissionsTable() {
                 <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
                   <TableHead className="w-[40px] px-3">
                     <Checkbox
-                      checked={allFilteredSelected}
-                      onCheckedChange={toggleAll}
+                      checked={allSelected(filtered.map(s => s.id))}
+                      onCheckedChange={(checked) => checked ? selectAll(filtered.map(s => s.id)) : deselectAll()}
                       aria-label="Select all"
                       className="cursor-pointer"
                     />
                   </TableHead>
-                  <TableHead className="w-[100px] text-xs font-semibold px-3">
-                    <DateColumnFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
-                  </TableHead>
-                  <TableHead className="min-w-[140px] text-xs font-semibold px-3">
-                    <ColumnFilter
-                      title="Form"
-                      options={formOptions}
-                      selected={formFilter}
-                      onChange={setFormFilter}
-                    />
-                  </TableHead>
-                  <TableHead className="w-[200px] text-xs font-semibold px-3">
-                    <ColumnFilter
-                      title="Project"
-                      options={projectOptions}
-                      selected={projectFilter}
-                      onChange={setProjectFilter}
-                    />
-                  </TableHead>
-                  <TableHead className="w-[150px] text-xs font-semibold px-3">
-                    <ColumnFilter
-                      title="Submitted By"
-                      options={submittedByOptions}
-                      selected={submittedByFilter}
-                      onChange={setSubmittedByFilter}
-                    />
-                  </TableHead>
+                  {columns.filter((c) => c.visible).map((col) => {
+                    switch (col.id) {
+                      case "date":
+                        return (
+                          <TableHead key={col.id} className="w-[100px] text-xs font-semibold px-3">
+                            <DateColumnFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+                          </TableHead>
+                        );
+                      case "form":
+                        return (
+                          <TableHead key={col.id} className="min-w-[140px] text-xs font-semibold px-3">
+                            <ColumnFilter
+                              title="Form"
+                              options={formOptions}
+                              selected={formFilter}
+                              onChange={setFormFilter}
+                            />
+                          </TableHead>
+                        );
+                      case "project":
+                        return (
+                          <TableHead key={col.id} className="w-[200px] text-xs font-semibold px-3">
+                            <ColumnFilter
+                              title="Project"
+                              options={projectOptions}
+                              selected={projectFilter}
+                              onChange={setProjectFilter}
+                            />
+                          </TableHead>
+                        );
+                      case "submittedBy":
+                        return (
+                          <TableHead key={col.id} className="w-[150px] text-xs font-semibold px-3">
+                            <ColumnFilter
+                              title="Submitted By"
+                              options={submittedByOptions}
+                              selected={submittedByFilter}
+                              onChange={setSubmittedByFilter}
+                            />
+                          </TableHead>
+                        );
+                      default:
+                        return null;
+                    }
+                  })}
                   <TableHead className="w-[40px] text-xs font-semibold px-3" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center">
+                    <TableCell colSpan={columns.filter((c) => c.visible).length + 2} className="h-32 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <FileText className="h-8 w-8 opacity-30" />
                         <p className="text-sm font-medium">No matching entries</p>
@@ -485,30 +502,49 @@ export function SubmissionsTable() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((sub) => (
+                  paginatedData.map((sub) => (
                     <TableRow
                       key={sub.id}
                       className="group h-[36px] cursor-pointer hover:bg-muted/30"
                       onClick={() => setViewingSub(sub)}
+                      data-state={isSelected(sub.id) ? "selected" : undefined}
                     >
                       <TableCell className="px-3" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
-                          checked={selectedIds.has(sub.id)}
+                          checked={isSelected(sub.id)}
                           onCheckedChange={() => toggleOne(sub.id)}
                           aria-label={`Select ${sub.templateName}`}
                           className="cursor-pointer"
                         />
                       </TableCell>
-                      <TableCell className="text-xs px-3 text-muted-foreground">
-                        {sub.date ? format(parseISO(sub.date), "MM/dd/yyyy") : "—"}
-                      </TableCell>
-                      <TableCell className="text-xs px-3 font-medium">{sub.templateName}</TableCell>
-                      <TableCell className="text-xs px-3 text-muted-foreground truncate max-w-[200px]">
-                        {sub.projectId ? (projectMap.get(sub.projectId) ?? "—") : "—"}
-                      </TableCell>
-                      <TableCell className="text-xs px-3">
-                        {sub.submittedByName}
-                      </TableCell>
+                      {columns.filter((c) => c.visible).map((col) => {
+                        switch (col.id) {
+                          case "date":
+                            return (
+                              <TableCell key={col.id} className="text-xs px-3 text-muted-foreground">
+                                {sub.date ? format(parseISO(sub.date), "MM/dd/yyyy") : "—"}
+                              </TableCell>
+                            );
+                          case "form":
+                            return (
+                              <TableCell key={col.id} className="text-xs px-3 font-medium">{sub.templateName}</TableCell>
+                            );
+                          case "project":
+                            return (
+                              <TableCell key={col.id} className="text-xs px-3 text-muted-foreground truncate max-w-[200px]">
+                                {sub.projectId ? (projectMap.get(sub.projectId) ?? "—") : "—"}
+                              </TableCell>
+                            );
+                          case "submittedBy":
+                            return (
+                              <TableCell key={col.id} className="text-xs px-3">
+                                {sub.submittedByName}
+                              </TableCell>
+                            );
+                          default:
+                            return null;
+                        }
+                      })}
                       <TableCell className="text-xs px-3">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -544,13 +580,15 @@ export function SubmissionsTable() {
               </TableBody>
             </Table>
           </div>
-          {filtered.length > 0 && (
-            <div className="border-t px-3 py-2 text-xs text-muted-foreground">
-              {filtered.length} entr{filtered.length !== 1 ? "ies" : "y"}
-            </div>
-          )}
         </div>
       )}
+
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
 
       {/* Detail Dialog */}
       {viewingSub && (

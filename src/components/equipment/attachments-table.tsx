@@ -1,11 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, X } from "lucide-react";
+import { Plus, Pencil, X, Download, Trash2 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
-import { TableExport } from "@/components/shared/table-export";
-import type { ExportColumnDef } from "@/components/shared/export-dialog";
+import { ExportDialog, type ExportColumnDef, type ExportConfig } from "@/components/shared/export-dialog";
 import { attachmentCSVColumns, attachmentPDFColumns, attachmentPDFRows } from "@/lib/export/columns";
+import { useCompanyProfile } from "@/hooks/use-company-profile";
+import { exportToExcel, exportToCSV } from "@/lib/export/csv";
+import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions, type TableAction } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import {
   Table,
@@ -55,6 +64,27 @@ function newBlankAttachment(): Attachment {
   };
 }
 
+// ── Column definitions for settings ──
+const ATTACHMENT_COLUMN_DEFS: ColumnDef[] = [
+  { id: "number", label: "Attachment #" },
+  { id: "name", label: "Name" },
+  { id: "category", label: "Category" },
+  { id: "status", label: "Status" },
+];
+
+// ── Export column definitions ──
+const ATTACHMENT_EXPORT_COLUMNS: ExportColumnDef[] = [
+  { id: "number", header: "Number" },
+  { id: "name", header: "Name" },
+  { id: "category", header: "Category" },
+  { id: "status", header: "Status" },
+];
+
+const ATTACHMENT_GROUP_OPTIONS = [
+  { value: "category", label: "Category" },
+  { value: "status", label: "Status" },
+];
+
 // ────────────────────────────────────────────
 // Main table component
 // ────────────────────────────────────────────
@@ -73,6 +103,26 @@ export function AttachmentsTable({
   const [unlockedIds, setUnlockedIds] = React.useState<Set<string>>(
     new Set()
   );
+
+  // ── Column settings ──
+  const { columns, toggleColumn, reorderColumns, isVisible, reset: resetColumns } =
+    useTableColumns("attachments-columns", ATTACHMENT_COLUMN_DEFS);
+
+  // ── Row selection ──
+  const {
+    selected,
+    count: selectedCount,
+    isSelected,
+    toggle: toggleSelection,
+    selectAll,
+    deselectAll,
+    allSelected,
+    someSelected,
+  } = useRowSelection();
+
+  // ── Export ──
+  const { profile } = useCompanyProfile();
+  const [exportOpen, setExportOpen] = React.useState(false);
 
   // ── Filter state ──
   const [categoryFilter, setCategoryFilter] = React.useState<Set<string>>(
@@ -111,6 +161,76 @@ export function AttachmentsTable({
       return true;
     });
   }, [attachmentList, categoryFilter, statusFilter]);
+
+  // ── Pagination ──
+  const { paginatedData, pageSize, setPageSize, totalItems } =
+    useTablePagination(filteredAttachments);
+
+  // ── Export callbacks ──
+  const handleExport = React.useCallback(
+    (config: ExportConfig) => {
+      const datestamp = new Date().toISOString().slice(0, 10);
+      const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
+      if (config.format === "excel") {
+        exportToExcel(filteredAttachments, attachmentCSVColumns, filename, config.selectedColumns);
+      } else if (config.format === "csv") {
+        exportToCSV(filteredAttachments, attachmentCSVColumns, filename, config.selectedColumns);
+      } else {
+        generatePDF({
+          title: config.title,
+          filename,
+          company: profile,
+          columns: attachmentPDFColumns,
+          rows: attachmentPDFRows(filteredAttachments),
+          orientation: config.orientation,
+          selectedColumns: config.selectedColumns,
+          groupBy: config.groupBy,
+        });
+      }
+    },
+    [filteredAttachments, profile]
+  );
+
+  const handlePreview = React.useCallback(
+    (config: ExportConfig) =>
+      generatePDFBlobUrl({
+        title: config.title,
+        filename: "preview",
+        company: profile,
+        columns: attachmentPDFColumns,
+        rows: attachmentPDFRows(filteredAttachments),
+        orientation: config.orientation,
+        selectedColumns: config.selectedColumns,
+        groupBy: config.groupBy,
+      }),
+    [filteredAttachments, profile]
+  );
+
+  const handleBulkDelete = React.useCallback(() => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} attachment(s)?`)) return;
+    onAttachmentsChange((prev) => prev.filter((a) => !selected.has(a.id)));
+    deselectAll();
+  }, [selected, onAttachmentsChange, deselectAll]);
+
+  const tableActions: TableAction[] = React.useMemo(
+    () => [
+      {
+        label: "Export",
+        icon: <Download className="h-3.5 w-3.5" />,
+        onClick: () => setExportOpen(true),
+        alwaysEnabled: true,
+      },
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+        separatorBefore: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
 
   // ── Mutations ──
   const updateAttachment = React.useCallback(
@@ -152,7 +272,7 @@ export function AttachmentsTable({
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Button
           size="sm"
           variant="outline"
@@ -163,7 +283,15 @@ export function AttachmentsTable({
           <Plus className="h-3.5 w-3.5" />
           Add Attachment
         </Button>
-        <AttachmentsExport attachments={filteredAttachments} />
+        <div className="flex items-center gap-2">
+          <ColumnSettings
+            columns={columns}
+            onToggle={toggleColumn}
+            onReorder={reorderColumns}
+            onReset={resetColumns}
+          />
+          <TableActions actions={tableActions} selectedCount={selectedCount} />
+        </div>
       </div>
 
       {/* Add form */}
@@ -213,28 +341,41 @@ export function AttachmentsTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[120px] text-xs font-semibold px-3">
-                  Attachment #
-                </TableHead>
-                <TableHead className="w-[220px] text-xs font-semibold px-3">
-                  Name
-                </TableHead>
-                <TableHead className="w-[160px] text-xs font-semibold px-3">
-                  <ColumnFilter
-                    title="Category"
-                    options={categoryOptions}
-                    selected={categoryFilter}
-                    onChange={setCategoryFilter}
+                <TableHead className="w-[40px] px-3">
+                  <Checkbox
+                    checked={
+                      paginatedData.length > 0 &&
+                      allSelected(paginatedData.map((a) => a.id))
+                    }
+                    onCheckedChange={(checked) => {
+                      if (checked) selectAll(paginatedData.map((a) => a.id));
+                      else deselectAll();
+                    }}
+                    aria-label="Select all"
                   />
                 </TableHead>
-                <TableHead className="w-[130px] text-xs font-semibold px-3">
-                  <ColumnFilter
-                    title="Status"
-                    options={statusOptions}
-                    selected={statusFilter}
-                    onChange={setStatusFilter}
-                  />
-                </TableHead>
+                {columns.filter((c) => c.visible).map((col) => {
+                  switch (col.id) {
+                    case "number":
+                      return <TableHead key="number" className="w-[120px] text-xs font-semibold px-3">Attachment #</TableHead>;
+                    case "name":
+                      return <TableHead key="name" className="w-[220px] text-xs font-semibold px-3">Name</TableHead>;
+                    case "category":
+                      return (
+                        <TableHead key="category" className="w-[160px] text-xs font-semibold px-3">
+                          <ColumnFilter title="Category" options={categoryOptions} selected={categoryFilter} onChange={setCategoryFilter} />
+                        </TableHead>
+                      );
+                    case "status":
+                      return (
+                        <TableHead key="status" className="w-[130px] text-xs font-semibold px-3">
+                          <ColumnFilter title="Status" options={statusOptions} selected={statusFilter} onChange={setStatusFilter} />
+                        </TableHead>
+                      );
+                    default:
+                      return null;
+                  }
+                })}
                 <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -242,14 +383,14 @@ export function AttachmentsTable({
               {filteredAttachments.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={columns.filter(c => c.visible).length + 2}
                     className="h-32 text-center text-muted-foreground"
                   >
                     No attachments match the current filters.
                   </TableCell>
                 </TableRow>
               )}
-              {filteredAttachments.map((att) => {
+              {paginatedData.map((att) => {
                 const isRetired =
                   att.status === "retired" && !unlockedIds.has(att.id);
 
@@ -261,78 +402,63 @@ export function AttachmentsTable({
                       isRetired ? "bg-gray-50/30" : "hover:bg-muted/20"
                     }`}
                   >
-                    {/* Attachment # */}
-                    <TableCell className="text-xs p-0 px-1">
-                      {isRetired ? (
-                        <span className="px-2 text-muted-foreground font-medium">
-                          {att.number}
-                        </span>
-                      ) : (
-                        <CellInput
-                          value={att.number}
-                          onChange={(v) =>
-                            updateAttachment(att.id, "number", v)
-                          }
-                          placeholder="e.g. AT-008"
-                        />
-                      )}
+                    {/* Checkbox */}
+                    <TableCell className="px-3">
+                      <Checkbox
+                        checked={isSelected(att.id)}
+                        onCheckedChange={() => toggleSelection(att.id)}
+                        aria-label={`Select ${att.name}`}
+                      />
                     </TableCell>
 
-                    {/* Name */}
-                    <TableCell className="p-0 px-1">
-                      {isRetired ? (
-                        <span className="text-xs px-2 text-muted-foreground">
-                          {att.name}
-                        </span>
-                      ) : (
-                        <CellInput
-                          value={att.name}
-                          onChange={(v) =>
-                            updateAttachment(att.id, "name", v)
-                          }
-                          placeholder="Attachment name"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Category */}
-                    <TableCell className="p-0 px-1">
-                      {isRetired ? (
-                        <span className="text-xs px-2 text-muted-foreground">
-                          {att.category}
-                        </span>
-                      ) : (
-                        <CellSelect
-                          value={att.category}
-                          onChange={(v) =>
-                            updateAttachment(att.id, "category", v)
-                          }
-                          options={categorySelectOptions}
-                          placeholder="Category"
-                        />
-                      )}
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell className="p-0 px-1">
-                      {isRetired ? (
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] font-medium capitalize ${statusColors[att.status]}`}
-                        >
-                          {statusLabels[att.status]}
-                        </Badge>
-                      ) : (
-                        <CellSelect
-                          value={att.status}
-                          onChange={(v) =>
-                            updateAttachment(att.id, "status", v)
-                          }
-                          options={statusOptions}
-                          placeholder="Status"
-                        />
-                      )}
-                    </TableCell>
+                    {columns.filter((c) => c.visible).map((col) => {
+                      switch (col.id) {
+                        case "number":
+                          return (
+                            <TableCell key="number" className="text-xs p-0 px-1">
+                              {isRetired ? (
+                                <span className="px-2 text-muted-foreground font-medium">{att.number}</span>
+                              ) : (
+                                <CellInput value={att.number} onChange={(v) => updateAttachment(att.id, "number", v)} placeholder="e.g. AT-008" />
+                              )}
+                            </TableCell>
+                          );
+                        case "name":
+                          return (
+                            <TableCell key="name" className="p-0 px-1">
+                              {isRetired ? (
+                                <span className="text-xs px-2 text-muted-foreground">{att.name}</span>
+                              ) : (
+                                <CellInput value={att.name} onChange={(v) => updateAttachment(att.id, "name", v)} placeholder="Attachment name" />
+                              )}
+                            </TableCell>
+                          );
+                        case "category":
+                          return (
+                            <TableCell key="category" className="p-0 px-1">
+                              {isRetired ? (
+                                <span className="text-xs px-2 text-muted-foreground">{att.category}</span>
+                              ) : (
+                                <CellSelect value={att.category} onChange={(v) => updateAttachment(att.id, "category", v)} options={categorySelectOptions} placeholder="Category" />
+                              )}
+                            </TableCell>
+                          );
+                        case "status":
+                          return (
+                            <TableCell key="status" className="p-0 px-1">
+                              {isRetired ? (
+                                <Badge variant="outline" className={`text-[10px] font-medium capitalize ${statusColors[att.status]}`}>
+                                  {statusLabels[att.status]}
+                                </Badge>
+                              ) : (
+                                <CellSelect value={att.status} onChange={(v) => updateAttachment(att.id, "status", v)} options={statusOptions} placeholder="Status" />
+                              )}
+                            </TableCell>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
@@ -371,43 +497,25 @@ export function AttachmentsTable({
         </div>
       </div>
 
-      {/* Summary footer */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
-        <span>
-          {filteredAttachments.length} of {attachmentList.length} attachments
-        </span>
-        <span className="font-medium text-foreground">
-          {attachmentList.filter((a) => a.status === "available").length}{" "}
-          available
-        </span>
-      </div>
+      {/* Pagination footer */}
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
+
+      {/* Export Dialog */}
+      <ExportDialog
+        columns={ATTACHMENT_EXPORT_COLUMNS}
+        groupOptions={ATTACHMENT_GROUP_OPTIONS}
+        defaultTitle="Attachments"
+        onExport={handleExport}
+        onGeneratePDFPreview={handlePreview}
+        controlledOpen={exportOpen}
+        onControlledOpenChange={setExportOpen}
+        trigger={null}
+      />
     </div>
-  );
-}
-
-// ── Export sub-component ──
-const ATTACHMENT_EXPORT_COLUMNS: ExportColumnDef[] = [
-  { id: "number", header: "Number" },
-  { id: "name", header: "Name" },
-  { id: "category", header: "Category" },
-  { id: "status", header: "Status" },
-];
-
-const ATTACHMENT_GROUP_OPTIONS = [
-  { value: "category", label: "Category" },
-  { value: "status", label: "Status" },
-];
-
-function AttachmentsExport({ attachments }: { attachments: Attachment[] }) {
-  return (
-    <TableExport
-      items={attachments}
-      csvColumns={attachmentCSVColumns}
-      pdfColumns={attachmentPDFColumns}
-      pdfRows={attachmentPDFRows(attachments)}
-      exportColumns={ATTACHMENT_EXPORT_COLUMNS}
-      groupOptions={ATTACHMENT_GROUP_OPTIONS}
-      defaultTitle="Attachments"
-    />
   );
 }

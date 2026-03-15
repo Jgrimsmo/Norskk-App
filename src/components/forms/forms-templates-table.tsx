@@ -13,6 +13,14 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +44,14 @@ import { toast } from "sonner";
 import { useFormTemplates, useFormSubmissions } from "@/hooks/use-firestore";
 import type { FormTemplate } from "@/lib/types/time-tracking";
 
+const TEMPLATE_COLUMN_DEFS: ColumnDef[] = [
+  { id: "name", label: "Name", alwaysVisible: true },
+  { id: "category", label: "Category" },
+  { id: "fields", label: "Fields" },
+  { id: "submissions", label: "Submissions" },
+  { id: "updated", label: "Updated" },
+];
+
 interface FormsTemplatesTableProps {
   onCreateTemplate: () => void;
   onEditTemplate: (id: string) => void;
@@ -46,6 +62,9 @@ export function FormsTemplatesTable({ onCreateTemplate, onEditTemplate }: FormsT
   const { data: submissions } = useFormSubmissions();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<"all" | "active" | "archived">("active");
+
+  const { columns, toggleColumn, reorderColumns, isVisible, reset: resetColumns } = useTableColumns("forms-templates-columns", TEMPLATE_COLUMN_DEFS);
+  const { selected, count: selectedCount, isSelected, toggle, selectAll, deselectAll, allSelected, someSelected } = useRowSelection<string>();
 
   const filtered = React.useMemo(() => {
     let list = templates;
@@ -63,6 +82,8 @@ export function FormsTemplatesTable({ onCreateTemplate, onEditTemplate }: FormsT
     return list.sort((a, b) => a.name.localeCompare(b.name));
   }, [templates, search, statusFilter]);
 
+  const { pageSize, setPageSize, paginatedData, totalItems } = useTablePagination(filtered);
+
   const submissionCountMap = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const s of submissions) {
@@ -73,6 +94,29 @@ export function FormsTemplatesTable({ onCreateTemplate, onEditTemplate }: FormsT
 
   const totalFieldCount = (t: FormTemplate) =>
     t.sections.reduce((sum, s) => sum + s.fields.length, 0);
+
+  const handleBulkDelete = React.useCallback(async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} template(s)?`)) return;
+    for (const id of selected) {
+      const count = submissionCountMap.get(id) || 0;
+      if (count > 0) continue;
+      try { await remove(id); } catch { /* skip */ }
+    }
+    deselectAll();
+  }, [selected, submissionCountMap, remove, deselectAll]);
+
+  const tableActions = React.useMemo(
+    () => [
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
 
   const handleArchive = async (template: FormTemplate) => {
     const newStatus = template.status === "active" ? "archived" : "active";
@@ -117,6 +161,8 @@ export function FormsTemplatesTable({ onCreateTemplate, onEditTemplate }: FormsT
           />
         </div>
         <div className="flex items-center gap-2">
+          <ColumnSettings columns={columns} onToggle={toggleColumn} onReorder={reorderColumns} onReset={resetColumns} />
+          <TableActions actions={tableActions} selectedCount={selectedCount} />
           <div className="flex rounded-md border bg-muted/30 overflow-hidden text-xs">
             {(["active", "archived", "all"] as const).map((s) => (
               <button
@@ -159,50 +205,89 @@ export function FormsTemplatesTable({ onCreateTemplate, onEditTemplate }: FormsT
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead className="hidden sm:table-cell">Category</TableHead>
-                <TableHead className="hidden md:table-cell">Fields</TableHead>
-                <TableHead className="hidden md:table-cell">Submissions</TableHead>
-                <TableHead className="hidden lg:table-cell">Updated</TableHead>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allSelected(filtered.map(t => t.id))}
+                    onCheckedChange={(checked) => checked ? selectAll(filtered.map(t => t.id)) : deselectAll()}
+                  />
+                </TableHead>
+                {columns.filter((c) => c.visible).map((col) => {
+                  switch (col.id) {
+                    case "name": return <TableHead key={col.id}>Name</TableHead>;
+                    case "category": return <TableHead key={col.id} className="hidden sm:table-cell">Category</TableHead>;
+                    case "fields": return <TableHead key={col.id} className="hidden md:table-cell">Fields</TableHead>;
+                    case "submissions": return <TableHead key={col.id} className="hidden md:table-cell">Submissions</TableHead>;
+                    case "updated": return <TableHead key={col.id} className="hidden lg:table-cell">Updated</TableHead>;
+                    default: return null;
+                  }
+                })}
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((t) => (
+              {paginatedData.map((t) => (
                 <TableRow
                   key={t.id}
                   className="cursor-pointer"
                   onClick={() => onEditTemplate(t.id)}
+                  data-state={isSelected(t.id) ? "selected" : undefined}
                 >
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{t.name}</span>
-                      {t.status === "archived" && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          Archived
-                        </Badge>
-                      )}
-                    </div>
-                    {t.description && (
-                      <p className="text-xs text-muted-foreground truncate max-w-xs">
-                        {t.description}
-                      </p>
-                    )}
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={isSelected(t.id)}
+                      onCheckedChange={() => toggle(t.id)}
+                    />
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    <Badge variant="outline" className="capitalize text-[10px]">
-                      {t.category}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
-                    {totalFieldCount(t)}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
-                    {submissionCountMap.get(t.id) || 0}
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
-                    {t.updatedAt ? format(parseISO(t.updatedAt), "MMM d, yyyy") : "—"}
-                  </TableCell>
+                  {columns.filter((c) => c.visible).map((col) => {
+                    switch (col.id) {
+                      case "name":
+                        return (
+                          <TableCell key={col.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{t.name}</span>
+                              {t.status === "archived" && (
+                                <Badge variant="secondary" className="text-[10px]">
+                                  Archived
+                                </Badge>
+                              )}
+                            </div>
+                            {t.description && (
+                              <p className="text-xs text-muted-foreground truncate max-w-xs">
+                                {t.description}
+                              </p>
+                            )}
+                          </TableCell>
+                        );
+                      case "category":
+                        return (
+                          <TableCell key={col.id} className="hidden sm:table-cell">
+                            <Badge variant="outline" className="capitalize text-[10px]">
+                              {t.category}
+                            </Badge>
+                          </TableCell>
+                        );
+                      case "fields":
+                        return (
+                          <TableCell key={col.id} className="hidden md:table-cell text-muted-foreground text-sm">
+                            {totalFieldCount(t)}
+                          </TableCell>
+                        );
+                      case "submissions":
+                        return (
+                          <TableCell key={col.id} className="hidden md:table-cell text-muted-foreground text-sm">
+                            {submissionCountMap.get(t.id) || 0}
+                          </TableCell>
+                        );
+                      case "updated":
+                        return (
+                          <TableCell key={col.id} className="hidden lg:table-cell text-muted-foreground text-sm">
+                            {t.updatedAt ? format(parseISO(t.updatedAt), "MMM d, yyyy") : "—"}
+                          </TableCell>
+                        );
+                      default:
+                        return null;
+                    }
+                  })}
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -246,6 +331,13 @@ export function FormsTemplatesTable({ onCreateTemplate, onEditTemplate }: FormsT
           </Table>
         </div>
       )}
+
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

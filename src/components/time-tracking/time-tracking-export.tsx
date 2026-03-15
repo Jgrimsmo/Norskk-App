@@ -41,6 +41,9 @@ export function TimeTrackingExport({
   equipment,
   attachments,
   tools,
+  open,
+  onOpenChange,
+  trigger,
 }: {
   entries: TimeEntry[];
   employees: { id: string; name: string }[];
@@ -49,6 +52,9 @@ export function TimeTrackingExport({
   equipment: { id: string; name: string; number: string }[];
   attachments: { id: string; name: string; number: string }[];
   tools: { id: string; name: string; number: string }[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactNode | null;
 }) {
   const { profile } = useCompanyProfile();
   const { csv } = timeEntryColumns(
@@ -118,6 +124,9 @@ export function TimeTrackingExport({
       disabled={entries.length === 0}
       recordCount={entries.length}
       templateKey="time-tracking"
+      controlledOpen={open}
+      onControlledOpenChange={onOpenChange}
+      trigger={trigger}
     />
   );
 }

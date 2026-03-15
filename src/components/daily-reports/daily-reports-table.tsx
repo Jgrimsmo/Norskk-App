@@ -10,11 +10,19 @@ import {
   Wrench,
   Clock,
   Eye,
+  Trash2,
 } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { generateDailyReportPDF, generateDailyReportPDFBlobUrl, DAILY_REPORT_SECTIONS } from "@/lib/export/react-pdf/daily-report";
 import { ExportDialog, type ExportColumnDef, type ExportConfig } from "@/components/shared/export-dialog";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions, type TableAction } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +95,19 @@ function createBlankReport(): DailyReport {
   };
 }
 
+// ── Column definitions for settings ──
+const REPORT_COLUMN_DEFS: ColumnDef[] = [
+  { id: "date", label: "Date", alwaysVisible: true },
+  { id: "time", label: "Time" },
+  { id: "project", label: "Project" },
+  { id: "author", label: "Author" },
+  { id: "workTasks", label: "Work Tasks" },
+  { id: "staff", label: "Staff" },
+  { id: "equipment", label: "Equipment" },
+  { id: "photos", label: "Photos" },
+  { id: "timeEntries", label: "Time Entries" },
+];
+
 export default function DailyReportsTable() {
   const { data: employees } = useEmployees();
   const { data: projects } = useProjects();
@@ -97,6 +118,21 @@ export default function DailyReportsTable() {
   const { data: tools } = useTools();
   const { profile } = useCompanyProfile();
   const [reports, setReports, , reportsSaving] = useFirestoreState<DailyReport>(Collections.DAILY_REPORTS);
+
+  // ── Column settings ──
+  const { columns, toggleColumn, reorderColumns, reset: resetColumns } =
+    useTableColumns("daily-reports-columns", REPORT_COLUMN_DEFS);
+
+  // ── Row selection ──
+  const {
+    selected,
+    count: selectedCount,
+    isSelected,
+    toggle: toggleSelection,
+    selectAll,
+    deselectAll,
+    allSelected,
+  } = useRowSelection();
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -184,6 +220,30 @@ export default function DailyReportsTable() {
     getProjectName,
     getEmployeeName,
   ]);
+
+  // ── Pagination ──
+  const { paginatedData, pageSize, setPageSize, totalItems } =
+    useTablePagination(filteredReports);
+
+  // ── Table actions ──
+  const handleBulkDelete = React.useCallback(() => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} report(s)?`)) return;
+    setReports((prev) => prev.filter((r) => !selected.has(r.id)));
+    deselectAll();
+  }, [selected, setReports, deselectAll]);
+
+  const tableActions: TableAction[] = React.useMemo(
+    () => [
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
 
   // Open report dialog
   const openReport = (report: DailyReport) => {
@@ -294,6 +354,8 @@ export default function DailyReportsTable() {
           />
         </div>
         <div className="flex items-center gap-2">
+          <ColumnSettings columns={columns} onToggle={toggleColumn} onReorder={reorderColumns} onReset={resetColumns} />
+          <TableActions actions={tableActions} selectedCount={selectedCount} />
           <Button
             variant="outline"
             size="sm"
@@ -311,46 +373,49 @@ export default function DailyReportsTable() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-              <TableHead className="w-[100px] text-xs font-semibold px-3">
-                <DateColumnFilter
-                  dateRange={dateRange}
-                  onDateRangeChange={setDateRange}
+              <TableHead className="w-[40px] px-3">
+                <Checkbox
+                  checked={paginatedData.length > 0 && allSelected(paginatedData.map((r) => r.id))}
+                  onCheckedChange={(checked) => { if (checked) selectAll(paginatedData.map((r) => r.id)); else deselectAll(); }}
+                  aria-label="Select all"
                 />
               </TableHead>
-              <TableHead className="w-[60px] text-xs font-semibold px-3">Time</TableHead>
-              <TableHead className="min-w-[140px] text-xs font-semibold px-3">
-                <ColumnFilter
-                  title="Project"
-                  options={projectOptions}
-                  selected={projectFilter}
-                  onChange={setProjectFilter}
-                />
-              </TableHead>
-              <TableHead className="min-w-[120px] text-xs font-semibold px-3">
-                <ColumnFilter
-                  title="Author"
-                  options={authorOptions}
-                  selected={authorFilter}
-                  onChange={setAuthorFilter}
-                />
-              </TableHead>
-              <TableHead className="min-w-[160px] text-xs font-semibold px-3">Work Tasks</TableHead>
-              <TableHead className="w-[70px] text-xs font-semibold px-3">Staff</TableHead>
-              <TableHead className="w-[90px] text-xs font-semibold px-3">Equipment</TableHead>
-              <TableHead className="w-[60px] text-xs font-semibold px-3">Photos</TableHead>
-              <TableHead className="w-[90px] text-xs font-semibold px-3">Time Entries</TableHead>
+              {columns.filter((c) => c.visible).map((col) => {
+                switch (col.id) {
+                  case "date":
+                    return <TableHead key="date" className="w-[100px] text-xs font-semibold px-3"><DateColumnFilter dateRange={dateRange} onDateRangeChange={setDateRange} /></TableHead>;
+                  case "time":
+                    return <TableHead key="time" className="w-[60px] text-xs font-semibold px-3">Time</TableHead>;
+                  case "project":
+                    return <TableHead key="project" className="min-w-[140px] text-xs font-semibold px-3"><ColumnFilter title="Project" options={projectOptions} selected={projectFilter} onChange={setProjectFilter} /></TableHead>;
+                  case "author":
+                    return <TableHead key="author" className="min-w-[120px] text-xs font-semibold px-3"><ColumnFilter title="Author" options={authorOptions} selected={authorFilter} onChange={setAuthorFilter} /></TableHead>;
+                  case "workTasks":
+                    return <TableHead key="workTasks" className="min-w-[160px] text-xs font-semibold px-3">Work Tasks</TableHead>;
+                  case "staff":
+                    return <TableHead key="staff" className="w-[70px] text-xs font-semibold px-3">Staff</TableHead>;
+                  case "equipment":
+                    return <TableHead key="equipment" className="w-[90px] text-xs font-semibold px-3">Equipment</TableHead>;
+                  case "photos":
+                    return <TableHead key="photos" className="w-[60px] text-xs font-semibold px-3">Photos</TableHead>;
+                  case "timeEntries":
+                    return <TableHead key="timeEntries" className="w-[90px] text-xs font-semibold px-3">Time Entries</TableHead>;
+                  default:
+                    return null;
+                }
+              })}
               <TableHead className="w-[50px] text-xs font-semibold px-3">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredReports.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={columns.filter(c => c.visible).length + 2} className="h-32 text-center text-muted-foreground">
                   No reports found.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredReports.map((report) => {
+              paginatedData.map((report) => {
                 const totalPhotos =
                   (report.morningPhotoUrls?.length ?? 0) +
                   (report.workPhotoUrls?.length ?? 0) +
@@ -364,62 +429,66 @@ export default function DailyReportsTable() {
                     className="group h-[36px] cursor-pointer hover:bg-muted/30 transition-colors"
                     onClick={() => openReport(report)}
                   >
-                    <TableCell className="text-xs font-medium px-3">
-                      {format(parseISO(report.date), "MM/dd/yyyy")}
+                    {/* Checkbox */}
+                    <TableCell className="px-3" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected(report.id)}
+                        onCheckedChange={() => toggleSelection(report.id)}
+                        aria-label="Select report"
+                      />
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground px-3">
-                      {report.time || "—"}
-                    </TableCell>
-                    <TableCell className="text-xs truncate max-w-[200px] px-3">
-                      {getProjectName(report.projectId)}
-                    </TableCell>
-                    <TableCell className="text-xs px-3">
-                      {getEmployeeName(report.authorId)}
-                    </TableCell>
-                    <TableCell className="text-xs truncate max-w-[200px] text-muted-foreground px-3">
-                      {report.workDescription || "—"}
-                    </TableCell>
-                    <TableCell className="text-xs px-3">
+
+                    {columns.filter((c) => c.visible).map((col) => {
+                      switch (col.id) {
+                        case "date":
+                          return <TableCell key="date" className="text-xs font-medium px-3">{format(parseISO(report.date), "MM/dd/yyyy")}</TableCell>;
+                        case "time":
+                          return <TableCell key="time" className="text-xs text-muted-foreground px-3">{report.time || "—"}</TableCell>;
+                        case "project":
+                          return <TableCell key="project" className="text-xs truncate max-w-[200px] px-3">{getProjectName(report.projectId)}</TableCell>;
+                        case "author":
+                          return <TableCell key="author" className="text-xs px-3">{getEmployeeName(report.authorId)}</TableCell>;
+                        case "workTasks":
+                          return <TableCell key="workTasks" className="text-xs truncate max-w-[200px] text-muted-foreground px-3">{report.workDescription || "—"}</TableCell>;
+                        case "staff":
+                          return (
+                            <TableCell key="staff" className="text-xs px-3">
                       {(report.onSiteStaff ?? []).length > 0 ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Users className="h-3 w-3 text-muted-foreground" />
-                          {(report.onSiteStaff ?? []).length}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs px-3">
+                        <span className="inline-flex items-center gap-1"><Users className="h-3 w-3 text-muted-foreground" />{(report.onSiteStaff ?? []).length}</span>
+                      ) : "—"}
+                            </TableCell>
+                          );
+                        case "equipment":
+                          return (
+                            <TableCell key="equipment" className="text-xs px-3">
                       {equipCount > 0 ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Wrench className="h-3 w-3 text-muted-foreground" />
-                          {equipCount}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs px-3">
+                        <span className="inline-flex items-center gap-1"><Wrench className="h-3 w-3 text-muted-foreground" />{equipCount}</span>
+                      ) : "—"}
+                            </TableCell>
+                          );
+                        case "photos":
+                          return (
+                            <TableCell key="photos" className="text-xs px-3">
                       {totalPhotos > 0 ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Camera className="h-3 w-3 text-muted-foreground" />
-                          {totalPhotos}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs px-3">
+                        <span className="inline-flex items-center gap-1"><Camera className="h-3 w-3 text-muted-foreground" />{totalPhotos}</span>
+                      ) : "—"}
+                            </TableCell>
+                          );
+                        case "timeEntries":
+                          return (
+                            <TableCell key="timeEntries" className="text-xs px-3">
                       {teCount > 0 ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          {teCount}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="px-3">
+                        <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{teCount}</span>
+                      ) : "—"}
+                            </TableCell>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
+
+                    {/* Actions */}
+                    <TableCell className="px-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-0.5">
                         <Button
                           variant="ghost"
@@ -443,6 +512,14 @@ export default function DailyReportsTable() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination footer */}
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
 
       {/* Dialog */}
       {activeReport && (

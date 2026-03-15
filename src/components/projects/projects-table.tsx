@@ -2,12 +2,21 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Check, X, Clock, FileText, ShieldCheck, ImageIcon, FolderKanban, Receipt } from "lucide-react";
+import { Plus, Pencil, Check, X, Clock, FileText, ShieldCheck, ImageIcon, FolderKanban, Receipt, Download, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
-import { TableExport } from "@/components/shared/table-export";
 import type { ExportColumnDef } from "@/components/shared/export-dialog";
+import { ExportDialog, type ExportConfig } from "@/components/shared/export-dialog";
 import { projectCSVColumns, projectPDFColumns, projectPDFRows } from "@/lib/export/columns";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTablePagination } from "@/hooks/use-table-pagination";
+import { ColumnSettings } from "@/components/shared/column-settings";
+import { TablePaginationBar } from "@/components/shared/table-pagination-bar";
+import { TableActions, type TableAction } from "@/components/shared/table-actions";
+import { Checkbox } from "@/components/ui/checkbox";
+import { exportToCSV, exportToExcel } from "@/lib/export/csv";
+import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
 
 import {
   Table,
@@ -37,6 +46,7 @@ import { Label } from "@/components/ui/label";
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
 import { SortableHeader } from "@/components/shared/sortable-header";
 import { useTableSort } from "@/hooks/use-table-sort";
+import { useCompanyProfile } from "@/hooks/use-company-profile";
 
 import { type Project, type ProjectStatus, type CostCode } from "@/lib/types/time-tracking";
 import {
@@ -75,6 +85,35 @@ const BLANK_NEW_PROJECT_FORM = {
 export function composeAddress(p: { address?: string; city?: string; province?: string }) {
   return [p.address, p.city, p.province].filter(Boolean).join(", ");
 }
+
+// ── Column definitions for settings ──
+const PROJECT_COLUMN_DEFS: ColumnDef[] = [
+  { id: "number", label: "Project #", alwaysVisible: true },
+  { id: "name", label: "Name", alwaysVisible: true },
+  { id: "developer", label: "Developer" },
+  { id: "address", label: "Address" },
+  { id: "entries", label: "Time Entries" },
+  { id: "photos", label: "Photos" },
+  { id: "reports", label: "Reports" },
+  { id: "safety", label: "Safety" },
+  { id: "payables", label: "Payables" },
+  { id: "status", label: "Status" },
+];
+
+// ── Export column definitions ──
+const PROJECT_EXPORT_COLUMNS: ExportColumnDef[] = [
+  { id: "number", header: "Number" },
+  { id: "name", header: "Name" },
+  { id: "developer", header: "Developer" },
+  { id: "address", header: "Address" },
+  { id: "status", header: "Status" },
+  { id: "costCodes", header: "Cost Codes" },
+];
+
+const PROJECT_GROUP_OPTIONS = [
+  { value: "status", label: "Status" },
+  { value: "developer", label: "Developer" },
+];
 
 // ── Address popover cell ─────────────────────────────────
 function AddressCell({
@@ -175,6 +214,21 @@ export function ProjectsTable({
   const { data: dailyReports } = useDailyReports();
   const { data: formSubmissions } = useFormSubmissions();
   const { data: invoices } = useInvoices();
+
+  // ── Column settings ──
+  const { columns, toggleColumn, reorderColumns, reset: resetColumns, isVisible } =
+    useTableColumns("projects-columns", PROJECT_COLUMN_DEFS);
+
+  // ── Row selection ──
+  const {
+    selected,
+    count: selectedCount,
+    isSelected,
+    toggle: toggleSelection,
+    selectAll,
+    deselectAll,
+    allSelected,
+  } = useRowSelection();
 
   // ── Add form state ──
   const [adding, setAdding] = React.useState(false);
@@ -288,6 +342,7 @@ export function ProjectsTable({
 
   // ── Sort state ──
   const { sortKey, sortDir, toggleSort, sortData } = useTableSort<string>();
+  const { profile } = useCompanyProfile();
 
   // ── Filter state ──
   const [statusFilter, setStatusFilter] = React.useState<Set<string>>(new Set());
@@ -351,6 +406,77 @@ export function ProjectsTable({
     });
   }, [projectList, statusFilter, developerFilter]);
 
+  // ── Pagination ──
+  const { paginatedData, pageSize, setPageSize, totalItems } =
+    useTablePagination(filteredProjects);
+
+  // ── Export ──
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const handleExport = React.useCallback(
+    (config: ExportConfig) => {
+      const datestamp = new Date().toISOString().slice(0, 10);
+      const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
+      if (config.format === "excel") {
+        exportToExcel(filteredProjects, projectCSVColumns(costCodes, developers), filename, config.selectedColumns);
+      } else if (config.format === "csv") {
+        exportToCSV(filteredProjects, projectCSVColumns(costCodes, developers), filename, config.selectedColumns);
+      } else {
+        generatePDF({
+          title: config.title,
+          filename,
+          company: profile,
+          columns: projectPDFColumns,
+          rows: projectPDFRows(filteredProjects, costCodes, developers),
+          orientation: config.orientation,
+          selectedColumns: config.selectedColumns,
+          groupBy: config.groupBy,
+        });
+      }
+    },
+    [filteredProjects, costCodes, developers, profile]
+  );
+  const handlePreview = React.useCallback(
+    (config: ExportConfig) =>
+      generatePDFBlobUrl({
+        title: config.title,
+        filename: "preview",
+        company: profile,
+        columns: projectPDFColumns,
+        rows: projectPDFRows(filteredProjects, costCodes, developers),
+        orientation: config.orientation,
+        selectedColumns: config.selectedColumns,
+        groupBy: config.groupBy,
+      }),
+    [filteredProjects, costCodes, developers, profile]
+  );
+
+  const handleBulkDelete = React.useCallback(() => {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} project(s)?`)) return;
+    onProjectsChange((prev) => prev.filter((p) => !selected.has(p.id)));
+    deselectAll();
+  }, [selected, onProjectsChange, deselectAll]);
+
+  // ── Table actions ──
+  const tableActions: TableAction[] = React.useMemo(
+    () => [
+      {
+        label: "Export",
+        icon: <Download className="h-3.5 w-3.5" />,
+        onClick: () => setExportOpen(true),
+        alwaysEnabled: true,
+      },
+      {
+        label: "Delete",
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        onClick: handleBulkDelete,
+        destructive: true,
+        separatorBefore: true,
+      },
+    ],
+    [handleBulkDelete]
+  );
+
   // ── Mutations ──
   const updateProject = React.useCallback(
     (id: string, field: keyof Project, value: string | string[]) => {
@@ -374,12 +500,15 @@ export function ProjectsTable({
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Button size="sm" variant="outline" className="gap-1.5 text-xs cursor-pointer" onClick={() => { setNewForm((f) => ({ ...f, number: nextProjectNumber })); setAdding(true); }} disabled={adding}>
           <Plus className="h-3.5 w-3.5" />
           Add Project
         </Button>
-        <ProjectsExport projects={filteredProjects} costCodes={costCodes} developers={developers} />
+        <div className="flex items-center gap-2">
+          <ColumnSettings columns={columns} onToggle={toggleColumn} onReorder={reorderColumns} onReset={resetColumns} />
+          <TableActions actions={tableActions} selectedCount={selectedCount} />
+        </div>
       </div>
 
       {/* Add form */}
@@ -503,49 +632,46 @@ export function ProjectsTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
-                <TableHead className="w-[110px] text-xs font-semibold px-3">
-                  <SortableHeader label="Project #" column="number" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                <TableHead className="w-[40px] px-3">
+                  <Checkbox
+                    checked={paginatedData.length > 0 && allSelected(paginatedData.map((p) => p.id))}
+                    onCheckedChange={(checked) => { if (checked) selectAll(paginatedData.map((p) => p.id)); else deselectAll(); }}
+                    aria-label="Select all"
+                  />
                 </TableHead>
-                <TableHead className="w-[200px] text-xs font-semibold px-3">
-                  <SortableHeader label="Name" column="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                </TableHead>
-                <TableHead className="w-[160px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Developer" options={developerOptions} selected={developerFilter} onChange={setDeveloperFilter} />
-                    <SortableHeader label="" column="developer" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
-                <TableHead className="w-[220px] text-xs font-semibold px-3">
-                  <SortableHeader label="Address" column="address" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                </TableHead>
-                <TableHead className="w-[90px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><Clock className="h-3 w-3" /><SortableHeader label="Entries" column="entries" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
-                </TableHead>
-                <TableHead className="w-[75px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><ImageIcon className="h-3 w-3" /><SortableHeader label="Photos" column="photos" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
-                </TableHead>
-                <TableHead className="w-[80px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><FileText className="h-3 w-3" /><SortableHeader label="Reports" column="reports" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
-                </TableHead>
-                <TableHead className="w-[75px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><ShieldCheck className="h-3 w-3" /><SortableHeader label="Safety" column="safety" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
-                </TableHead>
-                <TableHead className="w-[130px] text-xs font-semibold px-3 text-center">
-                  <div className="flex items-center justify-center gap-1"><Receipt className="h-3 w-3" /><SortableHeader label="Payables" column="payables" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div>
-                </TableHead>
-                <TableHead className="w-[110px] text-xs font-semibold px-3">
-                  <div className="flex items-center gap-1">
-                    <ColumnFilter title="Status" options={statusOptions} selected={statusFilter} onChange={setStatusFilter} />
-                    <SortableHeader label="" column="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-                  </div>
-                </TableHead>
+                {columns.filter((c) => c.visible).map((col) => {
+                  switch (col.id) {
+                    case "number":
+                      return <TableHead key="number" className="w-[110px] text-xs font-semibold px-3"><SortableHeader label="Project #" column="number" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></TableHead>;
+                    case "name":
+                      return <TableHead key="name" className="w-[200px] text-xs font-semibold px-3"><SortableHeader label="Name" column="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></TableHead>;
+                    case "developer":
+                      return <TableHead key="developer" className="w-[160px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Developer" options={developerOptions} selected={developerFilter} onChange={setDeveloperFilter} /><SortableHeader label="" column="developer" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "address":
+                      return <TableHead key="address" className="w-[220px] text-xs font-semibold px-3"><SortableHeader label="Address" column="address" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></TableHead>;
+                    case "entries":
+                      return <TableHead key="entries" className="w-[90px] text-xs font-semibold px-3 text-center"><div className="flex items-center justify-center gap-1"><Clock className="h-3 w-3" /><SortableHeader label="Entries" column="entries" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "photos":
+                      return <TableHead key="photos" className="w-[75px] text-xs font-semibold px-3 text-center"><div className="flex items-center justify-center gap-1"><ImageIcon className="h-3 w-3" /><SortableHeader label="Photos" column="photos" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "reports":
+                      return <TableHead key="reports" className="w-[80px] text-xs font-semibold px-3 text-center"><div className="flex items-center justify-center gap-1"><FileText className="h-3 w-3" /><SortableHeader label="Reports" column="reports" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "safety":
+                      return <TableHead key="safety" className="w-[75px] text-xs font-semibold px-3 text-center"><div className="flex items-center justify-center gap-1"><ShieldCheck className="h-3 w-3" /><SortableHeader label="Safety" column="safety" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "payables":
+                      return <TableHead key="payables" className="w-[130px] text-xs font-semibold px-3 text-center"><div className="flex items-center justify-center gap-1"><Receipt className="h-3 w-3" /><SortableHeader label="Payables" column="payables" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    case "status":
+                      return <TableHead key="status" className="w-[110px] text-xs font-semibold px-3"><div className="flex items-center gap-1"><ColumnFilter title="Status" options={statusOptions} selected={statusFilter} onChange={setStatusFilter} /><SortableHeader label="" column="status" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} /></div></TableHead>;
+                    default:
+                      return null;
+                  }
+                })}
                 <TableHead className="w-[80px] text-xs font-semibold px-3 text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredProjects.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} className="h-40 text-center">
+                  <TableCell colSpan={columns.filter(c => c.visible).length + 2} className="h-40 text-center">
                     {projectList.length === 0 ? (
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <FolderKanban className="h-8 w-8 opacity-30" />
@@ -566,7 +692,7 @@ export function ProjectsTable({
                   </TableCell>
                 </TableRow>
               )}
-              {sortData(filteredProjects, (project, key) => {
+              {sortData(paginatedData, (project, key) => {
                 const stats = statsByProject.get(project.id) ?? { timeCount: 0, totalHours: 0, photoCount: 0, reportCount: 0, safetyCount: 0 };
                 const invStats = invoiceStatsByProject.get(project.id);
                 switch (key) {
@@ -596,8 +722,20 @@ export function ProjectsTable({
                       isEditing ? "bg-amber-50/40 dark:bg-amber-900/10" : "hover:bg-muted/30"
                     }`}
                   >
-                    {/* Project Number */}
-                    <TableCell className="text-xs p-0 px-1">
+                    {/* Checkbox */}
+                    <TableCell className="px-3" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected(project.id)}
+                        onCheckedChange={() => toggleSelection(project.id)}
+                        aria-label={`Select ${project.name}`}
+                      />
+                    </TableCell>
+
+                    {columns.filter((c) => c.visible).map((col) => {
+                      switch (col.id) {
+                        case "number":
+                          return (
+                            <TableCell key="number" className="text-xs p-0 px-1">
                       {isEditing ? (
                         <div>
                           <CellInput value={project.number} onChange={(v) => updateProject(project.id, "number", v)} placeholder="e.g. 2026-006" />
@@ -605,10 +743,11 @@ export function ProjectsTable({
                       ) : (
                         <span className="px-2 text-xs font-medium text-muted-foreground">{project.number || "—"}</span>
                       )}
-                    </TableCell>
-
-                    {/* Name */}
-                    <TableCell className="p-0 px-1">
+                            </TableCell>
+                          );
+                        case "name":
+                          return (
+                            <TableCell key="name" className="p-0 px-1">
                       {isEditing ? (
                         <div>
                           <CellInput value={project.name} onChange={(v) => updateProject(project.id, "name", v)} placeholder="Project name" />
@@ -621,10 +760,11 @@ export function ProjectsTable({
                           {project.name || "—"}
                         </button>
                       )}
-                    </TableCell>
-
-                    {/* Developer */}
-                    <TableCell className="p-0 px-1">
+                            </TableCell>
+                          );
+                        case "developer":
+                          return (
+                            <TableCell key="developer" className="p-0 px-1">
                       {isEditing ? (
                         <div>
                           <CellSelect
@@ -647,10 +787,11 @@ export function ProjectsTable({
                       ) : (
                         <span className="px-2 text-xs text-muted-foreground">{developerMap[project.developerId] || "—"}</span>
                       )}
-                    </TableCell>
-
-                    {/* Address */}
-                    <TableCell className="p-0 px-1">
+                            </TableCell>
+                          );
+                        case "address":
+                          return (
+                            <TableCell key="address" className="p-0 px-1">
                       {isEditing ? (
                         <AddressCell project={project} onChange={(field, v) => updateAddress(project.id, field, v)} />
                       ) : (
@@ -658,34 +799,39 @@ export function ProjectsTable({
                           {composeAddress(project) || "—"}
                         </span>
                       )}
-                    </TableCell>
-
-                    {/* Time Entries + Hours */}
-                    <TableCell className="px-3 text-center">
+                            </TableCell>
+                          );
+                        case "entries":
+                          return (
+                            <TableCell key="entries" className="px-3 text-center">
                       <StatCell icon={Clock} count={stats.timeCount} sub={hoursLabel}
                         tooltip={`${stats.timeCount} time entr${stats.timeCount !== 1 ? "ies" : "y"} · ${stats.totalHours.toFixed(1)} hrs`} />
-                    </TableCell>
-
-                    {/* Photos */}
-                    <TableCell className="px-3 text-center">
+                            </TableCell>
+                          );
+                        case "photos":
+                          return (
+                            <TableCell key="photos" className="px-3 text-center">
                       <StatCell icon={ImageIcon} count={stats.photoCount}
                         tooltip={`${stats.photoCount} photo${stats.photoCount !== 1 ? "s" : ""}`} />
-                    </TableCell>
-
-                    {/* Daily Reports */}
-                    <TableCell className="px-3 text-center">
+                            </TableCell>
+                          );
+                        case "reports":
+                          return (
+                            <TableCell key="reports" className="px-3 text-center">
                       <StatCell icon={FileText} count={stats.reportCount}
                         tooltip={`${stats.reportCount} daily report${stats.reportCount !== 1 ? "s" : ""}`} />
-                    </TableCell>
-
-                    {/* Safety Forms */}
-                    <TableCell className="px-3 text-center">
+                            </TableCell>
+                          );
+                        case "safety":
+                          return (
+                            <TableCell key="safety" className="px-3 text-center">
                       <StatCell icon={ShieldCheck} count={stats.safetyCount}
                         tooltip={`${stats.safetyCount} safety form${stats.safetyCount !== 1 ? "s" : ""}`} />
-                    </TableCell>
-
-                    {/* Payables */}
-                    <TableCell className="px-3 text-center">
+                            </TableCell>
+                          );
+                        case "payables":
+                          return (
+                            <TableCell key="payables" className="px-3 text-center">
                       {invStats ? (
                         <Link href={`/payables?project=${project.id}`}>
                           <div className="inline-flex flex-col items-center leading-tight group/pay cursor-pointer">
@@ -704,10 +850,11 @@ export function ProjectsTable({
                       ) : (
                         <span className="text-[10px] text-muted-foreground/40">—</span>
                       )}
-                    </TableCell>
-
-                    {/* Status */}
-                    <TableCell className="p-0 px-1">
+                            </TableCell>
+                          );
+                        case "status":
+                          return (
+                            <TableCell key="status" className="p-0 px-1">
                       {isEditing ? (
                         <div>
                           <CellSelect value={project.status} onChange={(v) => updateProject(project.id, "status", v)} options={statusOptions} placeholder="Status" />
@@ -717,7 +864,12 @@ export function ProjectsTable({
                           {statusLabels[project.status]}
                         </Badge>
                       )}
-                    </TableCell>
+                            </TableCell>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
 
                     {/* Actions */}
                     <TableCell className="p-0 px-1">
@@ -764,40 +916,25 @@ export function ProjectsTable({
         </div>
       </div>
 
-      {/* Summary footer */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
-        <span>{filteredProjects.length} of {projectList.length} project{projectList.length !== 1 ? "s" : ""}</span>
-        <span className="font-medium text-foreground">{projectList.filter((p) => p.status === "active").length} active</span>
-      </div>
+      {/* Pagination footer */}
+      <TablePaginationBar
+        selectedCount={selectedCount}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
+
+      {/* Export dialog */}
+      <ExportDialog
+        controlledOpen={exportOpen}
+        onControlledOpenChange={setExportOpen}
+        trigger={null}
+        columns={PROJECT_EXPORT_COLUMNS}
+        groupOptions={PROJECT_GROUP_OPTIONS}
+        defaultTitle="Projects"
+        onExport={handleExport}
+        onGeneratePDFPreview={handlePreview}
+      />
     </div>
-  );
-}
-
-// ── Export sub-component ──────────────────────────────────
-const PROJECT_EXPORT_COLUMNS: ExportColumnDef[] = [
-  { id: "number", header: "Number" },
-  { id: "name", header: "Name" },
-  { id: "developer", header: "Developer" },
-  { id: "address", header: "Address" },
-  { id: "status", header: "Status" },
-  { id: "costCodes", header: "Cost Codes" },
-];
-
-const PROJECT_GROUP_OPTIONS = [
-  { value: "status", label: "Status" },
-  { value: "developer", label: "Developer" },
-];
-
-function ProjectsExport({ projects, costCodes, developers }: { projects: Project[]; costCodes: CostCode[]; developers: import("@/lib/types/time-tracking").Developer[] }) {
-  return (
-    <TableExport
-      items={projects}
-      csvColumns={projectCSVColumns(costCodes, developers)}
-      pdfColumns={projectPDFColumns}
-      pdfRows={projectPDFRows(projects, costCodes, developers)}
-      exportColumns={PROJECT_EXPORT_COLUMNS}
-      groupOptions={PROJECT_GROUP_OPTIONS}
-      defaultTitle="Projects"
-    />
   );
 }
