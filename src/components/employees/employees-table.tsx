@@ -5,7 +5,7 @@ import { Plus, Pencil, Check, Users, X } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { EmployeeDetailSheet } from "@/components/employees/employee-detail-sheet";
 import { DEFAULT_ROLE_TEMPLATES } from "@/lib/constants/permissions";
-import { PERMISSION_LEVELS } from "@/lib/constants/permissions";
+
 
 import {
   Table,
@@ -90,11 +90,7 @@ export function EmployeesTable({
     new Set()
   );
 
-  // Permission level options (for the permissions dropdown)
-  const permissionLevelOptions = React.useMemo(
-    () => PERMISSION_LEVELS.map((l) => ({ id: l, label: l })),
-    []
-  );
+
 
   // Role options from templates (used for both the cell select and the column filter)
   const roleSelectOptions = React.useMemo(
@@ -210,7 +206,6 @@ export function EmployeesTable({
                 <TableRow className="bg-muted/50 hover:bg-muted/50 h-[40px]">
                   <TableHead className="w-[170px] text-xs font-semibold px-3">Name</TableHead>
                   <TableHead className="w-[140px] text-xs font-semibold px-3">Role / Title</TableHead>
-                  <TableHead className="w-[150px] text-xs font-semibold px-3">Permission Level</TableHead>
                   <TableHead className="w-[140px] text-xs font-semibold px-3">Phone</TableHead>
                   <TableHead className="w-[180px] text-xs font-semibold px-3">Email</TableHead>
                   <TableHead className="w-[110px] text-xs font-semibold px-3">Status</TableHead>
@@ -231,14 +226,6 @@ export function EmployeesTable({
                       value={newForm.role}
                       onChange={(v) => setNewForm((f) => ({ ...f, role: v }))}
                       placeholder="e.g. Director"
-                    />
-                  </TableCell>
-                  <TableCell className="p-0 px-1">
-                    <CellSelect
-                      value={newForm.permissionLevel}
-                      onChange={(v) => setNewForm((f) => ({ ...f, permissionLevel: v }))}
-                      options={permissionLevelOptions}
-                      placeholder="Select level"
                     />
                   </TableCell>
                   <TableCell className="p-0 px-1">
@@ -397,23 +384,14 @@ export function EmployeesTable({
                       )}
                     </TableCell>
 
-                    {/* Permission Level */}
+                    {/* Permission Level (read-only — editable in Settings → User Management) */}
                     <TableCell className="p-0 px-1">
-                      {isLocked ? (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] font-medium"
-                        >
-                          {emp.permissionLevel || emp.role}
-                        </Badge>
-                      ) : (
-                        <CellSelect
-                          value={emp.permissionLevel || emp.role}
-                          onChange={(v) => updateEmployee(emp.id, "permissionLevel", v)}
-                          options={permissionLevelOptions}
-                          placeholder="Select level"
-                        />
-                      )}
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-medium"
+                      >
+                        {emp.permissionLevel || emp.role}
+                      </Badge>
                     </TableCell>
 
                     {/* Phone */}
