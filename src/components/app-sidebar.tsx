@@ -104,7 +104,7 @@ const navSections: NavSection[] = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { toggleSidebar, open } = useSidebar();
-  const { profile } = useCompanyProfile();
+  const { profile, loading: profileLoading } = useCompanyProfile();
   const { can } = usePermissions();
   const { user } = useAuth();
 
@@ -135,7 +135,9 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" variant="sidebar" className="shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)]">
       <SidebarHeader className="flex flex-col items-center px-3 py-5 group-data-[collapsible=icon]:py-3">
         <Link href="/" className="flex items-center justify-center overflow-hidden">
-          {logoUrl ? (
+          {profileLoading ? (
+            <div className="h-14 w-14 shrink-0 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8" />
+          ) : logoUrl ? (
               <Image
               src={logoUrl}
               alt={companyName}
