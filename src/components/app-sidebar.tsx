@@ -178,7 +178,7 @@ export function AppSidebar() {
                         tooltip={item.title}
                         className={`h-9 rounded-md transition-colors data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:font-semibold data-[active=true]:border-l-2 data-[active=true]:border-sidebar-primary data-[active=true]:pl-[calc(0.5rem-2px)]`}
                       >
-                        <Link href={item.href}>
+                        <Link href={item.href} prefetch={false}>
                           <item.icon className="h-4 w-4" />
                           <span className="text-sm">{item.title}</span>
                         </Link>
