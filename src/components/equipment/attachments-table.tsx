@@ -3,11 +3,8 @@
 import * as React from "react";
 import { Plus, Pencil, X } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
-import { ExportDialog } from "@/components/shared/export-dialog";
-import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
-import { useCompanyProfile } from "@/hooks/use-company-profile";
-import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
+import { TableExport } from "@/components/shared/table-export";
+import type { ExportColumnDef } from "@/components/shared/export-dialog";
 import { attachmentCSVColumns, attachmentPDFColumns, attachmentPDFRows } from "@/lib/export/columns";
 
 import {
@@ -402,51 +399,15 @@ const ATTACHMENT_GROUP_OPTIONS = [
 ];
 
 function AttachmentsExport({ attachments }: { attachments: Attachment[] }) {
-  const { profile } = useCompanyProfile();
-
-  const handleExport = (config: ExportConfig) => {
-    const datestamp = new Date().toISOString().slice(0, 10);
-    const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
-
-    if (config.format === "excel") {
-      exportToExcel(attachments, attachmentCSVColumns, filename, config.selectedColumns);
-    } else if (config.format === "csv") {
-      exportToCSV(attachments, attachmentCSVColumns, filename, config.selectedColumns);
-    } else {
-      generatePDF({
-        title: config.title,
-        filename,
-        company: profile,
-        columns: attachmentPDFColumns,
-        rows: attachmentPDFRows(attachments),
-        orientation: config.orientation,
-        selectedColumns: config.selectedColumns,
-        groupBy: config.groupBy,
-      });
-    }
-  };
-
-  const handlePreview = (config: ExportConfig) =>
-    generatePDFBlobUrl({
-      title: config.title,
-      filename: "preview",
-      company: profile,
-      columns: attachmentPDFColumns,
-      rows: attachmentPDFRows(attachments),
-      orientation: config.orientation,
-      selectedColumns: config.selectedColumns,
-      groupBy: config.groupBy,
-    });
-
   return (
-    <ExportDialog
-      columns={ATTACHMENT_EXPORT_COLUMNS}
+    <TableExport
+      items={attachments}
+      csvColumns={attachmentCSVColumns}
+      pdfColumns={attachmentPDFColumns}
+      pdfRows={attachmentPDFRows(attachments)}
+      exportColumns={ATTACHMENT_EXPORT_COLUMNS}
       groupOptions={ATTACHMENT_GROUP_OPTIONS}
       defaultTitle="Attachments"
-      onExport={handleExport}
-      onGeneratePDFPreview={handlePreview}
-      disabled={attachments.length === 0}
-      recordCount={attachments.length}
     />
   );
 }

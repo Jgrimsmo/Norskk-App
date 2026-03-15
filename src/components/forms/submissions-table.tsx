@@ -7,10 +7,8 @@ import {
   Eye,
   FileText,
   FileDown,
-  Download,
   MoreHorizontal,
   Trash2,
-  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -40,6 +38,8 @@ import { toast } from "sonner";
 import { DateColumnFilter } from "@/components/time-tracking/date-column-filter";
 import { ColumnFilter } from "@/components/time-tracking/column-filter";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
+import { useSourceLabelMap } from "@/hooks/use-source-label-map";
+import { PdfPreviewDialog } from "@/components/shared/pdf-preview-dialog";
 import {
   generateFormSubmissionPDF,
   generateFormSubmissionPDFBlobUrl,
@@ -272,22 +272,7 @@ export function SubmissionsTable() {
     [submissions]
   );
 
-  /** Build source-label map for PDF export */
-  const sourceLabelMap = React.useMemo<Record<string, Record<string, string>>>(() => ({
-    employees: Object.fromEntries(employees.map((e) => [e.id, e.name])),
-    projects: Object.fromEntries(projects.map((p) => [p.id, p.name])),
-    equipment: Object.fromEntries(
-      allEquipment
-        .filter((e) => e.id !== EQUIPMENT_NONE_ID)
-        .map((e) => [e.id, e.number ? `${e.name} #${e.number}` : e.name])
-    ),
-    attachments: Object.fromEntries(
-      allAttachments.map((a) => [a.id, a.number ? `${a.name} #${a.number}` : a.name])
-    ),
-    tools: Object.fromEntries(
-      allTools.map((t) => [t.id, t.number ? `${t.name} #${t.number}` : t.name])
-    ),
-  }), [employees, projects, allEquipment, allAttachments, allTools]);
+  const sourceLabelMap = useSourceLabelMap(employees, projects, allEquipment, allAttachments, allTools);
 
   const pdfOpts = (sub: FormSubmission, tpl: FormTemplate) => {
     const proj = sub.projectId ? projects.find((p) => p.id === sub.projectId) : undefined;
@@ -579,43 +564,12 @@ export function SubmissionsTable() {
       )}
 
       {/* PDF Preview Dialog */}
-      <Dialog open={!!pdfPreviewUrl || pdfPreviewLoading} onOpenChange={(o) => { if (!o) closePdfPreview(); }}>
-        <DialogContent className="sm:max-w-3xl h-[85vh] flex flex-col p-0">
-          <DialogHeader className="px-4 pt-4 pb-2 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <DialogTitle>{pdfPreviewName} — PDF Preview</DialogTitle>
-              {pdfPreviewUrl && (
-                <Button
-                  size="sm"
-                  className="gap-1.5 cursor-pointer mr-6"
-                  onClick={() => {
-                    const a = document.createElement("a");
-                    a.href = pdfPreviewUrl;
-                    a.download = `${pdfPreviewName}.pdf`;
-                    a.click();
-                    toast.success("PDF downloaded.");
-                  }}
-                >
-                  <Download className="h-4 w-4" /> Download
-                </Button>
-              )}
-            </div>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 px-4 pb-4">
-            {pdfPreviewLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : pdfPreviewUrl ? (
-              <iframe
-                src={pdfPreviewUrl}
-                title="PDF Preview"
-                className="w-full h-full rounded border"
-              />
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PdfPreviewDialog
+        url={pdfPreviewUrl}
+        name={pdfPreviewName}
+        loading={pdfPreviewLoading}
+        onClose={closePdfPreview}
+      />
     </div>
   );
 }

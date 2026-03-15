@@ -29,6 +29,7 @@ import {
   useTools,
 } from "@/hooks/use-firestore";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
+import { useSourceLabelMap } from "@/hooks/use-source-label-map";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { useCompanyProfile } from "@/hooks/use-company-profile";
 import { useSharePDF } from "@/hooks/use-share-pdf";
@@ -176,22 +177,7 @@ export function FieldForms() {
 
   const projectName = (id: string) => projectMap.get(id) || "";
 
-  /** Source-label map for PDF export */
-  const sourceLabelMap = React.useMemo<Record<string, Record<string, string>>>(() => ({
-    employees: Object.fromEntries(employees.map((e) => [e.id, e.name])),
-    projects: Object.fromEntries(projects.map((p) => [p.id, p.name])),
-    equipment: Object.fromEntries(
-      allEquipment
-        .filter((e) => e.id !== EQUIPMENT_NONE_ID)
-        .map((e) => [e.id, e.number ? `${e.name} #${e.number}` : e.name])
-    ),
-    attachments: Object.fromEntries(
-      allAttachments.map((a) => [a.id, a.number ? `${a.name} #${a.number}` : a.name])
-    ),
-    tools: Object.fromEntries(
-      allTools.map((t) => [t.id, t.number ? `${t.name} #${t.number}` : t.name])
-    ),
-  }), [employees, projects, allEquipment, allAttachments, allTools]);
+  const sourceLabelMap = useSourceLabelMap(employees, projects, allEquipment, allAttachments, allTools);
 
   const handleShareSubmission = (sub: FormSubmission) => {
     const tpl = templateMap.get(sub.templateId);

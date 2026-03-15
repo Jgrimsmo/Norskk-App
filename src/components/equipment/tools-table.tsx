@@ -3,11 +3,8 @@
 import * as React from "react";
 import { Plus, Pencil, X } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
-import { ExportDialog } from "@/components/shared/export-dialog";
-import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
-import { useCompanyProfile } from "@/hooks/use-company-profile";
-import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
+import { TableExport } from "@/components/shared/table-export";
+import type { ExportColumnDef } from "@/components/shared/export-dialog";
 import { toolCSVColumns, toolPDFColumns, toolPDFRows } from "@/lib/export/columns";
 
 import {
@@ -392,51 +389,15 @@ const TOOL_GROUP_OPTIONS = [
 ];
 
 function ToolsExport({ tools }: { tools: Tool[] }) {
-  const { profile } = useCompanyProfile();
-
-  const handleExport = (config: ExportConfig) => {
-    const datestamp = new Date().toISOString().slice(0, 10);
-    const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
-
-    if (config.format === "excel") {
-      exportToExcel(tools, toolCSVColumns, filename, config.selectedColumns);
-    } else if (config.format === "csv") {
-      exportToCSV(tools, toolCSVColumns, filename, config.selectedColumns);
-    } else {
-      generatePDF({
-        title: config.title,
-        filename,
-        company: profile,
-        columns: toolPDFColumns,
-        rows: toolPDFRows(tools),
-        orientation: config.orientation,
-        selectedColumns: config.selectedColumns,
-        groupBy: config.groupBy,
-      });
-    }
-  };
-
-  const handlePreview = (config: ExportConfig) =>
-    generatePDFBlobUrl({
-      title: config.title,
-      filename: "preview",
-      company: profile,
-      columns: toolPDFColumns,
-      rows: toolPDFRows(tools),
-      orientation: config.orientation,
-      selectedColumns: config.selectedColumns,
-      groupBy: config.groupBy,
-    });
-
   return (
-    <ExportDialog
-      columns={TOOL_EXPORT_COLUMNS}
+    <TableExport
+      items={tools}
+      csvColumns={toolCSVColumns}
+      pdfColumns={toolPDFColumns}
+      pdfRows={toolPDFRows(tools)}
+      exportColumns={TOOL_EXPORT_COLUMNS}
       groupOptions={TOOL_GROUP_OPTIONS}
       defaultTitle="Tools"
-      onExport={handleExport}
-      onGeneratePDFPreview={handlePreview}
-      disabled={tools.length === 0}
-      recordCount={tools.length}
     />
   );
 }

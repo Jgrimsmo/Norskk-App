@@ -4,12 +4,9 @@ import * as React from "react";
 import { Plus, Pencil, X, Check } from "lucide-react";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
 import { EquipmentDetailSheet } from "@/components/equipment/equipment-detail-sheet";
-import { ExportDialog } from "@/components/shared/export-dialog";
+import { TableExport } from "@/components/shared/table-export";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
-import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
-import { useCompanyProfile } from "@/hooks/use-company-profile";
-import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
+import type { ExportColumnDef } from "@/components/shared/export-dialog";
 import { equipmentCSVColumns, equipmentPDFColumns, equipmentPDFRows } from "@/lib/export/columns";
 
 import {
@@ -501,51 +498,15 @@ const EQUIPMENT_GROUP_OPTIONS = [
 ];
 
 function EquipmentExport({ equipment }: { equipment: Equipment[] }) {
-  const { profile } = useCompanyProfile();
-
-  const handleExport = (config: ExportConfig) => {
-    const datestamp = new Date().toISOString().slice(0, 10);
-    const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
-
-    if (config.format === "excel") {
-      exportToExcel(equipment, equipmentCSVColumns, filename, config.selectedColumns);
-    } else if (config.format === "csv") {
-      exportToCSV(equipment, equipmentCSVColumns, filename, config.selectedColumns);
-    } else {
-      generatePDF({
-        title: config.title,
-        filename,
-        company: profile,
-        columns: equipmentPDFColumns,
-        rows: equipmentPDFRows(equipment),
-        orientation: config.orientation,
-        selectedColumns: config.selectedColumns,
-        groupBy: config.groupBy,
-      });
-    }
-  };
-
-  const handlePreview = (config: ExportConfig) =>
-    generatePDFBlobUrl({
-      title: config.title,
-      filename: "preview",
-      company: profile,
-      columns: equipmentPDFColumns,
-      rows: equipmentPDFRows(equipment),
-      orientation: config.orientation,
-      selectedColumns: config.selectedColumns,
-      groupBy: config.groupBy,
-    });
-
   return (
-    <ExportDialog
-      columns={EQUIPMENT_EXPORT_COLUMNS}
+    <TableExport
+      items={equipment}
+      csvColumns={equipmentCSVColumns}
+      pdfColumns={equipmentPDFColumns}
+      pdfRows={equipmentPDFRows(equipment)}
+      exportColumns={EQUIPMENT_EXPORT_COLUMNS}
       groupOptions={EQUIPMENT_GROUP_OPTIONS}
       defaultTitle="Equipment"
-      onExport={handleExport}
-      onGeneratePDFPreview={handlePreview}
-      disabled={equipment.length === 0}
-      recordCount={equipment.length}
     />
   );
 }

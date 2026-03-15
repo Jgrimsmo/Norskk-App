@@ -5,11 +5,8 @@ import { useRouter } from "next/navigation";
 import { Plus, Pencil, Check, X, Clock, FileText, ShieldCheck, ImageIcon, FolderKanban, Receipt } from "lucide-react";
 import Link from "next/link";
 import { DeleteConfirmButton } from "@/components/shared/delete-confirm-button";
-import { ExportDialog } from "@/components/shared/export-dialog";
-import type { ExportColumnDef, ExportConfig } from "@/components/shared/export-dialog";
-import { useCompanyProfile } from "@/hooks/use-company-profile";
-import { exportToExcel, exportToCSV } from "@/lib/export/csv";
-import { generatePDF, generatePDFBlobUrl } from "@/lib/export/pdf";
+import { TableExport } from "@/components/shared/table-export";
+import type { ExportColumnDef } from "@/components/shared/export-dialog";
 import { projectCSVColumns, projectPDFColumns, projectPDFRows } from "@/lib/export/columns";
 
 import {
@@ -792,51 +789,15 @@ const PROJECT_GROUP_OPTIONS = [
 ];
 
 function ProjectsExport({ projects, costCodes, developers }: { projects: Project[]; costCodes: CostCode[]; developers: import("@/lib/types/time-tracking").Developer[] }) {
-  const { profile } = useCompanyProfile();
-
-  const handleExport = (config: ExportConfig) => {
-    const datestamp = new Date().toISOString().slice(0, 10);
-    const filename = `${config.title.toLowerCase().replace(/\s+/g, "-")}-${datestamp}`;
-
-    if (config.format === "excel") {
-      exportToExcel(projects, projectCSVColumns(costCodes, developers), filename, config.selectedColumns);
-    } else if (config.format === "csv") {
-      exportToCSV(projects, projectCSVColumns(costCodes, developers), filename, config.selectedColumns);
-    } else {
-      generatePDF({
-        title: config.title,
-        filename,
-        company: profile,
-        columns: projectPDFColumns,
-        rows: projectPDFRows(projects, costCodes, developers),
-        orientation: config.orientation,
-        selectedColumns: config.selectedColumns,
-        groupBy: config.groupBy,
-      });
-    }
-  };
-
-  const handlePreview = (config: ExportConfig) =>
-    generatePDFBlobUrl({
-      title: config.title,
-      filename: "preview",
-      company: profile,
-      columns: projectPDFColumns,
-      rows: projectPDFRows(projects, costCodes, developers),
-      orientation: config.orientation,
-      selectedColumns: config.selectedColumns,
-      groupBy: config.groupBy,
-    });
-
   return (
-    <ExportDialog
-      columns={PROJECT_EXPORT_COLUMNS}
+    <TableExport
+      items={projects}
+      csvColumns={projectCSVColumns(costCodes, developers)}
+      pdfColumns={projectPDFColumns}
+      pdfRows={projectPDFRows(projects, costCodes, developers)}
+      exportColumns={PROJECT_EXPORT_COLUMNS}
       groupOptions={PROJECT_GROUP_OPTIONS}
       defaultTitle="Projects"
-      onExport={handleExport}
-      onGeneratePDFPreview={handlePreview}
-      disabled={projects.length === 0}
-      recordCount={projects.length}
     />
   );
 }
