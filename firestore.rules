@@ -147,6 +147,21 @@ service cloud.firestore {
       allow delete: if isOpsManager();
     }
 
+    match /equipmentCategories/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOpsManager();
+    }
+
+    match /attachmentCategories/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOpsManager();
+    }
+
+    match /toolCategories/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOpsManager();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
