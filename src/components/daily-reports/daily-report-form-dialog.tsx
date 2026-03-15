@@ -4,29 +4,11 @@ import * as React from "react";
 import { format, parseISO } from "date-fns";
 import {
   Cloud,
-  CloudRain,
-  CloudSnow,
-  CloudFog,
-  CloudLightning,
-  Sun,
-  Wind,
-  CloudSun,
-  CloudOff,
-  Camera,
-  Sunrise,
-  Hammer,
-  Moon,
-  Plus,
-  Users,
-  X,
-  Search,
   Clock,
   RefreshCw,
-  Wrench,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -44,8 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-
-import { PhotoUpload } from "@/components/shared/photo-upload";
 
 import type {
   DailyReport,
@@ -66,31 +46,11 @@ import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { EQUIPMENT_NONE_ID } from "@/lib/firebase/collections";
 
 import { fetchWeatherForProject } from "@/lib/utils/weather";
-
-// ── Weather helpers ──
-const weatherIcons: Record<WeatherCondition, React.ElementType> = {
-  sunny: Sun,
-  "partly-cloudy": CloudSun,
-  cloudy: Cloud,
-  overcast: CloudOff,
-  rain: CloudRain,
-  snow: CloudSnow,
-  fog: CloudFog,
-  windy: Wind,
-  thunderstorm: CloudLightning,
-};
-
-const weatherLabels: Record<WeatherCondition, string> = {
-  sunny: "Sunny",
-  "partly-cloudy": "Partly Cloudy",
-  cloudy: "Cloudy",
-  overcast: "Overcast",
-  rain: "Rain",
-  snow: "Snow",
-  fog: "Fog",
-  windy: "Windy",
-  thunderstorm: "Thunderstorm",
-};
+import { weatherIcons, weatherLabels } from "@/lib/constants/weather";
+import { WorkTasksSection } from "@/components/daily-reports/shared/work-tasks-section";
+import { PhotosSection } from "@/components/daily-reports/shared/photos-section";
+import { StaffPickerSection } from "@/components/daily-reports/shared/staff-picker-section";
+import { EquipmentPickerSection } from "@/components/daily-reports/shared/equipment-picker-section";
 
 // ── Props ──
 interface DailyReportFormDialogProps {
@@ -138,10 +98,7 @@ export default function DailyReportFormDialog({
   const isDirty = JSON.stringify(form) !== JSON.stringify(report);
   const { confirmClose } = useUnsavedWarning(isDirty && open);
 
-  // Staff search
-  const [staffSearch, setStaffSearch] = React.useState("");
-  // Equipment search
-  const [equipSearch, setEquipSearch] = React.useState("");
+
 
   // Weather auto-fill
   const [weatherLoading, setWeatherLoading] = React.useState(false);
@@ -241,37 +198,7 @@ export default function DailyReportFormDialog({
   );
   const totalHours = matchedTimeEntries.reduce((sum, te) => sum + (te.hours || 0), 0);
 
-  const activeEmployees = React.useMemo(
-    () => employees.filter((e) => e.status === "active"),
-    [employees]
-  );
 
-  const filteredEmployees = React.useMemo(() => {
-    if (!staffSearch) return activeEmployees;
-    const q = staffSearch.toLowerCase();
-    return activeEmployees.filter((e) => e.name.toLowerCase().includes(q));
-  }, [activeEmployees, staffSearch]);
-
-  const activeEquipment = React.useMemo(
-    () => equipment.filter((e) => e.status !== "retired" && e.id !== EQUIPMENT_NONE_ID),
-    [equipment]
-  );
-
-  const filteredEquipment = React.useMemo(() => {
-    if (!equipSearch) return activeEquipment;
-    const q = equipSearch.toLowerCase();
-    return activeEquipment.filter(
-      (e) =>
-        e.name.toLowerCase().includes(q) ||
-        e.number.toLowerCase().includes(q) ||
-        e.category.toLowerCase().includes(q)
-    );
-  }, [activeEquipment, equipSearch]);
-
-  const totalPhotos =
-    (form.morningPhotoUrls?.length ?? 0) +
-    (form.workPhotoUrls?.length ?? 0) +
-    (form.endOfDayPhotoUrls?.length ?? 0);
 
   return (
     <Dialog
@@ -494,282 +421,46 @@ export default function DailyReportFormDialog({
             <Separator />
 
             {/* ─── Work Tasks ─── */}
-            <section>
-              <Label className="text-sm font-semibold text-foreground">
-                Work Tasks
-              </Label>
-              <div className="mt-2 space-y-1.5">
-                {workTasks.map((task, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-muted-foreground w-5 text-right shrink-0">
-                      {idx + 1}.
-                    </span>
-                    <Input
-                      value={task}
-                      onChange={(e) => {
-                        const next = [...workTasks];
-                        next[idx] = e.target.value;
-                        updateWorkTasks(next);
-                      }}
-                      placeholder={`Task ${idx + 1}…`}
-                      className="h-8 text-sm flex-1"
-                      disabled={isLocked}
-                    />
-                    {workTasks.length > 1 && !isLocked && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = workTasks.filter((_, i) => i !== idx);
-                          updateWorkTasks(next);
-                        }}
-                        className="text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {!isLocked && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs gap-1 cursor-pointer mt-1"
-                    onClick={() => updateWorkTasks([...workTasks, ""])}
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add Task
-                  </Button>
-                )}
-              </div>
-            </section>
+            <WorkTasksSection
+              tasks={workTasks}
+              onChange={updateWorkTasks}
+              disabled={isLocked}
+            />
 
             <Separator />
 
-            {/* ─── Site Photos (Morning / Work / End of Day) ─── */}
-            <section>
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
-                <Camera className="h-4 w-4 text-sky-500" />
-                Photos ({totalPhotos})
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-medium text-foreground">
-                    <Sunrise className="h-3.5 w-3.5 text-amber-500" />
-                    Morning ({form.morningPhotoUrls?.length ?? 0})
-                  </div>
-                  <PhotoUpload
-                    photos={form.morningPhotoUrls ?? []}
-                    onChange={(urls) => update("morningPhotoUrls", urls)}
-                    storagePath={`daily-reports/${form.id}/morning`}
-                    disabled={isLocked}
-                    maxPhotos={10}
-                  />
-                </div>
-                <div className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-medium text-foreground">
-                    <Hammer className="h-3.5 w-3.5 text-orange-500" />
-                    Work Hours ({form.workPhotoUrls?.length ?? 0})
-                  </div>
-                  <PhotoUpload
-                    photos={form.workPhotoUrls ?? []}
-                    onChange={(urls) => update("workPhotoUrls", urls)}
-                    storagePath={`daily-reports/${form.id}/work`}
-                    disabled={isLocked}
-                    maxPhotos={10}
-                  />
-                </div>
-                <div className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-medium text-foreground">
-                    <Moon className="h-3.5 w-3.5 text-indigo-500" />
-                    End of Day ({form.endOfDayPhotoUrls?.length ?? 0})
-                  </div>
-                  <PhotoUpload
-                    photos={form.endOfDayPhotoUrls ?? []}
-                    onChange={(urls) => update("endOfDayPhotoUrls", urls)}
-                    storagePath={`daily-reports/${form.id}/eod`}
-                    disabled={isLocked}
-                    maxPhotos={10}
-                  />
-                </div>
-              </div>
-            </section>
+            {/* ─── Site Photos ─── */}
+            <PhotosSection
+              reportId={form.id}
+              morningPhotos={form.morningPhotoUrls ?? []}
+              workPhotos={form.workPhotoUrls ?? []}
+              endOfDayPhotos={form.endOfDayPhotoUrls ?? []}
+              onMorningChange={(urls) => update("morningPhotoUrls", urls)}
+              onWorkChange={(urls) => update("workPhotoUrls", urls)}
+              onEndOfDayChange={(urls) => update("endOfDayPhotoUrls", urls)}
+              disabled={isLocked}
+              layout="grid"
+            />
 
             <Separator />
 
             {/* ─── On-site Staff ─── */}
-            <section>
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
-                <Users className="h-4 w-4 text-orange-500" />
-                On-site Staff ({(form.onSiteStaff ?? []).length})
-              </h3>
-
-              {/* Selected staff chips */}
-              {(form.onSiteStaff ?? []).length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {(form.onSiteStaff ?? []).map((empId) => {
-                    const emp = employees.find((e) => e.id === empId);
-                    return (
-                      <span
-                        key={empId}
-                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-1 text-xs font-medium"
-                      >
-                        {emp?.name ?? empId}
-                        {!isLocked && (
-                          <button
-                            type="button"
-                            onClick={() => toggleStaff(empId)}
-                            className="hover:text-destructive cursor-pointer"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Search + checkboxes */}
-              {!isLocked && (
-                <div className="relative">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      value={staffSearch}
-                      onChange={(e) => setStaffSearch(e.target.value)}
-                      placeholder="Search employees…"
-                      className="h-9 text-xs pl-8 rounded-lg focus-visible:ring-1"
-                    />
-                  </div>
-                  {staffSearch.trim().length > 0 && (
-                    <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg border bg-popover shadow-md">
-                      <div className="max-h-[180px] overflow-y-auto p-1.5 space-y-0.5">
-                        {filteredEmployees.map((emp) => {
-                          const checked = (form.onSiteStaff ?? []).includes(emp.id);
-                          return (
-                            <label
-                              key={emp.id}
-                              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-xs"
-                            >
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={() => { toggleStaff(emp.id); setStaffSearch(""); }}
-                                className="h-3.5 w-3.5"
-                              />
-                              <span className={checked ? "font-medium" : ""}>
-                                {emp.name}
-                              </span>
-                              {emp.role && (
-                                <span className="text-muted-foreground ml-auto">
-                                  {emp.role}
-                                </span>
-                              )}
-                            </label>
-                          );
-                        })}
-                        {filteredEmployees.length === 0 && (
-                          <p className="text-xs text-muted-foreground text-center py-3">
-                            No employees found
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
+            <StaffPickerSection
+              selected={form.onSiteStaff ?? []}
+              onToggle={toggleStaff}
+              employees={employees}
+              disabled={isLocked}
+            />
 
             <Separator />
 
             {/* ─── On-site Equipment ─── */}
-            <section>
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
-                <Wrench className="h-4 w-4 text-yellow-500" />
-                On-site Equipment ({(form.onSiteEquipment ?? []).length})
-              </h3>
-
-              {/* Selected equipment chips */}
-              {(form.onSiteEquipment ?? []).length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {(form.onSiteEquipment ?? []).map((eqId) => {
-                    const eq = equipment.find((e) => e.id === eqId);
-                    return (
-                      <span
-                        key={eqId}
-                        className="inline-flex items-center gap-1 rounded-full bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2.5 py-1 text-xs font-medium"
-                      >
-                        {eq?.name ?? eqId}
-                        {eq?.number && (
-                          <span className="opacity-60">#{eq.number}</span>
-                        )}
-                        {!isLocked && (
-                          <button
-                            type="button"
-                            onClick={() => toggleEquipment(eqId)}
-                            className="hover:text-destructive cursor-pointer"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Search + checkboxes */}
-              {!isLocked && (
-                <div className="relative">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      value={equipSearch}
-                      onChange={(e) => setEquipSearch(e.target.value)}
-                      placeholder="Search equipment…"
-                      className="h-9 text-xs pl-8 rounded-lg focus-visible:ring-1"
-                    />
-                  </div>
-                  {equipSearch.trim().length > 0 && (
-                    <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg border bg-popover shadow-md">
-                      <div className="max-h-[180px] overflow-y-auto p-1.5 space-y-0.5">
-                        {filteredEquipment.map((eq) => {
-                          const checked = (form.onSiteEquipment ?? []).includes(eq.id);
-                          return (
-                            <label
-                              key={eq.id}
-                              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer text-xs"
-                            >
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={() => { toggleEquipment(eq.id); setEquipSearch(""); }}
-                                className="h-3.5 w-3.5"
-                              />
-                              <span className={checked ? "font-medium" : ""}>
-                                {eq.name}
-                              </span>
-                              {eq.number && (
-                                <span className="text-muted-foreground">#{eq.number}</span>
-                              )}
-                              {eq.category && (
-                                <span className="text-muted-foreground ml-auto">
-                                  {eq.category}
-                                </span>
-                              )}
-                            </label>
-                          );
-                        })}
-                        {filteredEquipment.length === 0 && (
-                          <p className="text-xs text-muted-foreground text-center py-3">
-                            No equipment found
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
+            <EquipmentPickerSection
+              selected={form.onSiteEquipment ?? []}
+              onToggle={toggleEquipment}
+              equipment={equipment}
+              disabled={isLocked}
+            />
 
             <Separator />
 

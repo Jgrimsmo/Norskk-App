@@ -5,34 +5,18 @@ import { format, parseISO } from "date-fns";
 import {
   ArrowLeft,
   Cloud,
-  CloudRain,
-  CloudSnow,
-  CloudFog,
-  CloudLightning,
-  Sun,
-  Wind,
-  CloudSun,
-  CloudOff,
-  Camera,
-  Sunrise,
-  Hammer,
-  Moon,
-  Users,
-  X,
-  Search,
-  Plus,
   FileText,
   Clock,
   RefreshCw,
-  Wrench,
   CalendarIcon,
   Share2,
   Loader2,
+  Plus,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -51,7 +35,10 @@ import {
 } from "@/components/ui/popover";
 import type { DateRange } from "react-day-picker";
 
-import { PhotoUpload } from "@/components/shared/photo-upload";
+import { WorkTasksSection } from "@/components/daily-reports/shared/work-tasks-section";
+import { PhotosSection } from "@/components/daily-reports/shared/photos-section";
+import { StaffPickerSection } from "@/components/daily-reports/shared/staff-picker-section";
+import { EquipmentPickerSection } from "@/components/daily-reports/shared/equipment-picker-section";
 
 import type {
   DailyReport,
@@ -75,65 +62,9 @@ import { useSharePDF } from "@/hooks/use-share-pdf";
 import { generateDailyReportPDFBlobUrl } from "@/lib/export/react-pdf/daily-report";
 
 import { fetchWeatherForProject } from "@/lib/utils/weather";
-
-// ── Weather helpers ──
-const weatherIcons: Record<WeatherCondition, React.ElementType> = {
-  sunny: Sun,
-  "partly-cloudy": CloudSun,
-  cloudy: Cloud,
-  overcast: CloudOff,
-  rain: CloudRain,
-  snow: CloudSnow,
-  fog: CloudFog,
-  windy: Wind,
-  thunderstorm: CloudLightning,
-};
-
-const weatherLabels: Record<WeatherCondition, string> = {
-  sunny: "Sunny",
-  "partly-cloudy": "Partly Cloudy",
-  cloudy: "Cloudy",
-  overcast: "Overcast",
-  rain: "Rain",
-  snow: "Snow",
-  fog: "Fog",
-  windy: "Windy",
-  thunderstorm: "Thunderstorm",
-};
-
-function nextId(): string {
-  return `dr-${crypto.randomUUID().slice(0, 8)}`;
-}
-
-function createBlankReport(authorId: string): DailyReport {
-  const now = new Date();
-  return {
-    id: nextId(),
-    reportNumber: Math.floor(Math.random() * 9000) + 1000,
-    date: format(now, "yyyy-MM-dd"),
-    time: format(now, "HH:mm"),
-    projectId: "",
-    authorId,
-    weather: {
-      temperature: "",
-      conditions: [],
-      windSpeed: "",
-      precipitation: "",
-      groundConditions: "dry",
-      weatherDelay: false,
-      delayHours: 0,
-      notes: "",
-    },
-    workDescription: "",
-    morningPhotoUrls: [],
-    workPhotoUrls: [],
-    endOfDayPhotoUrls: [],
-    onSiteStaff: [],
-    onSiteEquipment: [],
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-}
+import { weatherIcons, weatherLabels } from "@/lib/constants/weather";
+import { createBlankReport } from "./field-daily-report-utils";
+import { DailyReportCard } from "./field-daily-report-card";
 
 // ────────────────────────────────────────────────────────
 // Field Daily Report — Mobile-friendly daily reports
@@ -157,7 +88,6 @@ export function FieldDailyReport() {
 
   const [mode, setMode] = React.useState<"list" | "edit">("list");
   const [activeReport, setActiveReport] = React.useState<DailyReport | null>(null);
-  const [staffSearch, setStaffSearch] = React.useState("");
 
   // List view tab & browse filters
   const [listTab, setListTab] = React.useState<"today" | "mine" | "browse">("today");
@@ -167,9 +97,6 @@ export function FieldDailyReport() {
   // Weather auto-fill
   const [weatherLoading, setWeatherLoading] = React.useState(false);
   const [weatherAutoFilled, setWeatherAutoFilled] = React.useState(false);
-
-  // Equipment search
-  const [equipSearch, setEquipSearch] = React.useState("");
 
   // Work tasks (stored as newline-separated workDescription)
   const [workTasks, setWorkTasks] = React.useState<string[]>([""]);
@@ -246,28 +173,6 @@ export function FieldDailyReport() {
     () => employees.filter((e) => e.status === "active"),
     [employees]
   );
-
-  const filteredEmployees = React.useMemo(() => {
-    if (!staffSearch) return activeEmployees;
-    const q = staffSearch.toLowerCase();
-    return activeEmployees.filter((e) => e.name.toLowerCase().includes(q));
-  }, [activeEmployees, staffSearch]);
-
-  const activeEquipment = React.useMemo(
-    () => equipment.filter((e) => e.status !== "retired" && e.id !== EQUIPMENT_NONE_ID),
-    [equipment]
-  );
-
-  const filteredEquipment = React.useMemo(() => {
-    if (!equipSearch) return activeEquipment;
-    const q = equipSearch.toLowerCase();
-    return activeEquipment.filter(
-      (e) =>
-        e.name.toLowerCase().includes(q) ||
-        e.number.toLowerCase().includes(q) ||
-        e.category.toLowerCase().includes(q)
-    );
-  }, [activeEquipment, equipSearch]);
 
   // Start a new report
   const handleNew = () => {
@@ -387,54 +292,19 @@ export function FieldDailyReport() {
 
   // ─── LIST VIEW ───
   if (mode === "list") {
-    // Reusable report card renderer
-    const renderReportCard = (r: DailyReport, showAuthor = false) => {
-      const proj = projects.find((p) => p.id === r.projectId);
-      const author = employees.find((e) => e.id === r.authorId);
-      const isOwn = r.authorId === employeeId;
-      return (
-        <div key={r.id} className="flex items-stretch gap-2">
-          <button
-            onClick={() => handleOpen(r)}
-            className={`flex-1 rounded-xl border shadow-sm p-4 text-left cursor-pointer transition-colors min-w-0 ${
-              isOwn
-                ? "bg-card hover:bg-muted/40 active:bg-muted/60"
-                : "bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
-            }`}
-          >
-            <div className="flex items-start justify-between mb-1">
-              <span className="text-sm font-semibold">
-                {proj ? proj.name : "No project"}
-              </span>
-              {isOwn && (
-                <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                  You
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {showAuthor && (author ? `${author.name} · ` : "")}
-              {format(parseISO(r.date), "MMM d, yyyy")}
-              {r.time && ` · ${r.time}`}
-              {r.onSiteStaff.length > 0 && ` · ${r.onSiteStaff.length} staff`}
-            </p>
-            {r.workDescription && (
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                {r.workDescription}
-              </p>
-            )}
-          </button>
-          <button
-            onClick={() => handleShareReport(r)}
-            disabled={sharing}
-            className="shrink-0 flex items-center justify-center w-10 rounded-xl border bg-card hover:bg-muted/50 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-            title="Share PDF"
-          >
-            {sharing ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Share2 className="h-4 w-4 text-muted-foreground" />}
-          </button>
-        </div>
-      );
-    };
+    const renderReportCard = (r: DailyReport, showAuthor = false) => (
+      <DailyReportCard
+        key={r.id}
+        report={r}
+        projects={projects}
+        employees={employees}
+        currentEmployeeId={employeeId}
+        showAuthor={showAuthor}
+        onOpen={handleOpen}
+        onShare={handleShareReport}
+        sharing={sharing}
+      />
+    );
 
     const tabs = [
       { id: "today" as const, label: "Today", count: todayReports.length },
@@ -753,277 +623,39 @@ export function FieldDailyReport() {
 
       <Separator />
 
-      {/* ─── Work Tasks ─── */}
-      <section>
-        <Label className="text-sm font-semibold">Work Tasks</Label>
-        <div className="mt-2 space-y-1.5">
-          {workTasks.map((task, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground w-5 text-right shrink-0">
-                {idx + 1}.
-              </span>
-              <Input
-                value={task}
-                onChange={(e) => {
-                  const next = [...workTasks];
-                  next[idx] = e.target.value;
-                  updateWorkTasks(next);
-                }}
-                placeholder={`Task ${idx + 1}…`}
-                className="h-10 text-sm flex-1"
-                disabled={isLocked}
-              />
-              {workTasks.length > 1 && !isLocked && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = workTasks.filter((_, i) => i !== idx);
-                    updateWorkTasks(next);
-                  }}
-                  className="text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          ))}
-          {!isLocked && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="text-xs gap-1 cursor-pointer mt-1"
-              onClick={() => updateWorkTasks([...workTasks, ""])}
-            >
-              <Plus className="h-3 w-3" />
-              Add Task
-            </Button>
-          )}
-        </div>
-      </section>
+      <WorkTasksSection tasks={workTasks} onChange={updateWorkTasks} disabled={isLocked} />
 
       <Separator />
 
-      {/* ─── Photos ─── */}
-      <section>
-        <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
-          <Camera className="h-4 w-4 text-sky-500" />
-          Photos ({totalPhotos})
-        </h3>
-        <div className="space-y-3">
-          <div className="rounded-lg border p-3 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-medium">
-              <Sunrise className="h-3.5 w-3.5 text-amber-500" />
-              Morning ({activeReport.morningPhotoUrls?.length ?? 0})
-            </div>
-            <PhotoUpload
-              photos={activeReport.morningPhotoUrls ?? []}
-              onChange={(urls) => update("morningPhotoUrls", urls)}
-              storagePath={`daily-reports/${activeReport.id}/morning`}
-              disabled={isLocked}
-              maxPhotos={10}
-            />
-          </div>
-          <div className="rounded-lg border p-3 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-medium">
-              <Hammer className="h-3.5 w-3.5 text-orange-500" />
-              Work Hours ({activeReport.workPhotoUrls?.length ?? 0})
-            </div>
-            <PhotoUpload
-              photos={activeReport.workPhotoUrls ?? []}
-              onChange={(urls) => update("workPhotoUrls", urls)}
-              storagePath={`daily-reports/${activeReport.id}/work`}
-              disabled={isLocked}
-              maxPhotos={10}
-            />
-          </div>
-          <div className="rounded-lg border p-3 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-medium">
-              <Moon className="h-3.5 w-3.5 text-indigo-500" />
-              End of Day ({activeReport.endOfDayPhotoUrls?.length ?? 0})
-            </div>
-            <PhotoUpload
-              photos={activeReport.endOfDayPhotoUrls ?? []}
-              onChange={(urls) => update("endOfDayPhotoUrls", urls)}
-              storagePath={`daily-reports/${activeReport.id}/eod`}
-              disabled={isLocked}
-              maxPhotos={10}
-            />
-          </div>
-        </div>
-      </section>
+      <PhotosSection
+        reportId={activeReport.id}
+        morningPhotos={activeReport.morningPhotoUrls ?? []}
+        workPhotos={activeReport.workPhotoUrls ?? []}
+        endOfDayPhotos={activeReport.endOfDayPhotoUrls ?? []}
+        onMorningChange={(urls) => update("morningPhotoUrls", urls)}
+        onWorkChange={(urls) => update("workPhotoUrls", urls)}
+        onEndOfDayChange={(urls) => update("endOfDayPhotoUrls", urls)}
+        layout="stack"
+        disabled={isLocked}
+      />
 
       <Separator />
 
-      {/* ─── On-site Staff ─── */}
-      <section>
-        <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
-          <Users className="h-4 w-4 text-orange-500" />
-          On-site Staff ({activeReport.onSiteStaff.length})
-        </h3>
-
-        {activeReport.onSiteStaff.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {activeReport.onSiteStaff.map((empId) => {
-              const emp = employees.find((e) => e.id === empId);
-              return (
-                <span
-                  key={empId}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-1 text-xs font-medium"
-                >
-                  {emp?.name ?? empId}
-                  {!isLocked && (
-                    <button
-                      type="button"
-                      onClick={() => toggleStaff(empId)}
-                      className="hover:text-destructive cursor-pointer"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        {!isLocked && (
-          <div className="relative">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={staffSearch}
-                onChange={(e) => setStaffSearch(e.target.value)}
-                placeholder="Search employees…"
-                className="h-10 text-sm pl-8 rounded-lg focus-visible:ring-1"
-              />
-            </div>
-            {staffSearch.trim().length > 0 && (
-              <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg border bg-popover shadow-md">
-                <div className="max-h-[200px] overflow-y-auto p-1.5 space-y-0.5">
-                  {filteredEmployees.map((emp) => {
-                    const checked = activeReport.onSiteStaff.includes(emp.id);
-                    return (
-                      <label
-                        key={emp.id}
-                        className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-muted/50 cursor-pointer text-sm"
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => { toggleStaff(emp.id); setStaffSearch(""); }}
-                          className="h-4 w-4"
-                        />
-                        <span className={checked ? "font-medium" : ""}>
-                          {emp.name}
-                        </span>
-                        {emp.role && (
-                          <span className="text-muted-foreground ml-auto text-xs">
-                            {emp.role}
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
-                  {filteredEmployees.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No employees found
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+      <StaffPickerSection
+        selected={activeReport.onSiteStaff}
+        onToggle={toggleStaff}
+        employees={employees}
+        disabled={isLocked}
+      />
 
       <Separator />
 
-      {/* ─── On-site Equipment ─── */}
-      <section>
-        <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
-          <Wrench className="h-4 w-4 text-yellow-500" />
-          On-site Equipment ({(activeReport.onSiteEquipment ?? []).length})
-        </h3>
-
-        {(activeReport.onSiteEquipment ?? []).length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {(activeReport.onSiteEquipment ?? []).map((eqId) => {
-              const eq = equipment.find((e) => e.id === eqId);
-              return (
-                <span
-                  key={eqId}
-                  className="inline-flex items-center gap-1 rounded-full bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2.5 py-1 text-xs font-medium"
-                >
-                  {eq?.name ?? eqId}
-                  {eq?.number && (
-                    <span className="opacity-60">#{eq.number}</span>
-                  )}
-                  {!isLocked && (
-                    <button
-                      type="button"
-                      onClick={() => toggleEquipment(eqId)}
-                      className="hover:text-destructive cursor-pointer"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        {!isLocked && (
-          <div className="relative">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={equipSearch}
-                onChange={(e) => setEquipSearch(e.target.value)}
-                placeholder="Search equipment…"
-                className="h-10 text-sm pl-8 rounded-lg focus-visible:ring-1"
-              />
-            </div>
-            {equipSearch.trim().length > 0 && (
-              <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg border bg-popover shadow-md">
-                <div className="max-h-[200px] overflow-y-auto p-1.5 space-y-0.5">
-                  {filteredEquipment.map((eq) => {
-                    const checked = (activeReport.onSiteEquipment ?? []).includes(eq.id);
-                    return (
-                      <label
-                        key={eq.id}
-                        className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-muted/50 cursor-pointer text-sm"
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => { toggleEquipment(eq.id); setEquipSearch(""); }}
-                          className="h-4 w-4"
-                        />
-                        <span className={checked ? "font-medium" : ""}>
-                          {eq.name}
-                        </span>
-                        {eq.number && (
-                          <span className="text-muted-foreground text-xs">#{eq.number}</span>
-                        )}
-                        {eq.category && (
-                          <span className="text-muted-foreground ml-auto text-xs">
-                            {eq.category}
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
-                  {filteredEquipment.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No equipment found
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+      <EquipmentPickerSection
+        selected={activeReport.onSiteEquipment ?? []}
+        onToggle={toggleEquipment}
+        equipment={equipment}
+        disabled={isLocked}
+      />
 
       <Separator />
 
