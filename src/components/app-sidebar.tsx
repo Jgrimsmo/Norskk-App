@@ -141,6 +141,7 @@ export function AppSidebar() {
               alt={companyName}
                 width={256}
                 height={64}
+              priority
               className="w-full max-h-16 shrink-0 rounded-lg object-contain group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:max-h-8 invert dark:invert-0"
             />
           ) : (

@@ -13,16 +13,25 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/employees/$(request.auth.uid));
     }
 
-    function role() {
-      return hasEmployee() ? lower(employeeDoc().data.role) : "";
-    }
-
     function isAdmin() {
-      return role() == "admin";
+      return hasEmployee() && (
+        employeeDoc().data.get("permissionLevel", "") in ["Admin", "admin"] ||
+        employeeDoc().data.get("role", "") in ["Admin", "admin"]
+      );
     }
 
     function isOpsManager() {
-      return role() in ["admin", "pm", "foreman"];
+      return hasEmployee() && (
+        employeeDoc().data.get("permissionLevel", "") in ["Admin", "admin", "PM", "pm", "Foreman", "foreman"] ||
+        employeeDoc().data.get("role", "") in ["Admin", "admin", "PM", "pm", "Foreman", "foreman"]
+      );
+    }
+
+    function isPM() {
+      return hasEmployee() && (
+        employeeDoc().data.get("permissionLevel", "") in ["PM", "pm"] ||
+        employeeDoc().data.get("role", "") in ["PM", "pm"]
+      );
     }
 
     function isSelf(uid) {
@@ -55,7 +64,7 @@ service cloud.firestore {
 
     match /companyProfile/{docId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || role() == "pm";
+      allow write: if isAdmin() || isPM();
     }
 
     match /projects/{docId} {
